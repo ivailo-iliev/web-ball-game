@@ -15,25 +15,10 @@ const cfg = {
   vMax: 180,
   spin: 25,
   burstN: 14,
-  // balloon colour ranges
-  brightMin: 0.9,   // 80 % – 120 % brightness
-  brightMax: 2,
-  satMin: 0.9,   // 80 % – 120 % saturation
-  satMax: 1.0,
-
-  // balloon speed (vertical, vh /s)
-  bVMin: 25,
-  bVMax: 60,
-
-
-  /* whack-a-mole */
-  moleGridCols: 5,
-  moleGridRows: 3,
-  moleUpV:      350,   // px / s up / down
-  moleStayMin:  1000,   // ms
-  moleStayMax:  3000,
-  moleCount:    12,     // concurrent moles
 };
+
+// keep the initial defaults so modes can override and restore them
+const baseCfg = { ...cfg };
 
 // DATA
 const EMOJIS =  ['🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉', '⭐', '🥳', '💎', '🍀', '🌸', '🍕', '🍔', '🍟', '🍦', '🍩', '🍪', '🍉', '🍓', '🍒', '🍇', '🧸', '🎁', '🎀', '🪁', '🪀', '🎨', '🎧', '🎮', '🏀', '⚾️', '🏈', '🎯', '🚁', '✈️', '🦄', '🐱', '🐶', '🐸', '🐥', '🐝', '🦋', '🌈', '🔥', '💖',  '🍭', '🍬', '🧁', '🎂', '🍰', '🥐', '🍌', '🍊', '🥝','🛼', '⛸️',  '🐰', '🐼', '🐨', '🐧', '🐿️', '🦊', '🐢', '🦖', '🐯', '🐮', '🐷',  '🐹', '🐭',  '💗', '💝', '😻', '💞',  '🪅',  '🍿', '🥤', '🧋',  '🌞', '🌺', '🌵',  '📸', '⌚', '🧸'];
@@ -44,6 +29,30 @@ const BALLOON = ['🎈'];
 const BALLOON_RARE = ['☁️', '🪁', '🦋','⚡','🪙','⭐','🍂'];
 const MOLE_ANIMALS = ['🐭','🐰'];
 const moleHoles = [];      // board cells
+
+/* ------ per-mode behaviour registry ------ */
+const ModeHandlers = {};
+// optional per-mode default overrides (count, speed, etc.)
+const ModeDefaults = {};
+ModeDefaults[MODES.EMOJI] = { count: 6 };
+ModeDefaults[MODES.FISH] = { count: 6, vMin: 80, vMax: 220 };
+ModeDefaults[MODES.BALLOONS] = {
+  count: 6,
+  brightMin: 0.9,
+  brightMax: 2,
+  satMin: 0.9,
+  satMax: 1.0,
+  bVMin: 25,
+  bVMax: 60,
+};
+ModeDefaults[MODES.MOLE] = {
+  count: 12,
+  moleGridCols: 5,
+  moleGridRows: 3,
+  moleUpV: 350,
+  moleStayMin: 1000,
+  moleStayMax: 3000,
+};
 
 const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
@@ -154,6 +163,7 @@ class Sprite {
     this.pop = 0;
     this.alive = true;
     this.angle = 0;
+    this.mode = currentMode;
 
     this.el = document.createElement('div');
     this.el.className = 'emoji';
@@ -178,185 +188,238 @@ class Sprite {
     this.el.style.lineHeight = `${size}px`;
     this.el.style.fontSize = `${size}px`;
 
-    /* BALLOON – give it a permanent tint ONCE */
-    if (cfg.mode === MODES.BALLOONS) {
-      const hue = Math.random() * 360;                    // 0–360°
-      const bri = between(cfg.brightMin, cfg.brightMax);  // 0.8–1.2
-      const sat = between(cfg.satMin, cfg.satMax);     // 0.8–1.2
-      // this.el.style.filter =
-     this.el.style.filter = 
-       `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
-    }
-
     gameContainer.appendChild(this.el);
     this.draw(); // initial position/size
   }
 
-  reset() {
-    const W = winW, H = winH;
-    this.r = between(cfg.rMin, cfg.rMax);
-    // update size on reset
-    const size = this.r * 2;
-    this.el.style.width = `${size}px`;
-    this.el.style.height = `${size}px`;
-    this.el.style.lineHeight = `${size}px`;
-    this.el.style.fontSize = `${size}px`;
-    if (cfg.mode === MODES.FISH) {
-      // spawn from left or right edge
-      const side = Math.random() < 0.5 ? 'left' : 'right';
-      // x just off-screen
-      x = side === 'left' ? -r : winW + r;
-      // y anywhere within vertical bounds
-      y = between(r, winH - r);
-
-      // horizontal velocity toward screen center
-      dx = (side === 'left' ? 1 : -1) * between(cfg.vMin, cfg.vMax);
-      // small vertical variance
-      dy = between(-20, 20);
-
-      // set face direction based on movement
-      face = dx > 0 ? 1 : -1;
-      // choose random fish sprite
-      e = FISH[Math.floor(rand(FISH.length))];
-      dir = -face;
-    } else {
-      this.x = between(this.r, W - this.r);
-      this.y = between(this.r, H - this.r);
-      const ang = rand(Math.PI * 2);
-      const v = between(cfg.vMin, cfg.vMax);
-      this.dx = Math.cos(ang) * v;
-      this.dy = Math.sin(ang) * v;
-    }
-    this.pop = 0;
-    this.alive = true;
-  }
-
   update(dt) {
-
-    
-    /* ------- Whack-a-Mole behaviour ------- */
-    if (cfg.mode === MODES.MOLE && this.phase) {
-      if (this.phase === 'up') {
-        this.y += this.dy * dt;
-        if (this.y <= this.r) {          // fully risen
-          this.y = this.r;
-          this.dy = 0;
-          this.phase = 'stay';
-       }
-      } else if (this.phase === 'stay') {
-        this.timer -= dt;
-        if (this.timer <= 0) {
-          this.phase = 'down';
-          this.dy    = cfg.moleUpV;
-        }
-     } else if (this.phase === 'down') {
-        this.y += this.dy * dt;
-        const h = this.el.parentElement.clientHeight;
-        if (this.y >= h + this.r) this.alive = false;
-      }
-      return;
-    }
-
-    if (!this.alive) return;
-
-    this.x += this.dx * dt;
-    this.y += this.dy * dt;
-
-    if (this.pop > 0) {
-      this.pop += dt;
-      if (cfg.mode === MODES.FISH) {
-        this.angle += dt * cfg.spin * this.dir;
-        this.dx *= 1.25;
-      }
-      if ((cfg.mode === MODES.EMOJI || cfg.mode === MODES.BALLOONS) && this.pop > 0.25) {
-        this.alive = false;
-      }
-    } else {
-      // wall bounces
-      const W = winW, H = winH;
-      if (cfg.mode === MODES.EMOJI) {
-        if ((this.x - this.r < 0 && this.dx < 0) || (this.x + this.r > W && this.dx > 0)) this.dx *= -1;
-        if ((this.y - this.r < 0 && this.dy < 0) || (this.y + this.r > H && this.dy > 0)) this.dy *= -1;
-      }
-      if (cfg.mode === MODES.FISH) {
-        if ((this.y - this.r < 0 && this.dy < 0) || (this.y + this.r > H && this.dy > 0)) this.dy *= -1;
-      }
-    }
-
-    // out‑of‑bounds kill
-    const W = winW, H = winH;
-    if (this.x < -this.r * 2 || this.x > W + this.r * 2 || this.y < -this.r * 2 || this.y > H + this.r * 2) {
-      this.alive = false;
-    }
+    if (this.mode && this.mode.update) this.mode.update(this, dt);
   }
 
   draw() {
-    if (!this.alive) return;
-
-        if (cfg.mode === MODES.MOLE && this.phase) {
-      this.el.style.setProperty('--x', `${this.x - this.r}px`);
-      this.el.style.setProperty('--y', `${this.y - this.r}px`);
-      this.el.style.setProperty('--rot', `0rad`);
-      this.el.style.setProperty('--sx', `1`);
-      this.el.style.setProperty('--sy', `1`);
-      return;
-    }
-    // this.el.style.border       = '1px dashed red';
-    // this.el.style.borderRadius = '50%';
-
-    // compute scale and rotation
-    let scale = 1;
-    if (cfg.mode === MODES.EMOJI && this.pop > 0) {
-      scale = Math.max(0.01, 1 - this.pop * 4);
-    }
-    const rotation = cfg.mode === MODES.FISH
-      ? this.angle
-      : Math.sin((this.x + this.y) * 0.03) * 0.10;
-    const flip = (cfg.mode === MODES.FISH && this.face > 0) ? -1 : 1;
-
-    // only update transform each frame
-    // Update only the CSS custom properties each frame:
-    this.el.style.setProperty('--x', `${this.x - this.r}px`);
-    this.el.style.setProperty('--y', `${this.y - this.r}px`);
-    this.el.style.setProperty('--rot', `${rotation}rad`);
-    this.el.style.setProperty('--sx', `${flip * scale}`);
-    this.el.style.setProperty('--sy', `${scale}`);
+    if (this.mode && this.mode.draw) this.mode.draw(this);
   }
 
   doHit() {
-    this.pop = 0.01;
-
-        /* Whack-a-Mole hit */
-    if (cfg.mode === MODES.MOLE && this.phase && this.phase !== 'down') {
-      const game = gameContainer.getBoundingClientRect();
-      const hole = this.el.parentElement.getBoundingClientRect();
-      const gx   = this.x + hole.left - game.left;
-      const gy   = this.y + hole.top  - game.top;
-      burst(gx, gy, ['💫']);           // vertigo stars
-      this.phase = 'down';
-      this.dy    = cfg.moleUpV;
-      this.timer = 0;                  // ⬅ cancel any remaining stay time
-      return;
-    }
+    if (this.mode && this.mode.hit) this.mode.hit(this);
   }
 
   contains(px, py) {
-      /* When the sprite is sitting in a mole-hole its own (x, y)
-     are relative to that hole, but the click we receive is
-     relative to the whole game container.  Re-map once: */
-  if (cfg.mode === MODES.MOLE) {
-    const game = gameContainer.getBoundingClientRect();
-    const hole = this.el.parentElement.getBoundingClientRect();
-    px -= hole.left - game.left;
-    py -= hole.top  - game.top;
-  }
-    return (px - this.x) ** 2 + (py - this.y) ** 2 <= this.r ** 2;
+    if (this.mode && this.mode.contains) return this.mode.contains(this, px, py);
+    return false;
   }
 }
 
+/* ---------- Mode behaviour implementations ---------- */
+ModeHandlers[MODES.EMOJI] = {
+  spawn() {
+    const r = between(cfg.rMin, cfg.rMax);
+    const e = EMOJIS[Math.floor(rand(EMOJIS.length))];
+    const x = between(r, winW - r);
+    const y = between(r, winH - r);
+    const ang = rand(Math.PI * 2);
+    const v = between(cfg.vMin, cfg.vMax);
+    const dx = Math.cos(ang) * v;
+    const dy = Math.sin(ang) * v;
+    sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
+  },
+  update(s, dt) {
+    if (!s.alive) return;
+    s.x += s.dx * dt;
+    s.y += s.dy * dt;
+    if (s.pop > 0) {
+      s.pop += dt;
+      if (s.pop > 0.25) s.alive = false;
+    } else {
+      const W = winW, H = winH;
+      if ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0)) s.dx *= -1;
+      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
+    }
+    const W = winW, H = winH;
+    if (s.x < -s.r * 2 || s.x > W + s.r * 2 || s.y < -s.r * 2 || s.y > H + s.r * 2) s.alive = false;
+  },
+  draw(s) {
+    if (!s.alive) return;
+    let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
+    const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
+    s.el.style.setProperty('--x', `${s.x - s.r}px`);
+    s.el.style.setProperty('--y', `${s.y - s.r}px`);
+    s.el.style.setProperty('--rot', `${rot}rad`);
+    s.el.style.setProperty('--sx', `${scale}`);
+    s.el.style.setProperty('--sy', `${scale}`);
+  },
+  hit(s) {
+    s.pop = 0.01;
+    burst(s.x, s.y);
+  },
+  contains(s, px, py) { return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2; }
+};
+
+ModeHandlers[MODES.FISH] = {
+  spawn() {
+    const r = between(cfg.rMin, cfg.rMax);
+    const face = Math.random() < 0.5 ? 1 : -1;
+    const x = face === 1 ? -r : winW + r;
+    const y = between(r, winH - r);
+    const dx = face * between(cfg.vMin, cfg.vMax);
+    const dy = between(-20, 20);
+    const e = FISH[Math.floor(rand(FISH.length))];
+    const dir = -face;
+    sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
+  },
+  update(s, dt) {
+    if (!s.alive) return;
+    s.x += s.dx * dt;
+    s.y += s.dy * dt;
+    if (s.pop > 0) {
+      s.pop += dt;
+      s.angle += dt * cfg.spin * s.dir;
+      s.dx *= 1.25;
+    } else {
+      const H = winH;
+      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
+    }
+    const W = winW, H = winH;
+    if (s.x < -s.r * 2 || s.x > W + s.r * 2 || s.y < -s.r * 2 || s.y > H + s.r * 2) s.alive = false;
+  },
+  draw(s) {
+    if (!s.alive) return;
+    const rot = s.angle;
+    const flip = s.face > 0 ? -1 : 1;
+    s.el.style.setProperty('--x', `${s.x - s.r}px`);
+    s.el.style.setProperty('--y', `${s.y - s.r}px`);
+    s.el.style.setProperty('--rot', `${rot}rad`);
+    s.el.style.setProperty('--sx', `${flip}`);
+    s.el.style.setProperty('--sy', `1`);
+  },
+  hit(s) {
+    s.pop = 0.01;
+    burst(s.x, s.y, BUBBLE);
+  },
+  contains(s, px, py) { return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2; }
+};
+
+ModeHandlers[MODES.BALLOONS] = {
+  spawn() {
+    const r = between(cfg.rMin, cfg.rMax);
+    const face = -1;
+    const rare = Math.random() < 0.05;
+    const e = rare ? BALLOON_RARE[Math.floor(rand(BALLOON_RARE.length))] : BALLOON[0];
+    const x = between(r, winW - r);
+    const y = winH + r;
+    const dx = between(-20, 20);
+    const dy = -between(cfg.bVMin, cfg.bVMax);
+    const s = new Sprite({ x, y, dx, dy, r, e, face, dir:1 });
+    const hue = Math.random() * 360;
+    const bri = between(cfg.brightMin, cfg.brightMax);
+    const sat = between(cfg.satMin, cfg.satMax);
+    s.el.style.filter = `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
+    sprites.push(s);
+  },
+  update(s, dt) {
+    if (!s.alive) return;
+    s.x += s.dx * dt;
+    s.y += s.dy * dt;
+    if (s.pop > 0) {
+      s.pop += dt;
+      if (s.pop > 0.25) s.alive = false;
+    }
+    const W = winW, H = winH;
+    if (s.x < -s.r * 2 || s.x > W + s.r * 2 || s.y < -s.r * 2 || s.y > H + s.r * 2) s.alive = false;
+  },
+  draw(s) {
+    if (!s.alive) return;
+    let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
+    const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
+    s.el.style.setProperty('--x', `${s.x - s.r}px`);
+    s.el.style.setProperty('--y', `${s.y - s.r}px`);
+    s.el.style.setProperty('--rot', `${rot}rad`);
+    s.el.style.setProperty('--sx', `${scale}`);
+    s.el.style.setProperty('--sy', `${scale}`);
+  },
+  hit(s) {
+    s.pop = 0.01;
+    burst(s.x, s.y);
+  },
+  contains(s, px, py) { return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2; }
+};
+
+ModeHandlers[MODES.MOLE] = {
+  spawn() {
+    if (sprites.length >= cfg.count) return;
+    const hole = moleHoles[Math.floor(rand(moleHoles.length))];
+    const rect = hole.getBoundingClientRect();
+    const r = Math.min(rect.width, rect.height) * 0.40;
+    const x = rect.width * 0.5;
+    const y = rect.height + r;
+    const dx = 0;
+    const dy = -cfg.moleUpV;
+    const e = MOLE_ANIMALS[Math.floor(rand(MOLE_ANIMALS.length))];
+    const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
+    s.phase = 'up';
+    s.timer = between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
+    s.el.remove();
+    hole.appendChild(s.el);
+    sprites.push(s);
+  },
+  update(s, dt) {
+    if (s.phase) {
+      if (s.phase === 'up') {
+        s.y += s.dy * dt;
+        if (s.y <= s.r) { s.y = s.r; s.dy = 0; s.phase = 'stay'; }
+      } else if (s.phase === 'stay') {
+        s.timer -= dt;
+        if (s.timer <= 0) { s.phase = 'down'; s.dy = cfg.moleUpV; }
+      } else if (s.phase === 'down') {
+        s.y += s.dy * dt;
+        const h = s.el.parentElement.clientHeight;
+        if (s.y >= h + s.r) s.alive = false;
+      }
+      return;
+    }
+  },
+  draw(s) {
+    if (!s.alive) return;
+    s.el.style.setProperty('--x', `${s.x - s.r}px`);
+    s.el.style.setProperty('--y', `${s.y - s.r}px`);
+    s.el.style.setProperty('--rot', `0rad`);
+    s.el.style.setProperty('--sx', `1`);
+    s.el.style.setProperty('--sy', `1`);
+  },
+  hit(s) {
+    s.pop = 0.01;
+    if (s.phase && s.phase !== 'down') {
+      const game = gameContainer.getBoundingClientRect();
+      const hole = s.el.parentElement.getBoundingClientRect();
+      const gx = s.x + hole.left - game.left;
+      const gy = s.y + hole.top - game.top;
+      burst(gx, gy, ['💫']);
+      s.phase = 'down';
+      s.dy = cfg.moleUpV;
+      s.timer = 0;
+    }
+  },
+  contains(s, px, py) {
+    const game = gameContainer.getBoundingClientRect();
+    const hole = s.el.parentElement.getBoundingClientRect();
+    px -= hole.left - game.left;
+    py -= hole.top - game.top;
+    return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
+  },
+  setup() {
+    buildMoleBoard();
+  },
+  cleanup() {
+    document.querySelectorAll('.moleHole').forEach(h => h.remove());
+    gameContainer.style.display = 'block';
+  }
+};
+
+let currentMode = ModeHandlers[cfg.mode];
+
 // COLLISION RESOLUTION (Emoji mode)
 function resolveCollisions() {
-  if (cfg.mode !== MODES.EMOJI) return;
+  if (currentMode !== ModeHandlers[MODES.EMOJI]) return;
   for (let i = 0; i < sprites.length; i++) {
     const a = sprites[i];
     if (!a.alive) continue;
@@ -388,93 +451,22 @@ function resolveCollisions() {
 const sprites = [];
 const parts = [];
 let pending = 0;              // scheduled but not yet realised spawns
+const timers = [];            // active spawn timers
 
 const DELAY = 3000;            // ms – max random delay per spawn
 
 function scheduleSpawn() {
   pending++;
-  setTimeout(() => {
+  const id = setTimeout(() => {
+    timers.splice(timers.indexOf(id), 1);
     spawn();
     pending--;
   }, rand(DELAY));
+  timers.push(id);
 }
 // SPAWN & BURST
 function spawn() {
-  const r = between(cfg.rMin, cfg.rMax);
-  let x, y, dx, dy, e, face = 1, dir = 1;
-
-  if (cfg.mode === MODES.FISH) {
-    // decide entry side & direction: face=1 → move right; face=-1 → move left
-    face = Math.random() < 0.5 ? 1 : -1;
-
-    // spawn just off-screen on that side
-    x = face === 1
-      ? -r               // left edge
-      : winW + r;  // right edge
-
-    // random vertical spawn anywhere in view
-    y = between(r, winH - r);
-
-    // horizontal speed toward the opposite side
-    dx = face * between(cfg.vMin, cfg.vMax);
-
-    // optional vertical “wobble” as before
-    dy = between(-20, 20);
-
-    e = FISH[Math.floor(rand(FISH.length))];
-    dir = -face;
-  } else if (cfg.mode === MODES.BALLOONS) {
-    // vertical float: bottom → top
-    face = -1;                                    // direction multiplier (-y)
-    const rare = Math.random() < 0.05;            // 5 % chance of rare object
-    e = rare ? BALLOON_RARE[Math.floor(rand(BALLOON_RARE.length))]
-      : BALLOON[0];
-
-    // horizontal start anywhere, just off the bottom edge
-    x = between(r, winW - r);
-    y = winH + r;
-
-    // vertical speed (negative => upward), small sideways drift
-    dx = between(-20, 20);
-    dy = -between(cfg.bVMin, cfg.bVMax);
-
-    dir = 1;  // not used by balloons but keeps struct intact
-  } 
-     else if (cfg.mode === MODES.MOLE) {
-    if (sprites.length >= cfg.moleCount) return;   // limit concurrent moles
-
-    const hole = moleHoles[Math.floor(rand(moleHoles.length))];
- const rect = hole.getBoundingClientRect();
- const r    = Math.min(rect.width, rect.height) * 0.40; // ⬅ 45 % of cell
-
- x = rect.width  * 0.5;        // centre horizontally
- y = rect.height + r;          // hide just below the hole, will rise up
-    dx = 0;
-    dy = -cfg.moleUpV;
-    e  = MOLE_ANIMALS[Math.floor(rand(MOLE_ANIMALS.length))];
-
-    const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
-    s.phase = 'up';
-    s.timer = between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
-
-    /* move sprite inside its hole for overflow-cropping */
-    s.el.remove();
-    hole.appendChild(s.el);
-
-    sprites.push(s);
-    return;
-  }
-  else {
-    e = EMOJIS[Math.floor(rand(EMOJIS.length))];
-    x = between(r, winW - r);
-    y = between(r, winH - r);
-    const ang = rand(Math.PI * 2);
-    const v = between(cfg.vMin, cfg.vMax);
-    dx = Math.cos(ang) * v;
-    dy = Math.sin(ang) * v;
-  }
-
-  sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
+  if (currentMode && currentMode.spawn) currentMode.spawn();
 }
 
 // Create a hidden template for bursts
@@ -577,11 +569,7 @@ function doHit(px, py, team) {
       scores[team] += calculatePoints(s);
       updateScore();
 
-      if (cfg.mode === MODES.EMOJI || cfg.mode === MODES.BALLOONS) {
-        burst(s.x, s.y); // normal emoji burst
-      } else if (cfg.mode === MODES.FISH) {
-        burst(s.x, s.y, BUBBLE); // fish bubble burst
-      }
+      // each mode handles its own burst effects
       break;
     }
   }
@@ -618,19 +606,20 @@ requestAnimationFrame(loop);
 
 // MODE TOGGLE
 function setMode(m) {
+  if (currentMode && currentMode.cleanup) currentMode.cleanup();
+
+  // restore defaults then apply per-mode overrides
+  Object.assign(cfg, baseCfg, ModeDefaults[m] || {});
   cfg.mode = m;
-  // clear existing sprites
+  currentMode = ModeHandlers[m];
+
   sprites.forEach(s => s.el.remove());
   sprites.length = 0;
+  timers.forEach(clearTimeout);
+  timers.length = 0;
   pending = 0;
 
-  /* remove old mole board */
-  document.querySelectorAll('.moleHole').forEach(h => h.remove());
-  gameContainer.style.display = 'block';
+  if (currentMode && currentMode.setup) currentMode.setup();
 
-  if (m === MODES.MOLE) {
-    cfg.count = cfg.moleCount;
-    buildMoleBoard();
-  }
   for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 }
