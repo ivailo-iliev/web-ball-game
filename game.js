@@ -70,6 +70,56 @@ const moleHoles = [];      // board cells
 /* ------ per-mode behaviour registry ------ */
 const ModeHandlers = {};
 
+/* -----------------------------------------------------------
+ * Base class for all game modes. Handles common sprite logic
+ * like movement, generic boundary checks and collision hooks.
+ * Individual games override the relevant methods.
+ * --------------------------------------------------------- */
+class GameMode {
+  spawn() {}
+
+  /** update sprite position */
+  updateSpriteMovement(s, dt) {
+    s.x += s.dx * dt;
+    s.y += s.dy * dt;
+  }
+
+  /** remove sprites that move far off screen */
+  checkOffscreen(s) {
+    const W = winW, H = winH;
+    if (
+      s.x < -s.r * 2 ||
+      s.x > W + s.r * 2 ||
+      s.y < -s.r * 2 ||
+      s.y > H + s.r * 2
+    ) {
+      s.alive = false;
+    }
+  }
+
+  /** per-frame update */
+  update(s, dt) {
+    if (!s.alive) return;
+    this.updateSpriteMovement(s, dt);
+    this.checkOffscreen(s);
+  }
+
+  /** draw sprite. subclasses typically override */
+  draw(_s) {}
+
+  /** default hit behaviour */
+  hit(s) { s.pop = 0.01; }
+
+  contains(s, px, py) {
+    return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
+  }
+
+  /* optional hooks */
+  resolveCollisions() {}
+  setup() {}
+  cleanup() {}
+}
+
 const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
 Object.assign(gameContainer.style, {
@@ -276,7 +326,7 @@ class Sprite {
 }
 
 /* ---------- Mode behaviour implementations ---------- */
-ModeHandlers[MODES.EMOJI] = {
+class EmojiGame extends GameMode {
   spawn() {
     const r = between(cfg.rMin, cfg.rMax);
     const e = cfg.emojis[Math.floor(rand(cfg.emojis.length))];
@@ -287,11 +337,9 @@ ModeHandlers[MODES.EMOJI] = {
     const dx = Math.cos(ang) * v;
     const dy = Math.sin(ang) * v;
     sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
-  },
+  }
   update(s, dt) {
-    if (!s.alive) return;
-    s.x += s.dx * dt;
-    s.y += s.dy * dt;
+    this.updateSpriteMovement(s, dt);
     if (s.pop > 0) {
       s.pop += dt;
       if (s.pop > 0.25) s.alive = false;
@@ -300,9 +348,8 @@ ModeHandlers[MODES.EMOJI] = {
       if ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0)) s.dx *= -1;
       if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
     }
-    const W = winW, H = winH;
-    if (s.x < -s.r * 2 || s.x > W + s.r * 2 || s.y < -s.r * 2 || s.y > H + s.r * 2) s.alive = false;
-  },
+    this.checkOffscreen(s);
+  }
   draw(s) {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
@@ -312,12 +359,38 @@ ModeHandlers[MODES.EMOJI] = {
     s.el.style.setProperty('--rot', `${rot}rad`);
     s.el.style.setProperty('--sx', `${scale}`);
     s.el.style.setProperty('--sy', `${scale}`);
-  },
-  hit(s) { s.pop = 0.01; },
-  contains(s, px, py) { return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2; }
-};
+  }
+  resolveCollisions() {
+    for (let i = 0; i < sprites.length; i++) {
+      const a = sprites[i];
+      if (!a.alive) continue;
+      for (let j = i + 1; j < sprites.length; j++) {
+        const b = sprites[j];
+        if (!b.alive) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy), min = a.r + b.r;
+        if (dist === 0 || dist >= min) continue;
+        const nx = dx / dist, ny = dy / dist;
+        const overlap = min - dist;
+        const tot = a.mass + b.mass;
+        a.x -= nx * overlap * (b.mass / tot);
+        a.y -= ny * overlap * (b.mass / tot);
+        b.x += nx * overlap * (a.mass / tot);
+        b.y += ny * overlap * (a.mass / tot);
+        const rvx = b.dx - a.dx, rvy = b.dy - a.dy;
+        const rel = rvx * nx + rvy * ny;
+        if (rel > 0) continue;
+        const impulse = -(1 + 1) * rel / (1 / a.mass + 1 / b.mass);
+        const ix = impulse * nx, iy = impulse * ny;
+        a.dx -= ix / a.mass; a.dy -= iy / a.mass;
+        b.dx += ix / b.mass; b.dy += iy / b.mass;
+      }
+    }
+  }
+}
+ModeHandlers[MODES.EMOJI] = new EmojiGame();
 
-ModeHandlers[MODES.FISH] = {
+class FishGame extends GameMode {
   spawn() {
     const r = between(cfg.rMin, cfg.rMax);
     const face = Math.random() < 0.5 ? 1 : -1;
@@ -328,11 +401,9 @@ ModeHandlers[MODES.FISH] = {
     const e = cfg.fish[Math.floor(rand(cfg.fish.length))];
     const dir = -face;
     sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
-  },
+  }
   update(s, dt) {
-    if (!s.alive) return;
-    s.x += s.dx * dt;
-    s.y += s.dy * dt;
+    this.updateSpriteMovement(s, dt);
     if (s.pop > 0) {
       s.pop += dt;
       s.angle += dt * cfg.spin * s.dir;
@@ -341,9 +412,8 @@ ModeHandlers[MODES.FISH] = {
       const H = winH;
       if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
     }
-    const W = winW, H = winH;
-    if (s.x < -s.r * 2 || s.x > W + s.r * 2 || s.y < -s.r * 2 || s.y > H + s.r * 2) s.alive = false;
-  },
+    this.checkOffscreen(s);
+  }
   draw(s) {
     if (!s.alive) return;
     const rot = s.angle;
@@ -353,12 +423,11 @@ ModeHandlers[MODES.FISH] = {
     s.el.style.setProperty('--rot', `${rot}rad`);
     s.el.style.setProperty('--sx', `${flip}`);
     s.el.style.setProperty('--sy', `1`);
-  },
-  hit(s) { s.pop = 0.01; },
-  contains(s, px, py) { return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2; }
-};
+  }
+}
+ModeHandlers[MODES.FISH] = new FishGame();
 
-ModeHandlers[MODES.BALLOONS] = {
+class BalloonGame extends GameMode {
   spawn() {
     const r = between(cfg.rMin, cfg.rMax);
     const face = -1;
@@ -371,18 +440,15 @@ ModeHandlers[MODES.BALLOONS] = {
     const dx = between(-20, 20);
     const dy = -between(cfg.bVMin, cfg.bVMax);
     sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir:1 }));
-  },
+  }
   update(s, dt) {
-    if (!s.alive) return;
-    s.x += s.dx * dt;
-    s.y += s.dy * dt;
+    this.updateSpriteMovement(s, dt);
     if (s.pop > 0) {
       s.pop += dt;
       if (s.pop > 0.25) s.alive = false;
     }
-    const W = winW, H = winH;
-    if (s.x < -s.r * 2 || s.x > W + s.r * 2 || s.y < -s.r * 2 || s.y > H + s.r * 2) s.alive = false;
-  },
+    this.checkOffscreen(s);
+  }
   draw(s) {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
@@ -392,12 +458,11 @@ ModeHandlers[MODES.BALLOONS] = {
     s.el.style.setProperty('--rot', `${rot}rad`);
     s.el.style.setProperty('--sx', `${scale}`);
     s.el.style.setProperty('--sy', `${scale}`);
-  },
-  hit(s) { s.pop = 0.01; },
-  contains(s, px, py) { return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2; }
-};
+  }
+}
+ModeHandlers[MODES.BALLOONS] = new BalloonGame();
 
-ModeHandlers[MODES.MOLE] = {
+class MoleGame extends GameMode {
   spawn() {
     if (sprites.length >= cfg.moleCount) return;
     const hole = moleHoles[Math.floor(rand(moleHoles.length))];
@@ -414,7 +479,7 @@ ModeHandlers[MODES.MOLE] = {
     s.el.remove();
     hole.appendChild(s.el);
     sprites.push(s);
-  },
+  }
   update(s, dt) {
     if (s.phase) {
       if (s.phase === 'up') {
@@ -430,7 +495,7 @@ ModeHandlers[MODES.MOLE] = {
       }
       return;
     }
-  },
+  }
   draw(s) {
     if (!s.alive) return;
     s.el.style.setProperty('--x', `${s.x - s.r}px`);
@@ -438,7 +503,7 @@ ModeHandlers[MODES.MOLE] = {
     s.el.style.setProperty('--rot', `0rad`);
     s.el.style.setProperty('--sx', `1`);
     s.el.style.setProperty('--sy', `1`);
-  },
+  }
   hit(s) {
     s.pop = 0.01;
     if (s.phase && s.phase !== 'down') {
@@ -451,55 +516,26 @@ ModeHandlers[MODES.MOLE] = {
       s.dy = cfg.moleUpV;
       s.timer = 0;
     }
-  },
+  }
   contains(s, px, py) {
     const game = gameContainer.getBoundingClientRect();
     const hole = s.el.parentElement.getBoundingClientRect();
     px -= hole.left - game.left;
     py -= hole.top - game.top;
     return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
-  },
+  }
   setup() {
     cfg.count = cfg.moleCount;
     buildMoleBoard();
-  },
+  }
   cleanup() {
     document.querySelectorAll('.moleHole').forEach(h => h.remove());
     gameContainer.style.display = 'block';
   }
-};
+}
+ModeHandlers[MODES.MOLE] = new MoleGame();
 
 let currentMode = ModeHandlers[cfg.mode];
-
-// COLLISION RESOLUTION (Emoji mode)
-function resolveCollisions() {
-  if (currentMode !== ModeHandlers[MODES.EMOJI]) return;
-  for (let i = 0; i < sprites.length; i++) {
-    const a = sprites[i];
-    if (!a.alive) continue;
-    for (let j = i + 1; j < sprites.length; j++) {
-      const b = sprites[j];
-      if (!b.alive) continue;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.hypot(dx, dy), min = a.r + b.r;
-      if (dist === 0 || dist >= min) continue;
-      const nx = dx / dist, ny = dy / dist;
-      const overlap = min - dist;
-      const tot = a.mass + b.mass;
-      a.x -= nx * overlap * (b.mass / tot);
-      a.y -= ny * overlap * (b.mass / tot);
-      b.x += nx * overlap * (a.mass / tot);
-      b.y += ny * overlap * (a.mass / tot);
-      const rvx = b.dx - a.dx, rvy = b.dy - a.dy;
-      const rel = rvx * nx + rvy * ny;
-      if (rel > 0) continue;
-      const impulse = -(1 + 1) * rel / (1 / a.mass + 1 / b.mass);
-      const ix = impulse * nx, iy = impulse * ny;
-      a.dx -= ix / a.mass; a.dy -= iy / a.mass;
-      b.dx += ix / b.mass; b.dy += iy / b.mass;
-    }
-  }
-}
 
 // GAME STATE
 const sprites = [];
@@ -649,7 +685,7 @@ function loop(now) {
 
   sprites.forEach(s => s.update(dt));
   parts.forEach(p => p.update(dt));
-  resolveCollisions();
+  if (currentMode && currentMode.resolveCollisions) currentMode.resolveCollisions();
   maintain();
   sprites.forEach(s => s.draw());
   parts.forEach(p => p.draw());
