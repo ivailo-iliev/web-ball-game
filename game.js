@@ -1,10 +1,10 @@
 // CONFIG
 /* -------- GAME MODES (added MOLE) -------- */
 const MODES = {
-  FISH:     'fish',
-  EMOJI:    'emoji',
-  BALLOONS: 'balloons',
-  MOLE:     'mole'           // 🆕 whack-a-mole
+  FISH: "fish",
+  EMOJI: "emoji",
+  BALLOONS: "balloons",
+  MOLE: "mole", // 🆕 whack-a-mole
 };
 
 // ----- Global defaults -----
@@ -24,56 +24,161 @@ const globalCfg = {
 const gameCfgs = {
   [MODES.EMOJI]: {
     emojis: [
-      '🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉','⭐','🥳','💎',
-      '🍀','🌸','🍕','🍔','🍟','🍦','🍩','🍪','🍉','🍓','🍒','🍇','🧸','🎁','🎀','🪁',
-      '🪀','🎨','🎧','🎮','🏀','⚾️','🏈','🎯','🚁','✈️','🦄','🐱','🐶','🐸','🐥','🐝','🦋',
-      '🌈','🔥','💖','🍭','🍬','🧁','🎂','🍰','🥐','🍌','🍊','🥝','🛼','⛸️','🐰','🐼','🐨',
-      '🐧','🐿️','🦊','🐢','🦖','🐯','🐮','🐷','🐹','🐭','💗','💝','😻','💞','🪅','🍿','🥤',
-      '🧋','🌞','🌺','🌵','📸','⌚','🧸'
-    ]
+      "🕶️",
+      "🤖",
+      "🥨",
+      "🦥",
+      "🌻",
+      "🪙",
+      "🥇",
+      "🏆",
+      "🎒",
+      "",
+      "",
+      "",
+      "🎉",
+      "⭐",
+      "🥳",
+      "💎",
+      "🍀",
+      "🌸",
+      "🍕",
+      "🍔",
+      "🍟",
+      "🍦",
+      "🍩",
+      "🍪",
+      "🍉",
+      "🍓",
+      "🍒",
+      "🍇",
+      "🧸",
+      "🎁",
+      "🎀",
+      "🪁",
+      "🪀",
+      "🎨",
+      "🎧",
+      "🎮",
+      "🏀",
+      "⚾️",
+      "🏈",
+      "🎯",
+      "🚁",
+      "✈️",
+      "🦄",
+      "🐱",
+      "🐶",
+      "🐸",
+      "🐥",
+      "🐝",
+      "🦋",
+      "🌈",
+      "🔥",
+      "💖",
+      "🍭",
+      "🍬",
+      "🧁",
+      "🎂",
+      "🍰",
+      "🥐",
+      "🍌",
+      "🍊",
+      "🥝",
+      "🛼",
+      "⛸️",
+      "🐰",
+      "🐼",
+      "🐨",
+      "🐧",
+      "🐿️",
+      "🦊",
+      "🐢",
+      "🦖",
+      "🐯",
+      "🐮",
+      "🐷",
+      "🐹",
+      "🐭",
+      "💗",
+      "💝",
+      "😻",
+      "💞",
+      "🪅",
+      "🍿",
+      "🥤",
+      "🧋",
+      "🌞",
+      "🌺",
+      "🌵",
+      "📸",
+      "⌚",
+      "🧸",
+    ],
   },
   [MODES.FISH]: {
-    fish: ['🐳','🐋','🐬','🦭','🐟','🐠','🦈','🐙','🪼','🦀','🦞','🦐'],
-    bubble: ['🫧']
+    fish: [
+      "🐳",
+      "🐋",
+      "🐬",
+      "🦭",
+      "🐟",
+      "🐠",
+      "🦈",
+      "🐙",
+      "🪼",
+      "🦀",
+      "🦞",
+      "🦐",
+    ],
+    bubble: ["🫧"],
   },
   [MODES.BALLOONS]: {
-    brightMin: 0.9,   // 80 % – 120 % brightness
+    brightMin: 0.9, // 80 % – 120 % brightness
     brightMax: 2,
-    satMin: 0.9,      // 80 % – 120 % saturation
+    satMin: 0.9, // 80 % – 120 % saturation
     satMax: 1.0,
-    bVMin: 25,        // balloon speed (vertical, vh /s)
+    bVMin: 25, // balloon speed (vertical, vh /s)
     bVMax: 60,
-    balloons: ['🎈'],
-    balloonRare: ['☁️','🪁','🦋','⚡','🪙','⭐','🍂']
+    balloons: ["🎈"],
+    balloonRare: ["☁️", "🪁", "🦋", "⚡", "🪙", "⭐", "🍂"],
   },
   [MODES.MOLE]: {
     moleGridCols: 5,
     moleGridRows: 3,
-    moleUpV:      350,   // px / s up / down
-    moleStayMin:  1000,  // ms
-    moleStayMax:  3000,
-    moleCount:    12,    // concurrent moles
-    animals: ['🐭','🐰']
-  }
+    moleUpV: 350, // px / s up / down
+    moleStayMin: 1000, // ms
+    moleStayMax: 3000,
+    moleCount: 12, // concurrent moles
+    animals: ["🐭", "🐰"],
+  },
 };
 
 function buildCfg(mode) {
   return Object.assign({}, globalCfg, gameCfgs[mode] || {}, { mode });
 }
 
-let cfg = buildCfg(globalCfg.mode);
+const Game = {
+  cfg: buildCfg(globalCfg.mode),
+  state: {
+    sprites: [],
+    parts: [],
+    pending: 0,
+    scores: { teamA: 0, teamB: 0 },
+  },
+  modes: {},
+  currentMode: null,
+};
 
 // DATA
-const BURST   = ['✨', '💥', '💫'];
-const moleHoles = [];      // board cells
+const BURST = ["✨", "💥", "💫"];
+const moleHoles = []; // board cells
 
 /* ------ per-mode behaviour registry ------ */
-const ModeHandlers = {};
 function registerMode(name, handler) {
-  ModeHandlers[name] = handler;
+  Game.modes[name] = handler;
   return handler;
 }
-
 
 /* -----------------------------------------------------------
  * Base class for all game modes. Handles common sprite logic
@@ -100,7 +205,8 @@ class GameMode {
 
   /** remove sprites that move far off screen */
   checkOffscreen(s) {
-    const W = winW, H = winH;
+    const W = winW,
+      H = winH;
     if (
       s.x < -s.r * 2 ||
       s.x > W + s.r * 2 ||
@@ -122,7 +228,9 @@ class GameMode {
   draw(_s) {}
 
   /** default hit behaviour */
-  hit(s) { s.pop = 0.01; }
+  hit(s) {
+    s.pop = 0.01;
+  }
 
   contains(s, px, py) {
     return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
@@ -134,87 +242,96 @@ class GameMode {
   cleanup() {}
 }
 
-const gameContainer = document.createElement('div');
-gameContainer.id = 'game';
+const gameContainer = document.createElement("div");
+gameContainer.id = "game";
 Object.assign(gameContainer.style, {
-  position: 'relative',
-  width: '100vw',
-  height: '100vh',
-  overflow: 'hidden',
-  margin: '0',
-  padding: '0',
+  position: "relative",
+  width: "100vw",
+  height: "100vh",
+  overflow: "hidden",
+  margin: "0",
+  padding: "0",
 });
 
-document.getElementById('gameScreen').appendChild(gameContainer);
+document.getElementById("gameScreen").appendChild(gameContainer);
 let winW = window.visualViewport.width || window.innerWidth;
 let winH = window.visualViewport.height || window.innerHeight;
 
-window.addEventListener('resize', () => {
- winW = window.visualViewport.width || window.innerWidth;
- winH = window.visualViewport.height || window.innerHeight;
+window.addEventListener("resize", () => {
+  winW = window.visualViewport.width || window.innerWidth;
+  winH = window.visualViewport.height || window.innerHeight;
 });
 
-window.addEventListener('orientationchange', () => {
- winW = window.visualViewport.width || window.innerWidth;
- winH = window.visualViewport.height || window.innerHeight;
+window.addEventListener("orientationchange", () => {
+  winW = window.visualViewport.width || window.innerWidth;
+  winH = window.visualViewport.height || window.innerHeight;
 });
-
 
 /* -------- Whack-a-Mole board builder -------- */
-function buildMoleBoard () {
+function buildMoleBoard() {
   moleHoles.length = 0;
 
-  gameContainer.style.display             = 'grid';
-  gameContainer.style.gridTemplateColumns = `repeat(${cfg.moleGridCols},1fr)`;
-  gameContainer.style.gridTemplateRows    = `repeat(${cfg.moleGridRows},1fr)`;
+  gameContainer.style.display = "grid";
+  gameContainer.style.gridTemplateColumns = `repeat(${Game.cfg.moleGridCols},1fr)`;
+  gameContainer.style.gridTemplateRows = `repeat(${Game.cfg.moleGridRows},1fr)`;
 
-  const total = cfg.moleGridCols * cfg.moleGridRows;
+  const total = Game.cfg.moleGridCols * Game.cfg.moleGridRows;
   for (let i = 0; i < total; ++i) {
-    const cell = document.createElement('div');
-    cell.className = 'moleHole';
+    const cell = document.createElement("div");
+    cell.className = "moleHole";
     Object.assign(cell.style, {
-      position:       'relative',
-      overflow:       'hidden',     /* crops the mole sprite */
-      display:        'flex',
-      alignItems:     'flex-end',
-      justifyContent: 'center',
-      pointerEvents:  'none'
-   });
-    const hole = document.createElement('div');
-    hole.textContent = '🕳️';
-    hole.style.fontSize = '30vh';
-    hole.style.lineHeight = '27vh';
-    hole.style.pointerEvents = 'none';
+      position: "relative",
+      overflow: "hidden" /* crops the mole sprite */,
+      display: "flex",
+      alignItems: "flex-end",
+      justifyContent: "center",
+      pointerEvents: "none",
+    });
+    const hole = document.createElement("div");
+    hole.textContent = "🕳️";
+    hole.style.fontSize = "30vh";
+    hole.style.lineHeight = "27vh";
+    hole.style.pointerEvents = "none";
     cell.appendChild(hole);
     gameContainer.appendChild(cell);
     moleHoles.push(cell);
   }
 }
 // Utilities
-const rand = n => Math.random() * n;
+const rand = (n) => Math.random() * n;
 const between = (a, b) => a + rand(b - a);
+
+function applyVars(el, vars) {
+  for (const [k, v] of Object.entries(vars)) {
+    el.style.setProperty(k, v);
+  }
+}
 
 // PARTICLE CLASS (DOM version)
 class Particle {
   constructor(x, y, dx, dy, e) {
-    this.x = x; this.y = y;
-    this.dx = dx; this.dy = dy;
-    this.e = e; this.t = 0;
+    this.x = x;
+    this.y = y;
+    this.dx = dx;
+    this.dy = dy;
+    this.e = e;
+    this.t = 0;
 
-    this.el = document.createElement('div');
-    this.el.className = 'particle';
+    this.el = document.createElement("div");
+    this.el.className = "particle";
     this.el.textContent = e;
     Object.assign(this.el.style, {
-      position: 'absolute',
-      willChange: 'transform, opacity',
-      fontFamily: 'sans-serif',
-      fontSize: '24px',
-      textAlign: 'center',
-      lineHeight: '1',
-      pointerEvents: 'none',
-      userSelect: 'none',
-      transformOrigin: 'center',
+      position: "absolute",
+      willChange: "transform, opacity",
+      fontFamily: "sans-serif",
+      fontSize: "24px",
+      textAlign: "center",
+      lineHeight: "1",
+      pointerEvents: "auto",
+      userSelect: "none",
+      transformOrigin: "center",
     });
+    this.el.__sprite = this;
     gameContainer.appendChild(this.el);
   }
 
@@ -225,8 +342,8 @@ class Particle {
   }
 
   draw() {
-    if (this.t > cfg.particleLife) return;
-    const alpha = 1 - this.t / cfg.particleLife;
+    if (this.t > Game.cfg.particleLife) return;
+    const alpha = 1 - this.t / Game.cfg.particleLife;
     this.el.style.opacity = alpha;
     this.el.style.transform = `translate3d(${this.x}px,${this.y}px,0)`;
   }
@@ -235,31 +352,35 @@ class Particle {
 // SPRITE CLASS (DOM version)
 class Sprite {
   constructor({ x, y, dx, dy, r, e, face, dir }) {
-    this.x = x; this.y = y;
-    this.dx = dx; this.dy = dy;
-    this.r = r; this.e = e;
-    this.face = face; this.dir = dir;
+    this.x = x;
+    this.y = y;
+    this.dx = dx;
+    this.dy = dy;
+    this.r = r;
+    this.e = e;
+    this.face = face;
+    this.dir = dir;
     this.mass = r * r;
     this.pop = 0;
     this.alive = true;
     this.angle = 0;
-    this.mode = currentMode;
+    this.mode = Game.currentMode;
 
-    this.el = document.createElement('div');
-    this.el.className = 'emoji';
+    this.el = document.createElement("div");
+    this.el.className = "emoji";
     this.el.textContent = e;
     Object.assign(this.el.style, {
-      position: 'absolute',
-      willChange: 'transform, opacity',
-      fontFamily: 'sans-serif',
-      textAlign: 'center',
-      lineHeight: '1',
-      pointerEvents: 'none',
-      userSelect: 'none',
-      transformOrigin: 'center',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
+      position: "absolute",
+      willChange: "transform, opacity",
+      fontFamily: "sans-serif",
+      textAlign: "center",
+      lineHeight: "1",
+      pointerEvents: "none",
+      userSelect: "none",
+      transformOrigin: "center",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
     });
     // set constant size once
     const size = this.r * 2;
@@ -269,13 +390,12 @@ class Sprite {
     this.el.style.fontSize = `${size}px`;
 
     /* BALLOON – give it a permanent tint ONCE */
-    if (this.mode === ModeHandlers[MODES.BALLOONS]) {
-      const hue = Math.random() * 360;                    // 0–360°
-      const bri = between(cfg.brightMin, cfg.brightMax);  // 0.8–1.2
-      const sat = between(cfg.satMin, cfg.satMax);     // 0.8–1.2
+    if (this.mode === Game.modes[MODES.BALLOONS]) {
+      const hue = Math.random() * 360; // 0–360°
+      const bri = between(Game.cfg.brightMin, Game.cfg.brightMax); // 0.8–1.2
+      const sat = between(Game.cfg.satMin, Game.cfg.satMax); // 0.8–1.2
       // this.el.style.filter =
-     this.el.style.filter = 
-       `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
+      this.el.style.filter = `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
     }
 
     gameContainer.appendChild(this.el);
@@ -283,37 +403,38 @@ class Sprite {
   }
 
   reset() {
-    const W = winW, H = winH;
-    this.r = between(cfg.rMin, cfg.rMax);
+    const W = winW,
+      H = winH;
+    this.r = between(Game.cfg.rMin, Game.cfg.rMax);
     // update size on reset
     const size = this.r * 2;
     this.el.style.width = `${size}px`;
     this.el.style.height = `${size}px`;
     this.el.style.lineHeight = `${size}px`;
     this.el.style.fontSize = `${size}px`;
-    if (this.mode === ModeHandlers[MODES.FISH]) {
+    if (this.mode === Game.modes[MODES.FISH]) {
       // spawn from left or right edge
-      const side = Math.random() < 0.5 ? 'left' : 'right';
+      const side = Math.random() < 0.5 ? "left" : "right";
       // x just off-screen
-      x = side === 'left' ? -r : winW + r;
+      x = side === "left" ? -r : winW + r;
       // y anywhere within vertical bounds
       y = between(r, winH - r);
 
       // horizontal velocity toward screen center
-      dx = (side === 'left' ? 1 : -1) * between(cfg.vMin, cfg.vMax);
+      dx = (side === "left" ? 1 : -1) * between(Game.cfg.vMin, Game.cfg.vMax);
       // small vertical variance
       dy = between(-20, 20);
 
       // set face direction based on movement
       face = dx > 0 ? 1 : -1;
       // choose random fish sprite
-      e = cfg.fish[Math.floor(rand(cfg.fish.length))];
+      e = Game.cfg.fish[Math.floor(rand(Game.cfg.fish.length))];
       dir = -face;
     } else {
       this.x = between(this.r, W - this.r);
       this.y = between(this.r, H - this.r);
       const ang = rand(Math.PI * 2);
-      const v = between(cfg.vMin, cfg.vMax);
+      const v = between(Game.cfg.vMin, Game.cfg.vMax);
       this.dx = Math.cos(ang) * v;
       this.dy = Math.sin(ang) * v;
     }
@@ -334,7 +455,8 @@ class Sprite {
   }
 
   contains(px, py) {
-    if (this.mode && this.mode.contains) return this.mode.contains(this, px, py);
+    if (this.mode && this.mode.contains)
+      return this.mode.contains(this, px, py);
     return false;
   }
 }
@@ -342,15 +464,17 @@ class Sprite {
 /* ---------- Mode behaviour implementations ---------- */
 class EmojiGame extends GameMode {
   spawn() {
-    const r = between(cfg.rMin, cfg.rMax);
-    const e = cfg.emojis[Math.floor(rand(cfg.emojis.length))];
+    const r = between(Game.cfg.rMin, Game.cfg.rMax);
+    const e = Game.cfg.emojis[Math.floor(rand(Game.cfg.emojis.length))];
     const x = between(r, winW - r);
     const y = between(r, winH - r);
     const ang = rand(Math.PI * 2);
-    const v = between(cfg.vMin, cfg.vMax);
+    const v = between(Game.cfg.vMin, Game.cfg.vMax);
     const dx = Math.cos(ang) * v;
     const dy = Math.sin(ang) * v;
-    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
+    Game.state.sprites.push(
+      new Sprite({ x, y, dx, dy, r, e, face: 1, dir: 1 }),
+    );
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
@@ -358,46 +482,58 @@ class EmojiGame extends GameMode {
       s.pop += dt;
       if (s.pop > 0.25) s.alive = false;
     } else {
-      const W = winW, H = winH;
-      if ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0)) s.dx *= -1;
-      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
+      const W = winW,
+        H = winH;
+      if ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0))
+        s.dx *= -1;
+      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0))
+        s.dy *= -1;
     }
     this.checkOffscreen(s);
   }
   draw(s) {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
-    const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `${rot}rad`);
-    s.el.style.setProperty('--sx', `${scale}`);
-    s.el.style.setProperty('--sy', `${scale}`);
+    const rot = Math.sin((s.x + s.y) * 0.03) * 0.1;
+    applyVars(s.el, {
+      "--x": `${s.x - s.r}px`,
+      "--y": `${s.y - s.r}px`,
+      "--rot": `${rot}rad`,
+      "--sx": `${scale}`,
+      "--sy": `${scale}`,
+    });
   }
   resolveCollisions() {
-    for (let i = 0; i < state.sprites.length; i++) {
-      const a = state.sprites[i];
+    for (let i = 0; i < Game.state.sprites.length; i++) {
+      const a = Game.state.sprites[i];
       if (!a.alive) continue;
-      for (let j = i + 1; j < state.sprites.length; j++) {
-        const b = state.sprites[j];
+      for (let j = i + 1; j < Game.state.sprites.length; j++) {
+        const b = Game.state.sprites[j];
         if (!b.alive) continue;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy), min = a.r + b.r;
+        const dx = b.x - a.x,
+          dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy),
+          min = a.r + b.r;
         if (dist === 0 || dist >= min) continue;
-        const nx = dx / dist, ny = dy / dist;
+        const nx = dx / dist,
+          ny = dy / dist;
         const overlap = min - dist;
         const tot = a.mass + b.mass;
         a.x -= nx * overlap * (b.mass / tot);
         a.y -= ny * overlap * (b.mass / tot);
         b.x += nx * overlap * (a.mass / tot);
         b.y += ny * overlap * (a.mass / tot);
-        const rvx = b.dx - a.dx, rvy = b.dy - a.dy;
+        const rvx = b.dx - a.dx,
+          rvy = b.dy - a.dy;
         const rel = rvx * nx + rvy * ny;
         if (rel > 0) continue;
-        const impulse = -(1 + 1) * rel / (1 / a.mass + 1 / b.mass);
-        const ix = impulse * nx, iy = impulse * ny;
-        a.dx -= ix / a.mass; a.dy -= iy / a.mass;
-        b.dx += ix / b.mass; b.dy += iy / b.mass;
+        const impulse = (-(1 + 1) * rel) / (1 / a.mass + 1 / b.mass);
+        const ix = impulse * nx,
+          iy = impulse * ny;
+        a.dx -= ix / a.mass;
+        a.dy -= iy / a.mass;
+        b.dx += ix / b.mass;
+        b.dy += iy / b.mass;
       }
     }
   }
@@ -406,25 +542,26 @@ registerMode(MODES.EMOJI, new EmojiGame());
 
 class FishGame extends GameMode {
   spawn() {
-    const r = between(cfg.rMin, cfg.rMax);
+    const r = between(Game.cfg.rMin, Game.cfg.rMax);
     const face = Math.random() < 0.5 ? 1 : -1;
     const x = face === 1 ? -r : winW + r;
     const y = between(r, winH - r);
-    const dx = face * between(cfg.vMin, cfg.vMax);
+    const dx = face * between(Game.cfg.vMin, Game.cfg.vMax);
     const dy = between(-20, 20);
-    const e = cfg.fish[Math.floor(rand(cfg.fish.length))];
+    const e = Game.cfg.fish[Math.floor(rand(Game.cfg.fish.length))];
     const dir = -face;
-    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
+    Game.state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
     if (s.pop > 0) {
       s.pop += dt;
-      s.angle += dt * cfg.spin * s.dir;
+      s.angle += dt * Game.cfg.spin * s.dir;
       s.dx *= 1.25;
     } else {
       const H = winH;
-      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
+      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0))
+        s.dy *= -1;
     }
     this.checkOffscreen(s);
   }
@@ -432,28 +569,30 @@ class FishGame extends GameMode {
     if (!s.alive) return;
     const rot = s.angle;
     const flip = s.face > 0 ? -1 : 1;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `${rot}rad`);
-    s.el.style.setProperty('--sx', `${flip}`);
-    s.el.style.setProperty('--sy', `1`);
+    applyVars(s.el, {
+      "--x": `${s.x - s.r}px`,
+      "--y": `${s.y - s.r}px`,
+      "--rot": `${rot}rad`,
+      "--sx": `${flip}`,
+      "--sy": `1`,
+    });
   }
 }
 registerMode(MODES.FISH, new FishGame());
 
 class BalloonGame extends GameMode {
   spawn() {
-    const r = between(cfg.rMin, cfg.rMax);
+    const r = between(Game.cfg.rMin, Game.cfg.rMax);
     const face = -1;
     const rare = Math.random() < 0.05;
     const e = rare
-      ? cfg.balloonRare[Math.floor(rand(cfg.balloonRare.length))]
-      : cfg.balloons[0];
+      ? Game.cfg.balloonRare[Math.floor(rand(Game.cfg.balloonRare.length))]
+      : Game.cfg.balloons[0];
     const x = between(r, winW - r);
     const y = winH + r;
     const dx = between(-20, 20);
-    const dy = -between(cfg.bVMin, cfg.bVMax);
-    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir:1 }));
+    const dy = -between(Game.cfg.bVMin, Game.cfg.bVMax);
+    Game.state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir: 1 }));
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
@@ -466,43 +605,52 @@ class BalloonGame extends GameMode {
   draw(s) {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
-    const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `${rot}rad`);
-    s.el.style.setProperty('--sx', `${scale}`);
-    s.el.style.setProperty('--sy', `${scale}`);
+    const rot = Math.sin((s.x + s.y) * 0.03) * 0.1;
+    applyVars(s.el, {
+      "--x": `${s.x - s.r}px`,
+      "--y": `${s.y - s.r}px`,
+      "--rot": `${rot}rad`,
+      "--sx": `${scale}`,
+      "--sy": `${scale}`,
+    });
   }
 }
 registerMode(MODES.BALLOONS, new BalloonGame());
 
 class MoleGame extends GameMode {
   spawn() {
-    if (state.sprites.length >= cfg.moleCount) return;
+    if (Game.state.sprites.length >= Game.cfg.moleCount) return;
     const hole = moleHoles[Math.floor(rand(moleHoles.length))];
     const rect = hole.getBoundingClientRect();
-    const r = Math.min(rect.width, rect.height) * 0.40;
+    const r = Math.min(rect.width, rect.height) * 0.4;
     const x = rect.width * 0.5;
     const y = rect.height + r;
     const dx = 0;
-    const dy = -cfg.moleUpV;
-    const e = cfg.animals[Math.floor(rand(cfg.animals.length))];
-    const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
-    s.phase = 'up';
-    s.timer = between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
+    const dy = -Game.cfg.moleUpV;
+    const e = Game.cfg.animals[Math.floor(rand(Game.cfg.animals.length))];
+    const s = new Sprite({ x, y, dx, dy, r, e, face: 1, dir: 1 });
+    s.phase = "up";
+    s.timer = between(Game.cfg.moleStayMin, Game.cfg.moleStayMax) / 1000;
     s.el.remove();
     hole.appendChild(s.el);
-    state.sprites.push(s);
+    Game.state.sprites.push(s);
   }
   update(s, dt) {
     if (s.phase) {
-      if (s.phase === 'up') {
+      if (s.phase === "up") {
         s.y += s.dy * dt;
-        if (s.y <= s.r) { s.y = s.r; s.dy = 0; s.phase = 'stay'; }
-      } else if (s.phase === 'stay') {
+        if (s.y <= s.r) {
+          s.y = s.r;
+          s.dy = 0;
+          s.phase = "stay";
+        }
+      } else if (s.phase === "stay") {
         s.timer -= dt;
-        if (s.timer <= 0) { s.phase = 'down'; s.dy = cfg.moleUpV; }
-      } else if (s.phase === 'down') {
+        if (s.timer <= 0) {
+          s.phase = "down";
+          s.dy = Game.cfg.moleUpV;
+        }
+      } else if (s.phase === "down") {
         s.y += s.dy * dt;
         const h = s.el.parentElement.clientHeight;
         if (s.y >= h + s.r) s.alive = false;
@@ -512,22 +660,24 @@ class MoleGame extends GameMode {
   }
   draw(s) {
     if (!s.alive) return;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `0rad`);
-    s.el.style.setProperty('--sx', `1`);
-    s.el.style.setProperty('--sy', `1`);
+    applyVars(s.el, {
+      "--x": `${s.x - s.r}px`,
+      "--y": `${s.y - s.r}px`,
+      "--rot": `0rad`,
+      "--sx": `1`,
+      "--sy": `1`,
+    });
   }
   hit(s) {
     s.pop = 0.01;
-    if (s.phase && s.phase !== 'down') {
+    if (s.phase && s.phase !== "down") {
       const game = gameContainer.getBoundingClientRect();
       const hole = s.el.parentElement.getBoundingClientRect();
       const gx = s.x + hole.left - game.left;
       const gy = s.y + hole.top - game.top;
-      burst(gx, gy, ['💫']);
-      s.phase = 'down';
-      s.dy = cfg.moleUpV;
+      burst(gx, gy, ["💫"]);
+      s.phase = "down";
+      s.dy = Game.cfg.moleUpV;
       s.timer = 0;
     }
   }
@@ -539,49 +689,43 @@ class MoleGame extends GameMode {
     return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
   }
   setup() {
-    cfg.count = cfg.moleCount;
+    Game.cfg.count = Game.cfg.moleCount;
     buildMoleBoard();
   }
   cleanup() {
-    document.querySelectorAll('.moleHole').forEach(h => h.remove());
-    gameContainer.style.display = 'block';
+    document.querySelectorAll(".moleHole").forEach((h) => h.remove());
+    gameContainer.style.display = "block";
   }
 }
 registerMode(MODES.MOLE, new MoleGame());
 
-let currentMode = ModeHandlers[cfg.mode];
+Game.currentMode = Game.modes[Game.cfg.mode];
 
 // ---------- Runtime State ----------
-const state = {
-  sprites: [],
-  parts: [],
-  pending: 0,      // scheduled but not yet realised spawns
-  scores: { teamA: 0, teamB: 0 }
-};
 
-const DELAY = 3000;            // ms – max random delay per spawn
+const DELAY = 3000; // ms – max random delay per spawn
 
 function scheduleSpawn() {
-  state.pending++;
+  Game.state.pending++;
   setTimeout(() => {
     spawn();
-    state.pending--;
+    Game.state.pending--;
   }, rand(DELAY));
 }
 // SPAWN & BURST
 function spawn() {
-  if (currentMode && currentMode.spawn) currentMode.spawn();
+  if (Game.currentMode && Game.currentMode.spawn) Game.currentMode.spawn();
 }
 
 // Create a hidden template for bursts
-const burstTemplate = document.createElement('div');
-burstTemplate.className = 'burst';
-burstTemplate.style.display = 'none';
+const burstTemplate = document.createElement("div");
+burstTemplate.className = "burst";
+burstTemplate.style.display = "none";
 gameContainer.appendChild(burstTemplate);
 
 // Flexible burst helper – defaults to EMOJI burst list, can be overridden
 function burst(x, y, emojiArr = BURST) {
-  for (let i = 0; i < cfg.burstN; i++) {
+  for (let i = 0; i < Game.cfg.burstN; i++) {
     const ang = rand(Math.PI * 2);
     const sp = 150 + rand(150);
     const dxp = Math.cos(ang) * sp;
@@ -589,7 +733,7 @@ function burst(x, y, emojiArr = BURST) {
 
     // clone the hidden burst template
     const b = burstTemplate.cloneNode(true);
-    b.style.display = 'block';
+    b.style.display = "block";
     b.textContent = emojiArr[Math.floor(rand(emojiArr.length))];
 
     // position at impact point
@@ -597,103 +741,117 @@ function burst(x, y, emojiArr = BURST) {
     b.style.top = `${y}px`;
 
     // pass velocity via CSS vars
-    b.style.setProperty('--dx', `${dxp}px`);
-    b.style.setProperty('--dy', `${dyp}px`);
+    b.style.setProperty("--dx", `${dxp}px`);
+    b.style.setProperty("--dy", `${dyp}px`);
 
     gameContainer.appendChild(b);
     // auto-cleanup after animation
-    b.addEventListener('animationend', () => b.remove(), { once: true });
+    b.addEventListener("animationend", () => b.remove(), { once: true });
   }
 }
 
 // ripple effect element
-const ripple = document.createElement('div');
-ripple.classList.add('ripple');
+const ripple = document.createElement("div");
+ripple.classList.add("ripple");
 gameContainer.appendChild(ripple);
 
 // MAINTAIN
 function maintain() {
   // remove dead sprites
-  for (let i = state.sprites.length - 1; i >= 0; i--) {
-    if (!state.sprites[i].alive) {
-      state.sprites[i].el.remove();
-      state.sprites.splice(i, 1);
+  for (let i = Game.state.sprites.length - 1; i >= 0; i--) {
+    if (!Game.state.sprites[i].alive) {
+      Game.state.sprites[i].el.remove();
+      Game.state.sprites.splice(i, 1);
     }
   }
   // ensure count
-  while (state.sprites.length + state.pending < cfg.count) scheduleSpawn();
+  while (Game.state.sprites.length + Game.state.pending < Game.cfg.count)
+    scheduleSpawn();
 
   // remove old particles
-  for (let i = state.parts.length - 1; i >= 0; i--) {
-    if (state.parts[i].t > cfg.particleLife) {
-      state.parts[i].el.remove();
-      state.parts.splice(i, 1);
+  for (let i = Game.state.parts.length - 1; i >= 0; i--) {
+    if (Game.state.parts[i].t > Game.cfg.particleLife) {
+      Game.state.parts[i].el.remove();
+      Game.state.parts.splice(i, 1);
     }
   }
 }
 
 // INITIAL SPAWN
-for (let i = 0; i < cfg.count; i++) scheduleSpawn();
+for (let i = 0; i < Game.cfg.count; i++) scheduleSpawn();
 
 // ----- Score & Hit Logic -----
 
-const as = document.getElementById('teamAScore');
-const bs = document.getElementById('teamBScore');
+const as = document.getElementById("teamAScore");
+const bs = document.getElementById("teamBScore");
 as.className = params.teamA;
 bs.className = params.teamB;
 updateScore();
 
 function updateScore() {
-  as.textContent = `${state.scores.teamA}`;
-  bs.textContent = `${state.scores.teamB}`;
+  as.textContent = `${Game.state.scores.teamA}`;
+  bs.textContent = `${Game.state.scores.teamB}`;
 }
 
 function calculatePoints(sprite) {
   // Smaller & faster ⇒ larger score; Bigger & slower ⇒ smaller score
   const speed = Math.hypot(sprite.dx, sprite.dy);
-  const sizeRatio = cfg.rMax / sprite.r;    // ≤ 1 for biggest, ≥ 1 for smallest
-  const speedRatio = speed / cfg.vMax;       // 0 … 1
+  const sizeRatio = Game.cfg.rMax / sprite.r; // ≤ 1 for biggest, ≥ 1 for smallest
+  const speedRatio = speed / Game.cfg.vMax; // 0 … 1
   // scale – tweak 400 to taste
   return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
 }
 
-function doHit(px, py, team) {
+function doHit(px, py, team, sprite = null) {
   // move the single ripple element
   ripple.style.left = `${px}px`;
-  ripple.style.top  = `${py}px`;
+  ripple.style.top = `${py}px`;
   // restart the animation
-  ripple.classList.remove('animate');
-  void ripple.offsetWidth;          // force reflow
-  ripple.classList.add('animate');
-
-  for (const s of state.sprites) {
-    if (s.alive && s.contains(px, py) && s.pop === 0) {
-      s.doHit();
-
-      // points depend on sprite size & speed
-      state.scores[team] += calculatePoints(s);
-      updateScore();
-
-      if (currentMode === ModeHandlers[MODES.EMOJI] || currentMode === ModeHandlers[MODES.BALLOONS]) {
-        burst(s.x, s.y); // normal emoji burst
-      } else if (currentMode === ModeHandlers[MODES.FISH]) {
-        burst(s.x, s.y, cfg.bubble); // fish bubble burst
+  ripple.classList.remove("animate");
+  void ripple.offsetWidth; // force reflow
+  ripple.classList.add("animate");
+  if (!sprite) {
+    for (const s of Game.state.sprites) {
+      if (s.alive && s.contains(px, py) && s.pop === 0) {
+        sprite = s;
+        break;
       }
-      break;
+    }
+  }
+  if (sprite && sprite.pop === 0) {
+    sprite.doHit();
+
+    // points depend on sprite size & speed
+    Game.state.scores[team] += calculatePoints(sprite);
+    updateScore();
+
+    if (
+      Game.currentMode === Game.modes[MODES.EMOJI] ||
+      Game.currentMode === Game.modes[MODES.BALLOONS]
+    ) {
+      burst(sprite.x, sprite.y); // normal emoji burst
+    } else if (Game.currentMode === Game.modes[MODES.FISH]) {
+      burst(sprite.x, sprite.y, Game.cfg.bubble); // fish bubble burst
     }
   }
 }
 
 // INPUT
-gameContainer.addEventListener('pointerdown', e => {
-  const rect = gameContainer.getBoundingClientRect();
-  doHit(
-    e.clientX - rect.left,
-    e.clientY - rect.top,
-    e.button === 2 ? 'teamA' : 'teamB'
-  );
-},{passive:true});
-window.addEventListener('contextmenu', e => e.preventDefault());
+gameContainer.addEventListener(
+  "pointerdown",
+  (e) => {
+    const rect = gameContainer.getBoundingClientRect();
+    const targetSprite = e.target.__sprite || null;
+    doHit(
+      e.clientX - rect.left,
+      e.clientY - rect.top,
+      e.button === 2 ? "teamA" : "teamB",
+      targetSprite,
+    );
+  },
+  { passive: true },
+);
+window.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // MAIN LOOP
 let last = performance.now();
@@ -701,29 +859,29 @@ function loop(now) {
   const dt = (now - last) / 1000;
   last = now;
 
-  state.sprites.forEach(s => s.update(dt));
-  state.parts.forEach(p => p.update(dt));
-  if (currentMode && currentMode.resolveCollisions) currentMode.resolveCollisions();
+  Game.state.sprites.forEach((s) => s.update(dt));
+  Game.state.parts.forEach((p) => p.update(dt));
+  if (Game.currentMode && Game.currentMode.resolveCollisions)
+    Game.currentMode.resolveCollisions();
   maintain();
-  state.sprites.forEach(s => s.draw());
-  state.parts.forEach(p => p.draw());
+  Game.state.sprites.forEach((s) => s.draw());
+  Game.state.parts.forEach((p) => p.draw());
 
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-
 // MODE TOGGLE
 function setMode(m) {
-  if (currentMode && currentMode.cleanup) currentMode.cleanup();
-  cfg = buildCfg(m);
-  currentMode = ModeHandlers[m];
+  if (Game.currentMode && Game.currentMode.cleanup) Game.currentMode.cleanup();
+  Game.cfg = buildCfg(m);
+  Game.currentMode = Game.modes[m];
 
-  state.sprites.forEach(s => s.el.remove());
-  state.sprites.length = 0;
-  state.pending = 0;
+  Game.state.sprites.forEach((s) => s.el.remove());
+  Game.state.sprites.length = 0;
+  Game.state.pending = 0;
 
-  if (currentMode && currentMode.setup) currentMode.setup();
+  if (Game.currentMode && Game.currentMode.setup) Game.currentMode.setup();
 
-  for (let i = 0; i < cfg.count; i++) scheduleSpawn();
+  for (let i = 0; i < Game.cfg.count; i++) scheduleSpawn();
 }
