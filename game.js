@@ -6,7 +6,9 @@ const MODES = {
   BALLOONS: 'balloons',
   MOLE:     'mole'           // 🆕 whack-a-mole
 };
-const cfg = {
+
+// ----- Global defaults -----
+const globalCfg = {
   mode: MODES.EMOJI,
   count: 6,
   rMin: 25,
@@ -15,34 +17,54 @@ const cfg = {
   vMax: 180,
   spin: 25,
   burstN: 14,
-  // balloon colour ranges
-  brightMin: 0.9,   // 80 % – 120 % brightness
-  brightMax: 2,
-  satMin: 0.9,   // 80 % – 120 % saturation
-  satMax: 1.0,
-
-  // balloon speed (vertical, vh /s)
-  bVMin: 25,
-  bVMax: 60,
-
-
-  /* whack-a-mole */
-  moleGridCols: 5,
-  moleGridRows: 3,
-  moleUpV:      350,   // px / s up / down
-  moleStayMin:  1000,   // ms
-  moleStayMax:  3000,
-  moleCount:    12,     // concurrent moles
+  particleLife: 1,
 };
 
+// ----- Per game configuration -----
+const gameCfgs = {
+  [MODES.EMOJI]: {
+    emojis: [
+      '🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉','⭐','🥳','💎',
+      '🍀','🌸','🍕','🍔','🍟','🍦','🍩','🍪','🍉','🍓','🍒','🍇','🧸','🎁','🎀','🪁',
+      '🪀','🎨','🎧','🎮','🏀','⚾️','🏈','🎯','🚁','✈️','🦄','🐱','🐶','🐸','🐥','🐝','🦋',
+      '🌈','🔥','💖','🍭','🍬','🧁','🎂','🍰','🥐','🍌','🍊','🥝','🛼','⛸️','🐰','🐼','🐨',
+      '🐧','🐿️','🦊','🐢','🦖','🐯','🐮','🐷','🐹','🐭','💗','💝','😻','💞','🪅','🍿','🥤',
+      '🧋','🌞','🌺','🌵','📸','⌚','🧸'
+    ]
+  },
+  [MODES.FISH]: {
+    fish: ['🐳','🐋','🐬','🦭','🐟','🐠','🦈','🐙','🪼','🦀','🦞','🦐'],
+    bubble: ['🫧']
+  },
+  [MODES.BALLOONS]: {
+    brightMin: 0.9,   // 80 % – 120 % brightness
+    brightMax: 2,
+    satMin: 0.9,      // 80 % – 120 % saturation
+    satMax: 1.0,
+    bVMin: 25,        // balloon speed (vertical, vh /s)
+    bVMax: 60,
+    balloons: ['🎈'],
+    balloonRare: ['☁️','🪁','🦋','⚡','🪙','⭐','🍂']
+  },
+  [MODES.MOLE]: {
+    moleGridCols: 5,
+    moleGridRows: 3,
+    moleUpV:      350,   // px / s up / down
+    moleStayMin:  1000,  // ms
+    moleStayMax:  3000,
+    moleCount:    12,    // concurrent moles
+    animals: ['🐭','🐰']
+  }
+};
+
+function buildCfg(mode) {
+  return Object.assign({}, globalCfg, gameCfgs[mode] || {}, { mode });
+}
+
+let cfg = buildCfg(globalCfg.mode);
+
 // DATA
-const EMOJIS =  ['🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉', '⭐', '🥳', '💎', '🍀', '🌸', '🍕', '🍔', '🍟', '🍦', '🍩', '🍪', '🍉', '🍓', '🍒', '🍇', '🧸', '🎁', '🎀', '🪁', '🪀', '🎨', '🎧', '🎮', '🏀', '⚾️', '🏈', '🎯', '🚁', '✈️', '🦄', '🐱', '🐶', '🐸', '🐥', '🐝', '🦋', '🌈', '🔥', '💖',  '🍭', '🍬', '🧁', '🎂', '🍰', '🥐', '🍌', '🍊', '🥝','🛼', '⛸️',  '🐰', '🐼', '🐨', '🐧', '🐿️', '🦊', '🐢', '🦖', '🐯', '🐮', '🐷',  '🐹', '🐭',  '💗', '💝', '😻', '💞',  '🪅',  '🍿', '🥤', '🧋',  '🌞', '🌺', '🌵',  '📸', '⌚', '🧸'];
-const FISH    = ['🐳', '🐋', '🐬', '🦭', '🐟', '🐠', '🦈', '🐙', '🪼','🦀','🦞','🦐'];
 const BURST   = ['✨', '💥', '💫'];
-const BUBBLE  = ['🫧']; // used for fish‑mode bubble burst
-const BALLOON = ['🎈'];
-const BALLOON_RARE = ['☁️', '🪁', '🦋','⚡','🪙','⭐','🍂'];
-const MOLE_ANIMALS = ['🐭','🐰'];
 const moleHoles = [];      // board cells
 
 /* ------ per-mode behaviour registry ------ */
@@ -221,7 +243,7 @@ class Sprite {
       // set face direction based on movement
       face = dx > 0 ? 1 : -1;
       // choose random fish sprite
-      e = FISH[Math.floor(rand(FISH.length))];
+      e = cfg.fish[Math.floor(rand(cfg.fish.length))];
       dir = -face;
     } else {
       this.x = between(this.r, W - this.r);
@@ -257,7 +279,7 @@ class Sprite {
 ModeHandlers[MODES.EMOJI] = {
   spawn() {
     const r = between(cfg.rMin, cfg.rMax);
-    const e = EMOJIS[Math.floor(rand(EMOJIS.length))];
+    const e = cfg.emojis[Math.floor(rand(cfg.emojis.length))];
     const x = between(r, winW - r);
     const y = between(r, winH - r);
     const ang = rand(Math.PI * 2);
@@ -303,7 +325,7 @@ ModeHandlers[MODES.FISH] = {
     const y = between(r, winH - r);
     const dx = face * between(cfg.vMin, cfg.vMax);
     const dy = between(-20, 20);
-    const e = FISH[Math.floor(rand(FISH.length))];
+    const e = cfg.fish[Math.floor(rand(cfg.fish.length))];
     const dir = -face;
     sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
   },
@@ -341,7 +363,9 @@ ModeHandlers[MODES.BALLOONS] = {
     const r = between(cfg.rMin, cfg.rMax);
     const face = -1;
     const rare = Math.random() < 0.05;
-    const e = rare ? BALLOON_RARE[Math.floor(rand(BALLOON_RARE.length))] : BALLOON[0];
+    const e = rare
+      ? cfg.balloonRare[Math.floor(rand(cfg.balloonRare.length))]
+      : cfg.balloons[0];
     const x = between(r, winW - r);
     const y = winH + r;
     const dx = between(-20, 20);
@@ -383,7 +407,7 @@ ModeHandlers[MODES.MOLE] = {
     const y = rect.height + r;
     const dx = 0;
     const dy = -cfg.moleUpV;
-    const e = MOLE_ANIMALS[Math.floor(rand(MOLE_ANIMALS.length))];
+    const e = cfg.animals[Math.floor(rand(cfg.animals.length))];
     const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
     s.phase = 'up';
     s.timer = between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
@@ -599,7 +623,7 @@ function doHit(px, py, team) {
       if (currentMode === ModeHandlers[MODES.EMOJI] || currentMode === ModeHandlers[MODES.BALLOONS]) {
         burst(s.x, s.y); // normal emoji burst
       } else if (currentMode === ModeHandlers[MODES.FISH]) {
-        burst(s.x, s.y, BUBBLE); // fish bubble burst
+        burst(s.x, s.y, cfg.bubble); // fish bubble burst
       }
       break;
     }
@@ -638,7 +662,7 @@ requestAnimationFrame(loop);
 // MODE TOGGLE
 function setMode(m) {
   if (currentMode && currentMode.cleanup) currentMode.cleanup();
-  cfg.mode = m;
+  cfg = buildCfg(m);
   currentMode = ModeHandlers[m];
 
   sprites.forEach(s => s.el.remove());
