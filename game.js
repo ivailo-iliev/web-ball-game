@@ -69,12 +69,26 @@ const moleHoles = [];      // board cells
 
 /* ------ per-mode behaviour registry ------ */
 const ModeHandlers = {};
+function registerMode(name, handler) {
+  ModeHandlers[name] = handler;
+  return handler;
+}
+
 
 /* -----------------------------------------------------------
  * Base class for all game modes. Handles common sprite logic
  * like movement, generic boundary checks and collision hooks.
  * Individual games override the relevant methods.
  * --------------------------------------------------------- */
+/* Expected interface:
+ * spawn()            create new sprites
+ * update(sprite, dt)
+ * draw(sprite)
+ * hit(sprite)
+ * contains(sprite,x,y)
+ * resolveCollisions()
+ * setup() / cleanup()
+ */
 class GameMode {
   spawn() {}
 
@@ -336,7 +350,7 @@ class EmojiGame extends GameMode {
     const v = between(cfg.vMin, cfg.vMax);
     const dx = Math.cos(ang) * v;
     const dy = Math.sin(ang) * v;
-    sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
+    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
@@ -361,11 +375,11 @@ class EmojiGame extends GameMode {
     s.el.style.setProperty('--sy', `${scale}`);
   }
   resolveCollisions() {
-    for (let i = 0; i < sprites.length; i++) {
-      const a = sprites[i];
+    for (let i = 0; i < state.sprites.length; i++) {
+      const a = state.sprites[i];
       if (!a.alive) continue;
-      for (let j = i + 1; j < sprites.length; j++) {
-        const b = sprites[j];
+      for (let j = i + 1; j < state.sprites.length; j++) {
+        const b = state.sprites[j];
         if (!b.alive) continue;
         const dx = b.x - a.x, dy = b.y - a.y;
         const dist = Math.hypot(dx, dy), min = a.r + b.r;
@@ -388,7 +402,7 @@ class EmojiGame extends GameMode {
     }
   }
 }
-ModeHandlers[MODES.EMOJI] = new EmojiGame();
+registerMode(MODES.EMOJI, new EmojiGame());
 
 class FishGame extends GameMode {
   spawn() {
@@ -400,7 +414,7 @@ class FishGame extends GameMode {
     const dy = between(-20, 20);
     const e = cfg.fish[Math.floor(rand(cfg.fish.length))];
     const dir = -face;
-    sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
+    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
@@ -425,7 +439,7 @@ class FishGame extends GameMode {
     s.el.style.setProperty('--sy', `1`);
   }
 }
-ModeHandlers[MODES.FISH] = new FishGame();
+registerMode(MODES.FISH, new FishGame());
 
 class BalloonGame extends GameMode {
   spawn() {
@@ -439,7 +453,7 @@ class BalloonGame extends GameMode {
     const y = winH + r;
     const dx = between(-20, 20);
     const dy = -between(cfg.bVMin, cfg.bVMax);
-    sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir:1 }));
+    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir:1 }));
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
@@ -460,11 +474,11 @@ class BalloonGame extends GameMode {
     s.el.style.setProperty('--sy', `${scale}`);
   }
 }
-ModeHandlers[MODES.BALLOONS] = new BalloonGame();
+registerMode(MODES.BALLOONS, new BalloonGame());
 
 class MoleGame extends GameMode {
   spawn() {
-    if (sprites.length >= cfg.moleCount) return;
+    if (state.sprites.length >= cfg.moleCount) return;
     const hole = moleHoles[Math.floor(rand(moleHoles.length))];
     const rect = hole.getBoundingClientRect();
     const r = Math.min(rect.width, rect.height) * 0.40;
@@ -478,7 +492,7 @@ class MoleGame extends GameMode {
     s.timer = between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
     s.el.remove();
     hole.appendChild(s.el);
-    sprites.push(s);
+    state.sprites.push(s);
   }
   update(s, dt) {
     if (s.phase) {
@@ -533,22 +547,25 @@ class MoleGame extends GameMode {
     gameContainer.style.display = 'block';
   }
 }
-ModeHandlers[MODES.MOLE] = new MoleGame();
+registerMode(MODES.MOLE, new MoleGame());
 
 let currentMode = ModeHandlers[cfg.mode];
 
-// GAME STATE
-const sprites = [];
-const parts = [];
-let pending = 0;              // scheduled but not yet realised spawns
+// ---------- Runtime State ----------
+const state = {
+  sprites: [],
+  parts: [],
+  pending: 0,      // scheduled but not yet realised spawns
+  scores: { teamA: 0, teamB: 0 }
+};
 
 const DELAY = 3000;            // ms – max random delay per spawn
 
 function scheduleSpawn() {
-  pending++;
+  state.pending++;
   setTimeout(() => {
     spawn();
-    pending--;
+    state.pending--;
   }, rand(DELAY));
 }
 // SPAWN & BURST
@@ -597,20 +614,20 @@ gameContainer.appendChild(ripple);
 // MAINTAIN
 function maintain() {
   // remove dead sprites
-  for (let i = sprites.length - 1; i >= 0; i--) {
-    if (!sprites[i].alive) {
-      sprites[i].el.remove();
-      sprites.splice(i, 1);
+  for (let i = state.sprites.length - 1; i >= 0; i--) {
+    if (!state.sprites[i].alive) {
+      state.sprites[i].el.remove();
+      state.sprites.splice(i, 1);
     }
   }
   // ensure count
-  while (sprites.length + pending < cfg.count) scheduleSpawn();
+  while (state.sprites.length + state.pending < cfg.count) scheduleSpawn();
 
   // remove old particles
-  for (let i = parts.length - 1; i >= 0; i--) {
-    if (parts[i].t > cfg.particleLife) {
-      parts[i].el.remove();
-      parts.splice(i, 1);
+  for (let i = state.parts.length - 1; i >= 0; i--) {
+    if (state.parts[i].t > cfg.particleLife) {
+      state.parts[i].el.remove();
+      state.parts.splice(i, 1);
     }
   }
 }
@@ -618,16 +635,17 @@ function maintain() {
 // INITIAL SPAWN
 for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 
-// SCORE & HIT LOGIC
-let scores = { teamA: 0, teamB: 0 };
+// ----- Score & Hit Logic -----
+
 const as = document.getElementById('teamAScore');
 const bs = document.getElementById('teamBScore');
 as.className = params.teamA;
 bs.className = params.teamB;
+updateScore();
 
 function updateScore() {
-  as.textContent = `${scores.teamA}`;
-  bs.textContent = `${scores.teamB}`;
+  as.textContent = `${state.scores.teamA}`;
+  bs.textContent = `${state.scores.teamB}`;
 }
 
 function calculatePoints(sprite) {
@@ -648,12 +666,12 @@ function doHit(px, py, team) {
   void ripple.offsetWidth;          // force reflow
   ripple.classList.add('animate');
 
-  for (const s of sprites) {
+  for (const s of state.sprites) {
     if (s.alive && s.contains(px, py) && s.pop === 0) {
       s.doHit();
 
       // points depend on sprite size & speed
-      scores[team] += calculatePoints(s);
+      state.scores[team] += calculatePoints(s);
       updateScore();
 
       if (currentMode === ModeHandlers[MODES.EMOJI] || currentMode === ModeHandlers[MODES.BALLOONS]) {
@@ -683,12 +701,12 @@ function loop(now) {
   const dt = (now - last) / 1000;
   last = now;
 
-  sprites.forEach(s => s.update(dt));
-  parts.forEach(p => p.update(dt));
+  state.sprites.forEach(s => s.update(dt));
+  state.parts.forEach(p => p.update(dt));
   if (currentMode && currentMode.resolveCollisions) currentMode.resolveCollisions();
   maintain();
-  sprites.forEach(s => s.draw());
-  parts.forEach(p => p.draw());
+  state.sprites.forEach(s => s.draw());
+  state.parts.forEach(p => p.draw());
 
   requestAnimationFrame(loop);
 }
@@ -701,9 +719,9 @@ function setMode(m) {
   cfg = buildCfg(m);
   currentMode = ModeHandlers[m];
 
-  sprites.forEach(s => s.el.remove());
-  sprites.length = 0;
-  pending = 0;
+  state.sprites.forEach(s => s.el.remove());
+  state.sprites.length = 0;
+  state.pending = 0;
 
   if (currentMode && currentMode.setup) currentMode.setup();
 
