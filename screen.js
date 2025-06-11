@@ -34,20 +34,20 @@ let startX = 0, startY = 0;
 function onSwipeLeft() {
     console.log('Swiped LEFT!');
     // build ordered list from our MODES constant
-    const modeList = Object.values(MODES); 
-    const idx      = modeList.indexOf(cfg.mode);
+    const modeList = Object.values(Game.MODES); 
+    const idx      = modeList.indexOf(Game.cfg.mode);
     // next, wrapping around
     const nextIdx  = (idx + 1) % modeList.length;
-    setMode(modeList[nextIdx]);
+    Game.setMode(modeList[nextIdx]);
 }
 function onSwipeRight() {
     console.log('Swiped RIGHT!');
     // build ordered list from our MODES constant
-    const modeList = Object.values(MODES);
-    const idx      = modeList.indexOf(cfg.mode);
+    const modeList = Object.values(Game.MODES);
+    const idx      = modeList.indexOf(Game.cfg.mode);
     // previous, wrapping around
     const prevIdx  = (idx - 1 + modeList.length) % modeList.length;
-    setMode(modeList[prevIdx]);
+    Game.setMode(modeList[prevIdx]);
 }
 
 // TOUCH
