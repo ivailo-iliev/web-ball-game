@@ -149,7 +149,7 @@ input[type="range"] {
   font-family: sans-serif;
   text-align: center;
   line-height: 1;
-  pointer-events: none;
+  pointer-events: auto;
   user-select: none;
   will-change: transform, opacity;
   transform: translate3d(var(--x), var(--y), 0) rotate(var(--rot)) scale(var(--sx), var(--sy));

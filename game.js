@@ -22,7 +22,7 @@ const globalCfg = {
 };
 
 // ----- Per game configuration -----
-const gameCfgs = {
+const modeCfgs = {
   [MODES.EMOJI]: {
     emojis: [
       '🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉','⭐','🥳','💎',
@@ -59,7 +59,7 @@ const gameCfgs = {
 };
 
 function buildCfg(mode) {
-  return Object.assign({}, globalCfg, gameCfgs[mode] || {}, { mode });
+  return Object.assign({}, globalCfg, modeCfgs[mode] || {}, { mode });
 }
 
 let cfg = buildCfg(globalCfg.mode);
@@ -91,6 +91,7 @@ function registerMode(name, handler) {
  * setup() / cleanup()
  */
 class GameMode {
+  constructor(opts = {}) { this.opts = opts; }
   spawn() {}
 
   /** update sprite position */
@@ -165,14 +166,14 @@ window.addEventListener('orientationchange', () => {
 
 
 /* -------- Whack-a-Mole board builder -------- */
-function buildMoleBoard () {
+function buildMoleBoard (opts = cfg) {
   moleHoles.length = 0;
 
   gameContainer.style.display             = 'grid';
-  gameContainer.style.gridTemplateColumns = `repeat(${cfg.moleGridCols},1fr)`;
-  gameContainer.style.gridTemplateRows    = `repeat(${cfg.moleGridRows},1fr)`;
+  gameContainer.style.gridTemplateColumns = `repeat(${opts.moleGridCols},1fr)`;
+  gameContainer.style.gridTemplateRows    = `repeat(${opts.moleGridRows},1fr)`;
 
-  const total = cfg.moleGridCols * cfg.moleGridRows;
+  const total = opts.moleGridCols * opts.moleGridRows;
   for (let i = 0; i < total; ++i) {
     const cell = document.createElement('div');
     cell.className = 'moleHole';
@@ -197,6 +198,15 @@ function buildMoleBoard () {
 // Utilities
 const rand = n => Math.random() * n;
 const between = (a, b) => a + rand(b - a);
+
+// batch style updates to reduce layout thrashing
+function setStyles(el, styles) {
+  const s = el.style;
+  for (const k in styles) {
+    if (k.startsWith('--')) s.setProperty(k, styles[k]);
+    else s[k] = styles[k];
+  }
+}
 
 // PARTICLE CLASS (DOM version)
 class Particle {
@@ -231,8 +241,10 @@ class Particle {
   draw() {
     if (this.t > cfg.particleLife) return;
     const alpha = 1 - this.t / cfg.particleLife;
-    this.el.style.opacity = alpha;
-    this.el.style.transform = `translate3d(${this.x}px,${this.y}px,0)`;
+    setStyles(this.el, {
+      opacity: alpha,
+      transform: `translate3d(${this.x}px,${this.y}px,0)`
+    });
   }
 }
 
@@ -258,7 +270,7 @@ class Sprite {
       fontFamily: 'sans-serif',
       textAlign: 'center',
       lineHeight: '1',
-      pointerEvents: 'none',
+      pointerEvents: 'auto',
       userSelect: 'none',
       transformOrigin: 'center',
       display: 'flex',
@@ -275,14 +287,23 @@ class Sprite {
     /* BALLOON – give it a permanent tint ONCE */
     if (this.mode === ModeHandlers[MODES.BALLOONS]) {
       const hue = Math.random() * 360;                    // 0–360°
-      const bri = between(cfg.brightMin, cfg.brightMax);  // 0.8–1.2
-      const sat = between(cfg.satMin, cfg.satMax);     // 0.8–1.2
+      const bri = between(this.mode.opts.brightMin, this.mode.opts.brightMax);
+      const sat = between(this.mode.opts.satMin, this.mode.opts.satMax);
       // this.el.style.filter =
      this.el.style.filter = 
        `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
     }
 
     gameContainer.appendChild(this.el);
+    this.el.addEventListener('pointerdown', e => {
+      const rect = gameContainer.getBoundingClientRect();
+      doHit(
+        e.clientX - rect.left,
+        e.clientY - rect.top,
+        e.button === 2 ? 'teamA' : 'teamB',
+        this
+      );
+    });
     this.draw(); // initial position/size
   }
 
@@ -312,7 +333,7 @@ class Sprite {
       // set face direction based on movement
       this.face = this.dx > 0 ? 1 : -1;
       // choose random fish sprite
-      this.e = cfg.fish[Math.floor(rand(cfg.fish.length))];
+      this.e = this.mode.opts.fish[Math.floor(rand(this.mode.opts.fish.length))];
       this.dir = -this.face;
     } else {
       this.x = between(r, W - r);
@@ -348,7 +369,7 @@ class Sprite {
 class EmojiGame extends GameMode {
   spawn() {
     const r = between(cfg.rMin, cfg.rMax);
-    const e = cfg.emojis[Math.floor(rand(cfg.emojis.length))];
+    const e = this.opts.emojis[Math.floor(rand(this.opts.emojis.length))];
     const x = between(r, winW - r);
     const y = between(r, winH - r);
     const ang = rand(Math.PI * 2);
@@ -373,11 +394,13 @@ class EmojiGame extends GameMode {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
     const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `${rot}rad`);
-    s.el.style.setProperty('--sx', `${scale}`);
-    s.el.style.setProperty('--sy', `${scale}`);
+    setStyles(s.el, {
+      '--x': `${s.x - s.r}px`,
+      '--y': `${s.y - s.r}px`,
+      '--rot': `${rot}rad`,
+      '--sx': `${scale}`,
+      '--sy': `${scale}`
+    });
   }
   resolveCollisions() {
     for (let i = 0; i < state.sprites.length; i++) {
@@ -407,7 +430,7 @@ class EmojiGame extends GameMode {
     }
   }
 }
-registerMode(MODES.EMOJI, new EmojiGame());
+registerMode(MODES.EMOJI, new EmojiGame(modeCfgs[MODES.EMOJI]));
 
 class FishGame extends GameMode {
   spawn() {
@@ -417,7 +440,7 @@ class FishGame extends GameMode {
     const y = between(r, winH - r);
     const dx = face * between(cfg.vMin, cfg.vMax);
     const dy = between(-20, 20);
-    const e = cfg.fish[Math.floor(rand(cfg.fish.length))];
+    const e = this.opts.fish[Math.floor(rand(this.opts.fish.length))];
     const dir = -face;
     state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
   }
@@ -437,14 +460,16 @@ class FishGame extends GameMode {
     if (!s.alive) return;
     const rot = s.angle;
     const flip = s.face > 0 ? -1 : 1;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `${rot}rad`);
-    s.el.style.setProperty('--sx', `${flip}`);
-    s.el.style.setProperty('--sy', `1`);
+    setStyles(s.el, {
+      '--x': `${s.x - s.r}px`,
+      '--y': `${s.y - s.r}px`,
+      '--rot': `${rot}rad`,
+      '--sx': `${flip}`,
+      '--sy': `1`
+    });
   }
 }
-registerMode(MODES.FISH, new FishGame());
+registerMode(MODES.FISH, new FishGame(modeCfgs[MODES.FISH]));
 
 class BalloonGame extends GameMode {
   spawn() {
@@ -452,12 +477,12 @@ class BalloonGame extends GameMode {
     const face = -1;
     const rare = Math.random() < 0.05;
     const e = rare
-      ? cfg.balloonRare[Math.floor(rand(cfg.balloonRare.length))]
-      : cfg.balloons[0];
+      ? this.opts.balloonRare[Math.floor(rand(this.opts.balloonRare.length))]
+      : this.opts.balloons[0];
     const x = between(r, winW - r);
     const y = winH + r;
     const dx = between(-20, 20);
-    const dy = -between(cfg.bVMin, cfg.bVMax);
+    const dy = -between(this.opts.bVMin, this.opts.bVMax);
     state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir:1 }));
   }
   update(s, dt) {
@@ -472,29 +497,31 @@ class BalloonGame extends GameMode {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
     const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `${rot}rad`);
-    s.el.style.setProperty('--sx', `${scale}`);
-    s.el.style.setProperty('--sy', `${scale}`);
+    setStyles(s.el, {
+      '--x': `${s.x - s.r}px`,
+      '--y': `${s.y - s.r}px`,
+      '--rot': `${rot}rad`,
+      '--sx': `${scale}`,
+      '--sy': `${scale}`
+    });
   }
 }
-registerMode(MODES.BALLOONS, new BalloonGame());
+registerMode(MODES.BALLOONS, new BalloonGame(modeCfgs[MODES.BALLOONS]));
 
 class MoleGame extends GameMode {
   spawn() {
-    if (state.sprites.length >= cfg.moleCount) return;
+    if (state.sprites.length >= this.opts.moleCount) return;
     const hole = moleHoles[Math.floor(rand(moleHoles.length))];
     const rect = hole.getBoundingClientRect();
     const r = Math.min(rect.width, rect.height) * 0.40;
     const x = rect.width * 0.5;
     const y = rect.height + r;
     const dx = 0;
-    const dy = -cfg.moleUpV;
-    const e = cfg.animals[Math.floor(rand(cfg.animals.length))];
+    const dy = -this.opts.moleUpV;
+    const e = this.opts.animals[Math.floor(rand(this.opts.animals.length))];
     const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
     s.phase = 'up';
-    s.timer = between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
+    s.timer = between(this.opts.moleStayMin, this.opts.moleStayMax) / 1000;
     s.el.remove();
     hole.appendChild(s.el);
     state.sprites.push(s);
@@ -506,7 +533,7 @@ class MoleGame extends GameMode {
         if (s.y <= s.r) { s.y = s.r; s.dy = 0; s.phase = 'stay'; }
       } else if (s.phase === 'stay') {
         s.timer -= dt;
-        if (s.timer <= 0) { s.phase = 'down'; s.dy = cfg.moleUpV; }
+        if (s.timer <= 0) { s.phase = 'down'; s.dy = this.opts.moleUpV; }
       } else if (s.phase === 'down') {
         s.y += s.dy * dt;
         const h = s.el.parentElement.clientHeight;
@@ -517,11 +544,13 @@ class MoleGame extends GameMode {
   }
   draw(s) {
     if (!s.alive) return;
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
-    s.el.style.setProperty('--rot', `0rad`);
-    s.el.style.setProperty('--sx', `1`);
-    s.el.style.setProperty('--sy', `1`);
+    setStyles(s.el, {
+      '--x': `${s.x - s.r}px`,
+      '--y': `${s.y - s.r}px`,
+      '--rot': `0rad`,
+      '--sx': `1`,
+      '--sy': `1`
+    });
   }
   hit(s) {
     s.pop = 0.01;
@@ -532,7 +561,7 @@ class MoleGame extends GameMode {
       const gy = s.y + hole.top - game.top;
       burst(gx, gy, ['💫']);
       s.phase = 'down';
-      s.dy = cfg.moleUpV;
+      s.dy = this.opts.moleUpV;
       s.timer = 0;
     }
   }
@@ -544,15 +573,15 @@ class MoleGame extends GameMode {
     return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
   }
   setup() {
-    cfg.count = cfg.moleCount;
-    buildMoleBoard();
+    cfg.count = this.opts.moleCount;
+    buildMoleBoard(this.opts);
   }
   cleanup() {
     document.querySelectorAll('.moleHole').forEach(h => h.remove());
     gameContainer.style.display = 'block';
   }
 }
-registerMode(MODES.MOLE, new MoleGame());
+registerMode(MODES.MOLE, new MoleGame(modeCfgs[MODES.MOLE]));
 
 let currentMode = ModeHandlers[cfg.mode];
 
@@ -670,7 +699,7 @@ function calculatePoints(sprite) {
   return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
 }
 
-function doHit(px, py, team) {
+function doHit(px, py, team, sprite) {
   // move the single ripple element
   ripple.style.left = `${px}px`;
   ripple.style.top  = `${py}px`;
@@ -679,8 +708,9 @@ function doHit(px, py, team) {
   void ripple.offsetWidth;          // force reflow
   ripple.classList.add('animate');
 
-  for (const s of state.sprites) {
-    if (s.alive && s.contains(px, py) && s.pop === 0) {
+  const targets = sprite ? [sprite] : state.sprites;
+  for (const s of targets) {
+    if (s.alive && (!sprite ? s.contains(px, py) : true) && s.pop === 0) {
       s.doHit();
 
       // points depend on sprite size & speed
@@ -690,7 +720,7 @@ function doHit(px, py, team) {
       if (currentMode === ModeHandlers[MODES.EMOJI] || currentMode === ModeHandlers[MODES.BALLOONS]) {
         burst(s.x, s.y); // normal emoji burst
       } else if (currentMode === ModeHandlers[MODES.FISH]) {
-        burst(s.x, s.y, cfg.bubble); // fish bubble burst
+        burst(s.x, s.y, currentMode.opts.bubble); // fish bubble burst
       }
       break;
     }
@@ -698,21 +728,11 @@ function doHit(px, py, team) {
 }
 
 // INPUT
-function pointerHandler(e) {
-  const rect = gameContainer.getBoundingClientRect();
-  doHit(
-    e.clientX - rect.left,
-    e.clientY - rect.top,
-    e.button === 2 ? 'teamA' : 'teamB'
-  );
-}
 function preventContextMenu(e) { e.preventDefault(); }
 function addInputListeners() {
-  gameContainer.addEventListener('pointerdown', pointerHandler, { passive: true });
   window.addEventListener('contextmenu', preventContextMenu);
 }
 function removeInputListeners() {
-  gameContainer.removeEventListener('pointerdown', pointerHandler);
   window.removeEventListener('contextmenu', preventContextMenu);
 }
 addInputListeners();
@@ -740,6 +760,7 @@ function setMode(m) {
   if (currentMode && currentMode.cleanup) currentMode.cleanup();
   removeInputListeners();
   cfg = buildCfg(m);
+  Game.cfg = cfg;
   currentMode = ModeHandlers[m];
 
   state.sprites.forEach(s => s.el.remove());
@@ -753,3 +774,17 @@ function setMode(m) {
 
   for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 }
+
+const Game = {
+  MODES,
+  modeCfgs,
+  globalCfg,
+  cfg,
+  state,
+  utils: { rand, between, setStyles },
+  setMode,
+  spawn,
+  burst
+};
+
+window.Game = Game;
