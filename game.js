@@ -35,6 +35,9 @@ const cfg = {
   moleCount:    12,     // concurrent moles
 };
 
+// keep the initial defaults so modes can override and restore them
+const baseCfg = { ...cfg };
+
 // DATA
 const EMOJIS =  ['🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉', '⭐', '🥳', '💎', '🍀', '🌸', '🍕', '🍔', '🍟', '🍦', '🍩', '🍪', '🍉', '🍓', '🍒', '🍇', '🧸', '🎁', '🎀', '🪁', '🪀', '🎨', '🎧', '🎮', '🏀', '⚾️', '🏈', '🎯', '🚁', '✈️', '🦄', '🐱', '🐶', '🐸', '🐥', '🐝', '🦋', '🌈', '🔥', '💖',  '🍭', '🍬', '🧁', '🎂', '🍰', '🥐', '🍌', '🍊', '🥝','🛼', '⛸️',  '🐰', '🐼', '🐨', '🐧', '🐿️', '🦊', '🐢', '🦖', '🐯', '🐮', '🐷',  '🐹', '🐭',  '💗', '💝', '😻', '💞',  '🪅',  '🍿', '🥤', '🧋',  '🌞', '🌺', '🌵',  '📸', '⌚', '🧸'];
 const FISH    = ['🐳', '🐋', '🐬', '🦭', '🐟', '🐠', '🦈', '🐙', '🪼','🦀','🦞','🦐'];
@@ -47,6 +50,12 @@ const moleHoles = [];      // board cells
 
 /* ------ per-mode behaviour registry ------ */
 const ModeHandlers = {};
+// optional per-mode default overrides (count, speed, etc.)
+const ModeDefaults = {};
+ModeDefaults[MODES.EMOJI] = { count: 6 };
+ModeDefaults[MODES.FISH] = { count: 6, vMin: 80, vMax: 220 };
+ModeDefaults[MODES.BALLOONS] = { count: 6 };
+ModeDefaults[MODES.MOLE] = { count: cfg.moleCount };
 
 const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
@@ -436,7 +445,6 @@ ModeHandlers[MODES.MOLE] = {
     return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
   },
   setup() {
-    cfg.count = cfg.moleCount;
     buildMoleBoard();
   },
   cleanup() {
@@ -481,15 +489,18 @@ function resolveCollisions() {
 const sprites = [];
 const parts = [];
 let pending = 0;              // scheduled but not yet realised spawns
+const timers = [];            // active spawn timers
 
 const DELAY = 3000;            // ms – max random delay per spawn
 
 function scheduleSpawn() {
   pending++;
-  setTimeout(() => {
+  const id = setTimeout(() => {
+    timers.splice(timers.indexOf(id), 1);
     spawn();
     pending--;
   }, rand(DELAY));
+  timers.push(id);
 }
 // SPAWN & BURST
 function spawn() {
@@ -638,11 +649,16 @@ requestAnimationFrame(loop);
 // MODE TOGGLE
 function setMode(m) {
   if (currentMode && currentMode.cleanup) currentMode.cleanup();
+
+  // restore defaults then apply per-mode overrides
+  Object.assign(cfg, baseCfg, ModeDefaults[m] || {});
   cfg.mode = m;
   currentMode = ModeHandlers[m];
 
   sprites.forEach(s => s.el.remove());
   sprites.length = 0;
+  timers.forEach(clearTimeout);
+  timers.length = 0;
   pending = 0;
 
   if (currentMode && currentMode.setup) currentMode.setup();
