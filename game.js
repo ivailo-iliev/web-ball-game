@@ -1,3 +1,4 @@
+"use strict";
 // CONFIG
 /* -------- GAME MODES (added MOLE) -------- */
 const MODES = {
@@ -145,7 +146,10 @@ Object.assign(gameContainer.style, {
   padding: '0',
 });
 
-document.getElementById('gameScreen').appendChild(gameContainer);
+const gameScreen = document.getElementById('gameScreen');
+gameScreen.appendChild(gameContainer);
+const as = document.getElementById('teamAScore');
+const bs = document.getElementById('teamBScore');
 let winW = window.visualViewport.width || window.innerWidth;
 let winH = window.visualViewport.height || window.innerHeight;
 
@@ -285,8 +289,9 @@ class Sprite {
   reset() {
     const W = winW, H = winH;
     this.r = between(cfg.rMin, cfg.rMax);
+    const r = this.r;
     // update size on reset
-    const size = this.r * 2;
+    const size = r * 2;
     this.el.style.width = `${size}px`;
     this.el.style.height = `${size}px`;
     this.el.style.lineHeight = `${size}px`;
@@ -295,23 +300,23 @@ class Sprite {
       // spawn from left or right edge
       const side = Math.random() < 0.5 ? 'left' : 'right';
       // x just off-screen
-      x = side === 'left' ? -r : winW + r;
+      this.x = side === 'left' ? -r : W + r;
       // y anywhere within vertical bounds
-      y = between(r, winH - r);
+      this.y = between(r, H - r);
 
       // horizontal velocity toward screen center
-      dx = (side === 'left' ? 1 : -1) * between(cfg.vMin, cfg.vMax);
+      this.dx = (side === 'left' ? 1 : -1) * between(cfg.vMin, cfg.vMax);
       // small vertical variance
-      dy = between(-20, 20);
+      this.dy = between(-20, 20);
 
       // set face direction based on movement
-      face = dx > 0 ? 1 : -1;
+      this.face = this.dx > 0 ? 1 : -1;
       // choose random fish sprite
-      e = cfg.fish[Math.floor(rand(cfg.fish.length))];
-      dir = -face;
+      this.e = cfg.fish[Math.floor(rand(cfg.fish.length))];
+      this.dir = -this.face;
     } else {
-      this.x = between(this.r, W - this.r);
-      this.y = between(this.r, H - this.r);
+      this.x = between(r, W - r);
+      this.y = between(r, H - r);
       const ang = rand(Math.PI * 2);
       const v = between(cfg.vMin, cfg.vMax);
       this.dx = Math.cos(ang) * v;
@@ -559,14 +564,24 @@ const state = {
   scores: { teamA: 0, teamB: 0 }
 };
 
+const spawnTimers = [];
+
 const DELAY = 3000;            // ms – max random delay per spawn
 
 function scheduleSpawn() {
   state.pending++;
-  setTimeout(() => {
+  const id = setTimeout(() => {
     spawn();
     state.pending--;
+    const idx = spawnTimers.indexOf(id);
+    if (idx !== -1) spawnTimers.splice(idx, 1);
   }, rand(DELAY));
+  spawnTimers.push(id);
+}
+
+function clearSpawnTimers() {
+  for (const t of spawnTimers) clearTimeout(t);
+  spawnTimers.length = 0;
 }
 // SPAWN & BURST
 function spawn() {
@@ -637,8 +652,6 @@ for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 
 // ----- Score & Hit Logic -----
 
-const as = document.getElementById('teamAScore');
-const bs = document.getElementById('teamBScore');
 as.className = params.teamA;
 bs.className = params.teamB;
 updateScore();
@@ -685,15 +698,24 @@ function doHit(px, py, team) {
 }
 
 // INPUT
-gameContainer.addEventListener('pointerdown', e => {
+function pointerHandler(e) {
   const rect = gameContainer.getBoundingClientRect();
   doHit(
     e.clientX - rect.left,
     e.clientY - rect.top,
     e.button === 2 ? 'teamA' : 'teamB'
   );
-},{passive:true});
-window.addEventListener('contextmenu', e => e.preventDefault());
+}
+function preventContextMenu(e) { e.preventDefault(); }
+function addInputListeners() {
+  gameContainer.addEventListener('pointerdown', pointerHandler, { passive: true });
+  window.addEventListener('contextmenu', preventContextMenu);
+}
+function removeInputListeners() {
+  gameContainer.removeEventListener('pointerdown', pointerHandler);
+  window.removeEventListener('contextmenu', preventContextMenu);
+}
+addInputListeners();
 
 // MAIN LOOP
 let last = performance.now();
@@ -716,14 +738,18 @@ requestAnimationFrame(loop);
 // MODE TOGGLE
 function setMode(m) {
   if (currentMode && currentMode.cleanup) currentMode.cleanup();
+  removeInputListeners();
   cfg = buildCfg(m);
   currentMode = ModeHandlers[m];
 
   state.sprites.forEach(s => s.el.remove());
   state.sprites.length = 0;
+  clearSpawnTimers();
   state.pending = 0;
 
   if (currentMode && currentMode.setup) currentMode.setup();
+
+  addInputListeners();
 
   for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 }
