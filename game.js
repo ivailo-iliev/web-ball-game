@@ -521,7 +521,7 @@ class MoleGame extends GameMode {
     hole.dataset.busy = '1';
     const rect = hole.getBoundingClientRect();
     const r = Math.min(rect.width, rect.height) * 0.40;
-    const x = hole.clientWidth * 0.5;
+    const x = inner.left - rect.left + inner.width * 0.5;
     const y = rect.height + r;
     const dx = 0;
     const dy = -this.opts.moleUpV;
