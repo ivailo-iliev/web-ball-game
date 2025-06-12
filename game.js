@@ -521,7 +521,7 @@ class MoleGame extends GameMode {
     hole.dataset.busy = '1';
     const rect = hole.getBoundingClientRect();
     const r = Math.min(rect.width, rect.height) * 0.40;
-    const x = hole.clientWidth * 0.5;
+    const x = rect.width * 0.5;
     const y = rect.height + r;
     const dx = 0;
     const dy = -this.opts.moleUpV;
@@ -536,6 +536,8 @@ class MoleGame extends GameMode {
   }
   update(s, dt) {
     if (s.phase) {
+      // keep mole centered within its hole
+      s.x = s.el.parentElement.clientWidth * 0.5;
       if (s.phase === 'up') {
         s.y += s.dy * dt;
         if (s.y <= s.r) { s.y = s.r; s.dy = 0; s.phase = 'stay'; }
