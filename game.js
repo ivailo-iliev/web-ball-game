@@ -199,6 +199,13 @@ function buildMoleBoard (opts = cfg) {
 const rand = n => Math.random() * n;
 const between = (a, b) => a + rand(b - a);
 
+// common helpers for spawn logic
+const randRadius = () => between(cfg.rMin, cfg.rMax);
+const randSpeed  = () => between(cfg.vMin, cfg.vMax);
+const randX = r => between(r, winW - r);
+const randY = r => between(r, winH - r);
+const pick = arr => arr[Math.floor(rand(arr.length))];
+
 // batch style updates to reduce layout thrashing
 function setStyles(el, styles) {
   const s = el.style;
@@ -309,7 +316,7 @@ class Sprite {
 
   reset() {
     const W = winW, H = winH;
-    this.r = between(cfg.rMin, cfg.rMax);
+    this.r = randRadius();
     const r = this.r;
     // update size on reset
     const size = r * 2;
@@ -323,25 +330,25 @@ class Sprite {
       // x just off-screen
       this.x = side === 'left' ? -r : W + r;
       // y anywhere within vertical bounds
-      this.y = between(r, H - r);
+      this.y = randY(r);
 
       // horizontal velocity toward screen center
-      this.dx = (side === 'left' ? 1 : -1) * between(cfg.vMin, cfg.vMax);
+      this.dx = (side === 'left' ? 1 : -1) * randSpeed();
       // small vertical variance
       this.dy = between(-20, 20);
 
       // set face direction based on movement
       this.face = this.dx > 0 ? 1 : -1;
       // choose random fish sprite
-      this.e = this.mode.opts.fish[Math.floor(rand(this.mode.opts.fish.length))];
+      this.e = pick(this.mode.opts.fish);
       this.dir = -this.face;
     } else {
-      this.x = between(r, W - r);
-      this.y = between(r, H - r);
+      this.x = randX(r);
+      this.y = randY(r);
       const ang = rand(Math.PI * 2);
-      const v = between(cfg.vMin, cfg.vMax);
-      this.dx = Math.cos(ang) * v;
-      this.dy = Math.sin(ang) * v;
+      const { dx, dy } = (() => { const v = randSpeed(); return { dx: Math.cos(ang)*v, dy: Math.sin(ang)*v }; })();
+      this.dx = dx;
+      this.dy = dy;
     }
     this.pop = 0;
     this.alive = true;
@@ -368,14 +375,12 @@ class Sprite {
 /* ---------- Mode behaviour implementations ---------- */
 class EmojiGame extends GameMode {
   spawn() {
-    const r = between(cfg.rMin, cfg.rMax);
-    const e = this.opts.emojis[Math.floor(rand(this.opts.emojis.length))];
-    const x = between(r, winW - r);
-    const y = between(r, winH - r);
+    const r = randRadius();
+    const e = pick(this.opts.emojis);
+    const x = randX(r);
+    const y = randY(r);
     const ang = rand(Math.PI * 2);
-    const v = between(cfg.vMin, cfg.vMax);
-    const dx = Math.cos(ang) * v;
-    const dy = Math.sin(ang) * v;
+    const { dx, dy } = (() => { const v = randSpeed(); return { dx: Math.cos(ang)*v, dy: Math.sin(ang)*v }; })();
     state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
   }
   update(s, dt) {
@@ -434,13 +439,13 @@ registerMode(MODES.EMOJI, new EmojiGame(modeCfgs[MODES.EMOJI]));
 
 class FishGame extends GameMode {
   spawn() {
-    const r = between(cfg.rMin, cfg.rMax);
+    const r = randRadius();
     const face = Math.random() < 0.5 ? 1 : -1;
     const x = face === 1 ? -r : winW + r;
-    const y = between(r, winH - r);
-    const dx = face * between(cfg.vMin, cfg.vMax);
+    const y = randY(r);
+    const dx = face * randSpeed();
     const dy = between(-20, 20);
-    const e = this.opts.fish[Math.floor(rand(this.opts.fish.length))];
+    const e = pick(this.opts.fish);
     const dir = -face;
     state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir }));
   }
@@ -473,13 +478,11 @@ registerMode(MODES.FISH, new FishGame(modeCfgs[MODES.FISH]));
 
 class BalloonGame extends GameMode {
   spawn() {
-    const r = between(cfg.rMin, cfg.rMax);
+    const r = randRadius();
     const face = -1;
     const rare = Math.random() < 0.05;
-    const e = rare
-      ? this.opts.balloonRare[Math.floor(rand(this.opts.balloonRare.length))]
-      : this.opts.balloons[0];
-    const x = between(r, winW - r);
+    const e = rare ? pick(this.opts.balloonRare) : this.opts.balloons[0];
+    const x = randX(r);
     const y = winH + r;
     const dx = between(-20, 20);
     const dy = -between(this.opts.bVMin, this.opts.bVMax);
@@ -511,14 +514,14 @@ registerMode(MODES.BALLOONS, new BalloonGame(modeCfgs[MODES.BALLOONS]));
 class MoleGame extends GameMode {
   spawn() {
     if (state.sprites.length >= this.opts.moleCount) return;
-    const hole = moleHoles[Math.floor(rand(moleHoles.length))];
+    const hole = pick(moleHoles);
     const rect = hole.getBoundingClientRect();
     const r = Math.min(rect.width, rect.height) * 0.40;
     const x = rect.width * 0.5;
     const y = rect.height + r;
     const dx = 0;
     const dy = -this.opts.moleUpV;
-    const e = this.opts.animals[Math.floor(rand(this.opts.animals.length))];
+    const e = pick(this.opts.animals);
     const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
     s.phase = 'up';
     s.timer = between(this.opts.moleStayMin, this.opts.moleStayMax) / 1000;
