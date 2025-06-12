@@ -192,6 +192,7 @@ function buildMoleBoard (opts = cfg) {
     hole.style.pointerEvents = 'none';
     cell.appendChild(hole);
     gameContainer.appendChild(cell);
+    cell.dataset.busy = '';
     moleHoles.push(cell);
   }
 }
@@ -514,15 +515,20 @@ registerMode(MODES.BALLOONS, new BalloonGame(modeCfgs[MODES.BALLOONS]));
 class MoleGame extends GameMode {
   spawn() {
     if (state.sprites.length >= this.opts.moleCount) return;
-    const hole = pick(moleHoles);
+    const freeHoles = moleHoles.filter(h => !h.dataset.busy);
+    if (freeHoles.length === 0) return;
+    const hole = pick(freeHoles);
+    hole.dataset.busy = '1';
     const rect = hole.getBoundingClientRect();
+    const inner = hole.firstElementChild.getBoundingClientRect();
     const r = Math.min(rect.width, rect.height) * 0.40;
-    const x = rect.width * 0.5;
+    const x = inner.left - rect.left + inner.width * 0.5;
     const y = rect.height + r;
     const dx = 0;
     const dy = -this.opts.moleUpV;
     const e = pick(this.opts.animals);
     const s = new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
+    s.hole = hole;
     s.phase = 'up';
     s.timer = between(this.opts.moleStayMin, this.opts.moleStayMax) / 1000;
     s.el.remove();
@@ -663,7 +669,11 @@ function maintain() {
   // remove dead sprites
   for (let i = state.sprites.length - 1; i >= 0; i--) {
     if (!state.sprites[i].alive) {
-      state.sprites[i].el.remove();
+      const sp = state.sprites[i];
+      if (sp.mode === ModeHandlers[MODES.MOLE] && sp.hole) {
+        sp.hole.dataset.busy = '';
+      }
+      sp.el.remove();
       state.sprites.splice(i, 1);
     }
   }
