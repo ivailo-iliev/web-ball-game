@@ -190,6 +190,7 @@ function buildMoleBoard (opts = cfg) {
     hole.style.fontSize = '30vh';
     hole.style.lineHeight = '27vh';
     hole.style.pointerEvents = 'none';
+    hole.style.textAlign = 'center';
     cell.appendChild(hole);
     gameContainer.appendChild(cell);
     cell.dataset.busy = '';
