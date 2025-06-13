@@ -108,10 +108,69 @@ const urlI = $('#url');
 const selA = $('#a'), selB = $('#b');
 const topOv = $('#topOv'),
   frontOv = $('#frontOv');
-const vid = $('#vid');
 const frontCtx = frontOv.getContext("2d");
 const topCtx = topOv.getContext("2d");
 const zoomSlider = $('#zoomSlider');
+
+const Feeds = (() => {
+  let videoTop, videoFront, track;
+
+  async function init() {
+    videoFront = document.getElementById('vid');
+
+    videoTop = new Image();
+    videoTop.crossOrigin = 'anonymous';
+    videoTop.src = params.url;
+    await videoTop.decode();
+
+    const frontStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        width: { exact: FRONT_W },
+        height: { exact: FRONT_H },
+        facingMode: 'environment',
+        frameRate: { ideal: 60, max: 120 }
+      }
+    });
+
+    videoFront.srcObject = frontStream;
+    track = frontStream.getVideoTracks()[0];
+    await videoFront.play();
+
+    const cap = track.getCapabilities();
+    const adv = {};
+
+    if (cap.powerEfficient) adv.powerEfficient = false;
+
+    if (cap.zoom) {
+      const { min, max, step } = cap.zoom;
+      zoomSlider.min = min;
+      zoomSlider.max = Math.min(2, max);
+      zoomSlider.step = step || 0.1;
+      zoomSlider.value = params.zoom;
+      zoomSlider.addEventListener('input', async () => {
+        adv.zoom = parseFloat(zoomSlider.value);
+        params.zoom = adv.zoom;
+        Config.save('zoom', params.zoom);
+        try {
+          await track.applyConstraints({ advanced: [adv] });
+        } catch (err) {
+          console.error('Zoom apply failed:', err);
+        }
+      });
+    }
+
+    if (Object.keys(adv).length) {
+      await track.applyConstraints({ advanced: [adv] });
+    }
+  }
+
+  return {
+    init,
+    top: () => videoTop,
+    front: () => videoFront
+  };
+})();
 
 /** reorder any 4 points into [TR, TL, BL, BR] (CCW) */
 function orderPoints(pts) {
@@ -398,47 +457,9 @@ function rectFront() {
   };
 }
 
+
 (async () => {
-  // setup MJPEG image
-  const ipImg = new Image(); ipImg.crossOrigin = 'anonymous'; ipImg.src = params.url;
-  await ipImg.decode();
-  // setup device camera
-  const frontStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { exact: FRONT_W }, height: { exact: FRONT_H }, facingMode: "environment", frameRate: { ideal: 60, max: 120 } } });
-  vid.srcObject = frontStream;
-  const track = frontStream.getVideoTracks()[0];
-  await vid.play();
-
-
-  const cap = track.getCapabilities();
-  const adv = {};
-
-  // — torch, zoom, power mode…
-  if (cap.powerEfficient) adv.powerEfficient = false;
-
-  if (cap.zoom) {
-    const { min, max, step } = cap.zoom;
-    zoomSlider.min = min;
-    zoomSlider.max = Math.min(2, max);
-    zoomSlider.step = step || 0.1;
-    zoomSlider.value = params.zoom;
-    zoomSlider.addEventListener('input', async () => {
-      adv.zoom = parseFloat(zoomSlider.value);
-      params.zoom = adv.zoom;
-      Config.save('zoom', params.zoom);
-      try {
-        await track.applyConstraints({ advanced: [adv] });
-      } catch (err) {
-        console.error('Zoom apply failed:', err);
-      }
-    });
-  }
-
-  // apply whatever we can
-  if (Object.keys(adv).length) {
-    await track.applyConstraints({ advanced: [adv] });
-  }
-
-
+  await Feeds.init();
 
   // WebGPU init
   const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
@@ -559,9 +580,9 @@ function rectFront() {
 
     /* copy the <img> element directly to GPU texture – no canvas */
     // copy the vertically-centred strip of the <img> directly to the texture
-    const srcY = Math.floor((ipImg.naturalHeight - TOP_H) / 2);
+    const srcY = Math.floor((Feeds.top().naturalHeight - TOP_H) / 2);
     device.queue.copyExternalImageToTexture(
-      { source: ipImg, origin: { x: 0, y: srcY } },
+      { source: Feeds.top(), origin: { x: 0, y: srcY } },
       { texture: frameTex1 },
       [TOP_W, TOP_H]
     );
@@ -624,7 +645,7 @@ function rectFront() {
   async function runFrontDetection(flags) {
     // 0) use rVFC to avoid re-processing the same video frame
     const meta = await new Promise(res =>
-      vid.requestVideoFrameCallback((_now, m) => res(m))
+      Feeds.front().requestVideoFrameCallback((_now, m) => res(m))
     );
     if (meta.captureTime === lastCaptureTime) {
       return { detected: false, hits: [] };
@@ -637,7 +658,7 @@ function rectFront() {
 
     // copy into texture & dispatch WGSL
     device.queue.copyExternalImageToTexture(
-      { source: vid },
+      { source: Feeds.front() },
       { texture: frameTex2 },
       [FRONT_W, FRONT_H]
     );
