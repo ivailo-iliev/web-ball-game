@@ -189,14 +189,24 @@ const pick = arr => arr[Math.floor(rand(arr.length))];
 
 
 function applyTransform(el, x, y, rot, sx, sy) {
-  el.attributeStyleMap.set(
-    'transform',
-    new CSSTransformValue([
-      new CSSTranslate(CSS.px(x), CSS.px(y)),
-      new CSSRotate(CSS.rad(rot)),
-      new CSSScale(sx, sy)
-    ])
-  );
+  // cache typed OM objects on the element so we don't recreate
+  // them on every frame. When called the first time we create the
+  // CSSTransformValue and reuse the individual components thereafter.
+  let cache = el._tf;
+  if (!cache) {
+    const translate = new CSSTranslate(CSS.px(x), CSS.px(y));
+    const rotate = new CSSRotate(CSS.rad(rot));
+    const scale = new CSSScale(sx, sy);
+    const tv = new CSSTransformValue([translate, rotate, scale]);
+    el.attributeStyleMap.set('transform', tv);
+    cache = el._tf = { translate, rotate, scale };
+  } else {
+    cache.translate.x.value = x;
+    cache.translate.y.value = y;
+    cache.rotate.angle.value = rot;
+    cache.scale.x = sx;
+    cache.scale.y = sy;
+  }
 }
 
 // PARTICLE CLASS (DOM version)
