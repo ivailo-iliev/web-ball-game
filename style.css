@@ -139,8 +139,11 @@ input[type="range"] {
 /* Game area */
 #game {
   position: relative;
+  width: 100vw;
   height: 100vh;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
   contain: layout style size;
 }
 
@@ -152,7 +155,39 @@ input[type="range"] {
   pointer-events: auto;
   user-select: none;
   will-change: transform, opacity;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform-origin: center;
   transform: translate3d(var(--x), var(--y), 0) rotate(var(--rot)) scale(var(--sx), var(--sy));
+}
+
+.particle {
+  position: absolute;
+  will-change: transform, opacity;
+  font-family: sans-serif;
+  font-size: 24px;
+  text-align: center;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center;
+}
+
+.moleHole {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.moleHoleIcon {
+  font-size: 30vh;
+  line-height: 27vh;
+  pointer-events: none;
+  text-align: center;
 }
 
 .burst {
