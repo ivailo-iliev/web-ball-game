@@ -161,9 +161,11 @@ window.addEventListener('orientationchange', () => {
 function buildMoleBoard (opts = cfg) {
   moleHoles.length = 0;
 
-  gameContainer.style.display             = 'grid';
-  gameContainer.style.gridTemplateColumns = `repeat(${opts.moleGridCols},1fr)`;
-  gameContainer.style.gridTemplateRows    = `repeat(${opts.moleGridRows},1fr)`;
+  Object.assign(gameContainer.style, {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${opts.moleGridCols},1fr)`,
+    gridTemplateRows: `repeat(${opts.moleGridRows},1fr)`
+  });
 
   const total = opts.moleGridCols * opts.moleGridRows;
   for (let i = 0; i < total; ++i) {
@@ -189,13 +191,16 @@ const randX = r => between(r, winW - r);
 const randY = r => between(r, winH - r);
 const pick = arr => arr[Math.floor(rand(arr.length))];
 
-// batch style updates to reduce layout thrashing
-function setStyles(el, styles) {
-  const s = el.style;
-  for (const k in styles) {
-    if (k.startsWith('--')) s.setProperty(k, styles[k]);
-    else s[k] = styles[k];
-  }
+
+function applyTransform(el, x, y, rot, sx, sy) {
+  el.attributeStyleMap.set(
+    'transform',
+    new CSSTransformValue([
+      new CSSTranslate(CSS.px(x), CSS.px(y)),
+      new CSSRotate(CSS.rad(rot)),
+      new CSSScale(sx, sy)
+    ])
+  );
 }
 
 // PARTICLE CLASS (DOM version)
@@ -204,8 +209,10 @@ class Particle {
     const el = document.createElement('div');
     el.className = 'particle';
     el.textContent = e;
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
+    Object.assign(el.style, {
+      left: `${x}px`,
+      top: `${y}px`
+    });
     el.style.setProperty('--dx', `${dx}px`);
     el.style.setProperty('--dy', `${dy}px`);
     el.style.setProperty('--life', `${cfg.particleLife}s`);
@@ -233,10 +240,12 @@ class Sprite {
     this.el.textContent = e;
     // set constant size once
     const size = this.r * 2;
-    this.el.style.width = `${size}px`;
-    this.el.style.height = `${size}px`;
-    this.el.style.lineHeight = `${size}px`;
-    this.el.style.fontSize = `${size}px`;
+    Object.assign(this.el.style, {
+      width: `${size}px`,
+      height: `${size}px`,
+      lineHeight: `${size}px`,
+      fontSize: `${size}px`
+    });
 
     /* BALLOON – give it a permanent tint ONCE */
     if (this.mode === ModeHandlers[MODES.BALLOONS]) {
@@ -267,10 +276,12 @@ class Sprite {
     const r = this.r;
     // update size on reset
     const size = r * 2;
-    this.el.style.width = `${size}px`;
-    this.el.style.height = `${size}px`;
-    this.el.style.lineHeight = `${size}px`;
-    this.el.style.fontSize = `${size}px`;
+    Object.assign(this.el.style, {
+      width: `${size}px`,
+      height: `${size}px`,
+      lineHeight: `${size}px`,
+      fontSize: `${size}px`
+    });
     if (this.mode === ModeHandlers[MODES.FISH]) {
       // spawn from left or right edge
       const side = Math.random() < 0.5 ? 'left' : 'right';
@@ -346,13 +357,7 @@ class EmojiGame extends GameMode {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
     const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    setStyles(s.el, {
-      '--x': `${s.x - s.r}px`,
-      '--y': `${s.y - s.r}px`,
-      '--rot': `${rot}rad`,
-      '--sx': `${scale}`,
-      '--sy': `${scale}`
-    });
+    applyTransform(s.el, s.x - s.r, s.y - s.r, rot, scale, scale);
   }
   resolveCollisions() {
     for (let i = 0; i < state.sprites.length; i++) {
@@ -412,13 +417,7 @@ class FishGame extends GameMode {
     if (!s.alive) return;
     const rot = s.angle;
     const flip = s.face > 0 ? -1 : 1;
-    setStyles(s.el, {
-      '--x': `${s.x - s.r}px`,
-      '--y': `${s.y - s.r}px`,
-      '--rot': `${rot}rad`,
-      '--sx': `${flip}`,
-      '--sy': `1`
-    });
+    applyTransform(s.el, s.x - s.r, s.y - s.r, rot, flip, 1);
   }
 }
 registerMode(MODES.FISH, new FishGame(modeCfgs[MODES.FISH]));
@@ -447,13 +446,7 @@ class BalloonGame extends GameMode {
     if (!s.alive) return;
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
     const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    setStyles(s.el, {
-      '--x': `${s.x - s.r}px`,
-      '--y': `${s.y - s.r}px`,
-      '--rot': `${rot}rad`,
-      '--sx': `${scale}`,
-      '--sy': `${scale}`
-    });
+    applyTransform(s.el, s.x - s.r, s.y - s.r, rot, scale, scale);
   }
 }
 registerMode(MODES.BALLOONS, new BalloonGame(modeCfgs[MODES.BALLOONS]));
@@ -499,13 +492,7 @@ class MoleGame extends GameMode {
   }
   draw(s) {
     if (!s.alive) return;
-    setStyles(s.el, {
-      '--x': `${s.x - s.r}px`,
-      '--y': `${s.y - s.r}px`,
-      '--rot': `0rad`,
-      '--sx': `1`,
-      '--sy': `1`
-    });
+    applyTransform(s.el, s.x - s.r, s.y - s.r, 0, 1, 1);
   }
   hit(s) {
     s.pop = 0.01;
@@ -591,8 +578,10 @@ function burst(x, y, emojiArr = BURST) {
     b.textContent = emojiArr[Math.floor(rand(emojiArr.length))];
 
     // position at impact point
-    b.style.left = `${x}px`;
-    b.style.top = `${y}px`;
+    Object.assign(b.style, {
+      left: `${x}px`,
+      top: `${y}px`
+    });
 
     // pass velocity via CSS vars
     b.style.setProperty('--dx', `${dxp}px`);
@@ -652,8 +641,10 @@ function calculatePoints(sprite) {
 
 function doHit(px, py, team, sprite) {
   // move the single ripple element
-  ripple.style.left = `${px}px`;
-  ripple.style.top  = `${py}px`;
+  Object.assign(ripple.style, {
+    left: `${px}px`,
+    top: `${py}px`
+  });
   // restart the animation
   ripple.classList.remove('animate');
   void ripple.offsetWidth;          // force reflow
@@ -730,7 +721,7 @@ const Game = {
   globalCfg,
   cfg,
   state,
-  utils: { rand, between, setStyles },
+  utils: { rand, between, applyTransform },
   setMode,
   spawn,
   burst
