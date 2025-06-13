@@ -54,28 +54,30 @@ const CONFIG = {
   frontH: { key: "frontH", def: 220 }      // NEW  – px height of the front rectangle
 };
 
+const Config = (() => {
+  function load(name) {
+    const { key, def } = CONFIG[name];
+    const raw = localStorage.getItem(key);
+    return raw !== null ? JSON.parse(raw) : def;
+  }
+  function save(name, value) {
+    localStorage.setItem(CONFIG[name].key, JSON.stringify(value));
+    params[name] = value;
+  }
+  return { load, save };
+})();
+
 const params = {
-  url: getConfig("url"),
-  teamA: getConfig("teamA"),
-  teamB: getConfig("teamB"),
-  polyT: getConfig("polyT"),   // 4 points for the top camera
-  polyF: getConfig("polyF"),   // 2 or 4 points for the front camera
-  zoom: getConfig("zoom"),
-  topH: getConfig("topH"),               // NEW
-  frontH: getConfig("frontH"),             // NEW
+  url: Config.load("url"),
+  teamA: Config.load("teamA"),
+  teamB: Config.load("teamB"),
+  polyT: Config.load("polyT"),   // 4 points for the top camera
+  polyF: Config.load("polyF"),   // 2 or 4 points for the front camera
+  zoom: Config.load("zoom"),
+  topH: Config.load("topH"),               // NEW
+  frontH: Config.load("frontH"),             // NEW
   preview: false                 // setup mode
 };
-
-function getConfig(name) {
-  const { key, def } = CONFIG[name];
-  const raw = localStorage.getItem(key);
-  return raw !== null ? JSON.parse(raw) : def;
-}
-
-function setConfig(name, value) {
-  localStorage.setItem(CONFIG[name].key, JSON.stringify(value));
-  params[name] = value;
-}
 
 /* Build UI */
 const detectionUI = `
@@ -156,7 +158,7 @@ function commitTop() {
   // build the four rectangle corners → params.polyT
   const { y, h } = topROI;
   params.polyT = [[0, y], [TOP_W, y], [TOP_W, y + h], [0, y + h]];
-  setConfig("polyT", params.polyT);
+  Config.save("polyT", params.polyT);
   drawPolyTop();
 }
 
@@ -213,7 +215,7 @@ commitTop();       // draw once on load
     const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
     const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
     params.polyF = orderPoints([[x1, y0], [x0, y0], [x0, y1], [x1, y1]]);
-    setConfig('polyF', params.polyF);
+    Config.save('polyF', params.polyF);
     drawPolyFront();
   }
 
@@ -306,18 +308,18 @@ commitTop();       // draw once on load
   topHInp.value = params.topH;
   frontHInp.value = params.frontH;
 
-  topHInp.onchange = e => {
-    params.topH = Math.max(10, Math.min(TOP_H, +e.target.value));
-    setConfig("topH", params.topH);
-    topROI.h = params.topH;
-    commitTop();
-  };
-  frontHInp.onchange = e => {
-    params.frontH = Math.max(10, Math.min(FRONT_H, +e.target.value));
-    setConfig("frontH", params.frontH);
-    roi.h = params.frontH;              // use the closure from gesture code
-    roi.w = roi.h * ASPECT;
-    commit();                           // re-draw front rectangle
+    topHInp.onchange = e => {
+      params.topH = Math.max(10, Math.min(TOP_H, +e.target.value));
+      Config.save("topH", params.topH);
+      topROI.h = params.topH;
+      commitTop();
+    };
+    frontHInp.onchange = e => {
+      params.frontH = Math.max(10, Math.min(FRONT_H, +e.target.value));
+      Config.save("frontH", params.frontH);
+      roi.h = params.frontH;              // use the closure from gesture code
+      roi.w = roi.h * ASPECT;
+      commit();                           // re-draw front rectangle
   };
 
   /* Initial draw */
@@ -328,9 +330,9 @@ urlI.value = params.url;
 selA.value = params.teamA;
 selB.value = params.teamB;
 
-urlI.onblur = () => { params.url = urlI.value; setConfig("url", params.url); };
-selA.onchange = e => { params.teamA = e.target.value; setConfig("teamA", params.teamA); };
-selB.onchange = e => { params.teamB = e.target.value; setConfig("teamB", params.teamB); };
+urlI.onblur = () => { params.url = urlI.value; Config.save("url", params.url); };
+selA.onchange = e => { params.teamA = e.target.value; Config.save("teamA", params.teamA); };
+selB.onchange = e => { params.teamB = e.target.value; Config.save("teamB", params.teamB); };
 
 /* GPU globals */
 let device, ctxTop, ctxFront;
@@ -422,7 +424,7 @@ function rectFront() {
     zoomSlider.addEventListener('input', async () => {
       adv.zoom = parseFloat(zoomSlider.value);
       params.zoom = adv.zoom;
-      setConfig('zoom', params.zoom);
+      Config.save('zoom', params.zoom);
       try {
         await track.applyConstraints({ advanced: [adv] });
       } catch (err) {
