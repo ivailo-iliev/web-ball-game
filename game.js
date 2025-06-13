@@ -138,14 +138,6 @@ class GameMode {
 
 const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
-Object.assign(gameContainer.style, {
-  position: 'relative',
-  width: '100vw',
-  height: '100vh',
-  overflow: 'hidden',
-  margin: '0',
-  padding: '0',
-});
 
 const gameScreen = document.getElementById('gameScreen');
 gameScreen.appendChild(gameContainer);
@@ -177,20 +169,9 @@ function buildMoleBoard (opts = cfg) {
   for (let i = 0; i < total; ++i) {
     const cell = document.createElement('div');
     cell.className = 'moleHole';
-    Object.assign(cell.style, {
-      position:       'relative',
-      overflow:       'hidden',     /* crops the mole sprite */
-      display:        'flex',
-      alignItems:     'flex-end',
-      justifyContent: 'center',
-      pointerEvents:  'none'
-   });
     const hole = document.createElement('div');
+    hole.className = 'moleHoleIcon';
     hole.textContent = '🕳️';
-    hole.style.fontSize = '30vh';
-    hole.style.lineHeight = '27vh';
-    hole.style.pointerEvents = 'none';
-    hole.style.textAlign = 'center';
     cell.appendChild(hole);
     gameContainer.appendChild(cell);
     cell.dataset.busy = '';
@@ -227,17 +208,6 @@ class Particle {
     this.el = document.createElement('div');
     this.el.className = 'particle';
     this.el.textContent = e;
-    Object.assign(this.el.style, {
-      position: 'absolute',
-      willChange: 'transform, opacity',
-      fontFamily: 'sans-serif',
-      fontSize: '24px',
-      textAlign: 'center',
-      lineHeight: '1',
-      pointerEvents: 'none',
-      userSelect: 'none',
-      transformOrigin: 'center',
-    });
     gameContainer.appendChild(this.el);
   }
 
@@ -273,19 +243,6 @@ class Sprite {
     this.el = document.createElement('div');
     this.el.className = 'emoji';
     this.el.textContent = e;
-    Object.assign(this.el.style, {
-      position: 'absolute',
-      willChange: 'transform, opacity',
-      fontFamily: 'sans-serif',
-      textAlign: 'center',
-      lineHeight: '1',
-      pointerEvents: 'auto',
-      userSelect: 'none',
-      transformOrigin: 'center',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-    });
     // set constant size once
     const size = this.r * 2;
     this.el.style.width = `${size}px`;
