@@ -187,6 +187,12 @@ const randX = r => between(r, winW - r);
 const randY = r => between(r, winH - r);
 const pick = arr => arr[Math.floor(rand(arr.length))];
 
+// return a random velocity vector of given magnitude
+const randVec = (speed = randSpeed()) => {
+  const ang = rand(Math.PI * 2);
+  return { dx: Math.cos(ang) * speed, dy: Math.sin(ang) * speed };
+};
+
 
 function applyTransform(el, x, y, rot, sx, sy) {
   // cache typed OM objects on the element so we don't recreate
@@ -309,8 +315,7 @@ class Sprite {
     } else {
       this.x = randX(r);
       this.y = randY(r);
-      const ang = rand(Math.PI * 2);
-      const { dx, dy } = (() => { const v = randSpeed(); return { dx: Math.cos(ang)*v, dy: Math.sin(ang)*v }; })();
+      const { dx, dy } = randVec();
       this.dx = dx;
       this.dy = dy;
     }
@@ -343,8 +348,7 @@ class EmojiGame extends GameMode {
     const e = pick(this.opts.emojis);
     const x = randX(r);
     const y = randY(r);
-    const ang = rand(Math.PI * 2);
-    const { dx, dy } = (() => { const v = randSpeed(); return { dx: Math.cos(ang)*v, dy: Math.sin(ang)*v }; })();
+    const { dx, dy } = randVec();
     state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face:1, dir:1 }));
   }
   update(s, dt) {
@@ -573,10 +577,8 @@ gameContainer.appendChild(burstTemplate);
 // Flexible burst helper – defaults to EMOJI burst list, can be overridden
 function burst(x, y, emojiArr = BURST) {
   for (let i = 0; i < cfg.burstN; i++) {
-    const ang = rand(Math.PI * 2);
     const sp = 150 + rand(150);
-    const dxp = Math.cos(ang) * sp;
-    const dyp = Math.sin(ang) * sp;
+    const { dx: dxp, dy: dyp } = randVec(sp);
 
     // clone the hidden burst template
     const b = burstTemplate.cloneNode(true);
