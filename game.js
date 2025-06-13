@@ -201,29 +201,17 @@ function setStyles(el, styles) {
 // PARTICLE CLASS (DOM version)
 class Particle {
   constructor(x, y, dx, dy, e) {
-    this.x = x; this.y = y;
-    this.dx = dx; this.dy = dy;
-    this.e = e; this.t = 0;
-
-    this.el = document.createElement('div');
-    this.el.className = 'particle';
-    this.el.textContent = e;
-    gameContainer.appendChild(this.el);
-  }
-
-  update(dt) {
-    this.x += this.dx * dt;
-    this.y += this.dy * dt;
-    this.t += dt;
-  }
-
-  draw() {
-    if (this.t > cfg.particleLife) return;
-    const alpha = 1 - this.t / cfg.particleLife;
-    setStyles(this.el, {
-      opacity: alpha,
-      transform: `translate3d(${this.x}px,${this.y}px,0)`
-    });
+    const el = document.createElement('div');
+    el.className = 'particle';
+    el.textContent = e;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.setProperty('--dx', `${dx}px`);
+    el.style.setProperty('--dy', `${dy}px`);
+    el.style.setProperty('--life', `${cfg.particleLife}s`);
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+    gameContainer.appendChild(el);
+    this.el = el;
   }
 }
 
@@ -555,7 +543,6 @@ let currentMode = ModeHandlers[cfg.mode];
 // ---------- Runtime State ----------
 const state = {
   sprites: [],
-  parts: [],
   pending: 0,      // scheduled but not yet realised spawns
   scores: { teamA: 0, teamB: 0 }
 };
@@ -638,13 +625,6 @@ function maintain() {
   // ensure count
   while (state.sprites.length + state.pending < cfg.count) scheduleSpawn();
 
-  // remove old particles
-  for (let i = state.parts.length - 1; i >= 0; i--) {
-    if (state.parts[i].t > cfg.particleLife) {
-      state.parts[i].el.remove();
-      state.parts.splice(i, 1);
-    }
-  }
 }
 
 // INITIAL SPAWN
@@ -715,11 +695,9 @@ function loop(now) {
   last = now;
 
   state.sprites.forEach(s => s.update(dt));
-  state.parts.forEach(p => p.update(dt));
   if (currentMode && currentMode.resolveCollisions) currentMode.resolveCollisions();
   maintain();
   state.sprites.forEach(s => s.draw());
-  state.parts.forEach(p => p.draw());
 
   requestAnimationFrame(loop);
 }
