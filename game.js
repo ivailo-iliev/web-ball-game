@@ -171,10 +171,6 @@ function buildMoleBoard (opts = cfg) {
   for (let i = 0; i < total; ++i) {
     const cell = document.createElement('div');
     cell.className = 'moleHole';
-    const hole = document.createElement('div');
-    hole.className = 'moleHoleIcon';
-    hole.textContent = '🕳️';
-    cell.appendChild(hole);
     gameContainer.appendChild(cell);
     cell.dataset.busy = '';
     moleHoles.push(cell);

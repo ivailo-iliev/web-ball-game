@@ -185,13 +185,10 @@ input[type="range"] {
   display: flex;
   align-items: flex-end;
   pointer-events: none;
-}
-
-.moleHoleIcon {
-  font-size: 30vh;
-  line-height: 27vh;
-  pointer-events: none;
-  text-align: center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 30'%3E%3Cellipse cx='50' cy='15' rx='50' ry='15' fill='black'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: contain;
 }
 
 .burst {
