@@ -495,7 +495,6 @@ class MoleGame extends GameMode {
   update(s, dt) {
     if (s.phase) {
       // keep mole centered within its hole
-      s.x = s.el.parentElement.clientWidth * 0.5;
       if (s.phase === 'up') {
         s.y += s.dy * dt;
         if (s.y <= s.r) { s.y = s.r; s.dy = 0; s.phase = 'stay'; }
