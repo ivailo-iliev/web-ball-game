@@ -42,42 +42,39 @@ function hsvRange(team) {
 /* DOM helper */
 const $ = q => document.querySelector(q);
 
-// Consolidated config: LS key + default in one place
-const CONFIG = {
-  url: { key: "frontURL", def: "http://192.168.43.1:8080/video" },
-  teamA: { key: "teamA", def: "green" },
-  teamB: { key: "teamB", def: "blue" },
-  polyT: { key: "roiPolyTop", def: [] },
-  polyF: { key: "roiPolyFront", def: [] },
-  zoom: { key: "zoom", def: 1.0 },
-  topH: { key: "topH", def: 160 },       // NEW  – px height of the top rectangle
-  frontH: { key: "frontH", def: 220 }      // NEW  – px height of the front rectangle
-};
-
 const Config = (() => {
-  function load(name) {
-    const { key, def } = CONFIG[name];
-    const raw = localStorage.getItem(key);
-    return raw !== null ? JSON.parse(raw) : def;
+  const SETTINGS = {
+    url:    { key: "frontURL",    def: "http://192.168.43.1:8080/video" },
+    teamA:  { key: "teamA",       def: "green" },
+    teamB:  { key: "teamB",       def: "blue" },
+    polyT:  { key: "roiPolyTop",  def: [] },
+    polyF:  { key: "roiPolyFront", def: [] },
+    zoom:   { key: "zoom",        def: 1.0 },
+    topH:   { key: "topH",        def: 160 },
+    frontH: { key: "frontH",      def: 220 }
+  };
+
+  function load() {
+    const cfg = {};
+    for (const [name, { key, def }] of Object.entries(SETTINGS)) {
+      const raw = localStorage.getItem(key);
+      cfg[name] = raw !== null ? JSON.parse(raw) : def;
+    }
+    return cfg;
   }
+
   function save(name, value) {
-    localStorage.setItem(CONFIG[name].key, JSON.stringify(value));
-    params[name] = value;
+    const entry = SETTINGS[name];
+    if (entry) {
+      localStorage.setItem(entry.key, JSON.stringify(value));
+    }
   }
+
   return { load, save };
 })();
 
-const params = {
-  url: Config.load("url"),
-  teamA: Config.load("teamA"),
-  teamB: Config.load("teamB"),
-  polyT: Config.load("polyT"),   // 4 points for the top camera
-  polyF: Config.load("polyF"),   // 2 or 4 points for the front camera
-  zoom: Config.load("zoom"),
-  topH: Config.load("topH"),               // NEW
-  frontH: Config.load("frontH"),             // NEW
-  preview: false                 // setup mode
-};
+const params = Config.load();
+params.preview = false;             // setup mode
 
 
 const Setup = (() => {
