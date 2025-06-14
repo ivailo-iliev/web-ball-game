@@ -213,9 +213,9 @@ const Setup = (() => {
     <input type="range" id="zoomSlider" style="width: 100%;">
     Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H}   step=1 style="width:5em">
     Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 style="width:5em">
-    <button onclick="$('#configScreen').className = 'onlyTop'">Top</button>
-    <button onclick="$('#configScreen').className = 'onlyFront'">Front</button>
-    <button onclick="$('#configScreen').className = ''">Both</button>
+    <button id=btnTop>Top</button>
+    <button id=btnFront>Front</button>
+    <button id=btnBoth>Both</button>
     IP-Cam URL <input id=url size=32>
     Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
     Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
@@ -230,6 +230,14 @@ const Setup = (() => {
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
     const zoomSlider = $('#zoomSlider');
+    const btnTop   = $('#btnTop');
+    const btnFront = $('#btnFront');
+    const btnBoth  = $('#btnBoth');
+
+    const cfgScreen = $('#configScreen');
+    btnTop?.addEventListener('click', () => cfgScreen.className = 'onlyTop');
+    btnFront?.addEventListener('click', () => cfgScreen.className = 'onlyFront');
+    btnBoth?.addEventListener('click', () => cfgScreen.className = '');
 
   const topROI = { y: 0, h: cfg.topH };
 
