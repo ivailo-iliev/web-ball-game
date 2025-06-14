@@ -393,134 +393,240 @@ urlI.onblur = () => { params.url = urlI.value; Config.save("url", params.url); }
 selA.onchange = e => { params.teamA = e.target.value; Config.save("teamA", params.teamA); };
 selB.onchange = e => { params.teamB = e.target.value; Config.save("teamB", params.teamB); };
 
-/* GPU globals */
-let device, ctxTop, ctxFront;
-let frameTex1, maskTex1, frameTex2, maskTex2, sampler;
-let uni, statsA, statsB, readA, readB;
-let pipeC, pipeQ, bgR, bgRF, bgTop, bgFront;
-const zero = new Uint32Array([0, 0, 0]);
+const Detect = (() => {
+  /* GPU globals */
+  let device, ctxTop, ctxFront;
+  let frameTex1, maskTex1, frameTex2, maskTex2, sampler;
+  let uni, statsA, statsB, readA, readB;
+  let pipeC, pipeQ, bgR, bgRF, bgTop, bgFront;
+  const zero = new Uint32Array([0, 0, 0]);
 
-// helper: encode a JavaScript Number (f32) into a 16-bit float bitpattern
-function float32ToFloat16(val) {
-  // view the same bits as a Uint32
-  const f32 = new Float32Array([val]);
-  const u32 = new Uint32Array(f32.buffer)[0];
-  const sign = (u32 >> 16) & 0x8000;
-  let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
-  let mant = u32 & 0x7FFFFF;
+  // helper: encode a JavaScript Number (f32) into a 16-bit float bitpattern
+  function float32ToFloat16(val) {
+    const f32 = new Float32Array([val]);
+    const u32 = new Uint32Array(f32.buffer)[0];
+    const sign = (u32 >> 16) & 0x8000;
+    let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
+    let mant = u32 & 0x7FFFFF;
 
-  if (exp <= 0) {
-    // too small → flush to zero
-    return sign;
+    if (exp <= 0) return sign;
+    if (exp >= 0x1F) return sign | 0x7C00;
+    return sign | (exp << 10) | (mant >> 13);
   }
-  if (exp >= 0x1F) {
-    // Inf or NaN
-    return sign | 0x7C00;
+
+  // Pre-allocate uniform buffer and typed-array views (64 bytes)
+  const uniformArrayBuffer = new ArrayBuffer(64);
+  const uniformU16 = new Uint16Array(uniformArrayBuffer);
+  const uniformF32 = new Float32Array(uniformArrayBuffer);
+  const uniformU32 = new Uint32Array(uniformArrayBuffer);
+
+  function writeUniform(buf, hsvA6, hsvB6, rect, flags) {
+    const u16 = uniformU16;
+    const f32 = uniformF32;
+    const u32 = uniformU32;
+
+    for (let i = 0; i < 3; i++) u16[i] = float32ToFloat16(hsvA6[i]);
+    for (let i = 0; i < 3; i++) u16[4 + i] = float32ToFloat16(hsvA6[i + 3]);
+    for (let i = 0; i < 3; i++) u16[8 + i] = float32ToFloat16(hsvB6[i]);
+    for (let i = 0; i < 3; i++) u16[12 + i] = float32ToFloat16(hsvB6[i + 3]);
+    f32[8] = rect.min[0]; f32[9] = rect.min[1];
+    f32[10] = rect.max[0]; f32[11] = rect.max[1];
+    u32[12] = flags;
+    device.queue.writeBuffer(buf, 0, uniformArrayBuffer);
   }
-  // pack sign + exponent + top 10 bits of mantissa
-  return sign | (exp << 10) | (mant >> 13);
-}
 
+  function rectTop() {
+    return { min: [0, topROI.y], max: [TOP_W, topROI.y + topROI.h] };
+  }
+  function rectFront() {
+    const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
+    return {
+      min: [Math.min(...xs), Math.min(...ys)],
+      max: [Math.max(...xs), Math.max(...ys)]
+    };
+  }
 
-// Pre-allocate uniform buffer and typed-array views (64 bytes)
-const uniformArrayBuffer = new ArrayBuffer(64);
-const uniformU16 = new Uint16Array(uniformArrayBuffer);
-const uniformF32 = new Float32Array(uniformArrayBuffer);
-const uniformU32 = new Uint32Array(uniformArrayBuffer);
+  async function init() {
 
-function writeUniform(buf, hsvA6, hsvB6, rect, flags) {
-  // Reuse the pre-allocated uniform buffer and its views:
-  const u16 = uniformU16;
-  const f32 = uniformF32;
-  const u32 = uniformU32;
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    const hasF16 = adapter.features.has("shader-f16");
+    device = await adapter.requestDevice({ requiredFeatures: hasF16 ? ["shader-f16"] : [] });
+    console.log("shader-f16:", hasF16);
+    ctxTop = $('#topTex').getContext('webgpu');
+    ctxTop.configure({ device, format: 'rgba8unorm' });
+    ctxFront = $('#frontTex').getContext('webgpu');
+    ctxFront.configure({ device, format: 'rgba8unorm' });
 
-  /* hsvA */
-  for (let i = 0; i < 3; i++) u16[i] = float32ToFloat16(hsvA6[i]);
-  for (let i = 0; i < 3; i++) u16[4 + i] = float32ToFloat16(hsvA6[i + 3]);
-  /* hsvB */
-  for (let i = 0; i < 3; i++) u16[8 + i] = float32ToFloat16(hsvB6[i]);
-  for (let i = 0; i < 3; i++) u16[12 + i] = float32ToFloat16(hsvB6[i + 3]);
-  /* rect (min,max) */
-  f32[8] = rect.min[0]; f32[9] = rect.min[1];
-  f32[10] = rect.max[0]; f32[11] = rect.max[1];
-  /* flags: preview | active-team bits */
-  u32[12] = flags;
-  device.queue.writeBuffer(buf, 0, uniformArrayBuffer);
-}
+    const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
+    const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
+    frameTex1 = device.createTexture({ size: [TOP_W, TOP_H], format: 'rgba8unorm', usage: texUsage1 });
+    maskTex1 = device.createTexture({ size: [TOP_W, TOP_H], format: 'rgba8unorm', usage: maskUsage });
+    frameTex2 = device.createTexture({ size: [FRONT_W, FRONT_H], format: 'rgba8unorm', usage: texUsage1 });
+    maskTex2 = device.createTexture({ size: [FRONT_W, FRONT_H], format: 'rgba8unorm', usage: maskUsage });
+    sampler = device.createSampler();
 
-function rectTop() { return { min: [0, topROI.y], max: [TOP_W, topROI.y + topROI.h] }; }
-function rectFront() {
-  const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
-  return {
-    min: [Math.min(...xs), Math.min(...ys)],
-    max: [Math.max(...xs), Math.max(...ys)]
-  };
-}
+    uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+
+    const code = await fetch('shader.wgsl').then(r => r.text());
+    const mod = device.createShaderModule({ code });
+    pipeC = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'main' } });
+    pipeQ = device.createRenderPipeline({
+      layout: 'auto',
+      vertex: { module: mod, entryPoint: 'vs' },
+      fragment: { module: mod, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+      primitive: { topology: 'triangle-list' }
+    });
+
+    bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: frameTex1.createView() },
+      { binding: 4, resource: maskTex1.createView() },
+      { binding: 5, resource: sampler }
+    ] });
+    bgRF = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: frameTex2.createView() },
+      { binding: 4, resource: maskTex2.createView() },
+      { binding: 5, resource: sampler }
+    ] });
+    bgTop = device.createBindGroup({
+      layout: pipeC.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: frameTex1.createView() },
+        { binding: 1, resource: maskTex1.createView() },
+        { binding: 2, resource: { buffer: statsA } },
+        { binding: 3, resource: { buffer: statsB } },
+        { binding: 6, resource: { buffer: uni } }
+      ]
+    });
+    bgFront = device.createBindGroup({
+      layout: pipeC.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: frameTex2.createView() },
+        { binding: 1, resource: maskTex2.createView() },
+        { binding: 2, resource: { buffer: statsA } },
+        { binding: 3, resource: { buffer: statsB } },
+        { binding: 6, resource: { buffer: uni } }
+      ]
+    });
+  }
+
+  async function runTopDetection() {
+    device.queue.writeBuffer(statsA, 0, zero);
+    device.queue.writeBuffer(statsB, 0, zero);
+
+    const srcY = Math.floor((Feeds.top().naturalHeight - TOP_H) / 2);
+    device.queue.copyExternalImageToTexture(
+      { source: Feeds.top(), origin: { x: 0, y: srcY } },
+      { texture: frameTex1 },
+      [TOP_W, TOP_H]
+    );
+
+    const enc = device.createCommandEncoder();
+    enc.beginRenderPass({ colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
+
+    const flagsTop = (params.preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+    writeUniform(uni, hsvRange(params.teamA), hsvRange(params.teamB), rectTop(), flagsTop);
+    let cp = enc.beginComputePass();
+    cp.setPipeline(pipeC);
+    cp.setBindGroup(0, bgTop);
+    cp.dispatchWorkgroups(Math.ceil(TOP_W / 8), Math.ceil(TOP_H / 32));
+    cp.end();
+    enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
+    enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
+    if (params.preview) {
+      const rp = enc.beginRenderPass({
+        colorAttachments: [{ view: ctxTop.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store' }]
+      });
+      rp.setPipeline(pipeQ);
+      rp.setBindGroup(0, bgR);
+      rp.draw(3);
+      rp.end();
+    }
+    device.queue.submit([enc.finish()]);
+    await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
+    const [cntA] = new Uint32Array(readA.getMappedRange());
+    readA.unmap();
+    const [cntB] = new Uint32Array(readB.getMappedRange());
+    readB.unmap();
+
+    const topDetected = cntA > TOP_MIN_AREA || cntB > TOP_MIN_AREA;
+    return { detected: topDetected, cntA, cntB };
+  }
+
+  let lastCaptureTime = 0;
+  async function runFrontDetection(flags) {
+    const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
+    if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
+    lastCaptureTime = meta.captureTime;
+
+    device.queue.writeBuffer(statsA, 0, zero);
+    device.queue.writeBuffer(statsB, 0, zero);
+
+    device.queue.copyExternalImageToTexture(
+      { source: Feeds.front() },
+      { texture: frameTex2 },
+      [FRONT_W, FRONT_H]
+    );
+    const enc2 = device.createCommandEncoder();
+    enc2.beginRenderPass({ colorAttachments: [{ view: maskTex2.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
+    writeUniform(uni, hsvRange(params.teamA), hsvRange(params.teamB), rectFront(), flags);
+    let cp2 = enc2.beginComputePass();
+    cp2.setPipeline(pipeC);
+    cp2.setBindGroup(0, bgFront);
+    cp2.dispatchWorkgroups(Math.ceil(FRONT_W / 8), Math.ceil(FRONT_H / 32));
+    cp2.end();
+    enc2.copyBufferToBuffer(statsA, 0, readA, 0, 12);
+    enc2.copyBufferToBuffer(statsB, 0, readB, 0, 12);
+    if (params.preview) {
+      const view2 = ctxFront.getCurrentTexture().createView();
+      const rp2 = enc2.beginRenderPass({ colorAttachments: [{ view: view2, loadOp: 'clear', storeOp: 'store' }] });
+      rp2.setPipeline(pipeQ);
+      rp2.setBindGroup(0, bgRF);
+      rp2.draw(3);
+      rp2.end();
+    }
+    device.queue.submit([enc2.finish()]);
+
+    await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
+    const [cntA, sumXA, sumYA] = new Uint32Array(readA.getMappedRange());
+    readA.unmap();
+    const [cntB, sumXB, sumYB] = new Uint32Array(readB.getMappedRange());
+    readB.unmap();
+
+    const hits = [];
+    if (cntA > FRONT_MIN_AREA) {
+      const cx = sumXA / cntA, cy = sumYA / cntA;
+      hits.push({ team: params.teamA, x: cx / FRONT_W, y: cy / FRONT_H });
+    }
+    if (cntB > FRONT_MIN_AREA) {
+      const cx = sumXB / cntB, cy = sumYB / cntB;
+      hits.push({ team: params.teamB, x: cx / FRONT_W, y: cy / FRONT_H });
+    }
+
+    if (params.preview && hits.length) {
+      const ctx2d = frontOv.getContext('2d');
+      for (const h of hits) {
+        ctx2d.fillStyle = h.team;
+        const px = h.x * FRONT_W, py = h.y * FRONT_H;
+        ctx2d.beginPath();
+        ctx2d.arc(px, py, 8, 0, Math.PI * 2);
+        ctx2d.fill();
+      }
+    }
+    return { detected: hits.length > 0, hits };
+
+  }
+
+  return { init, runTopDetection, runFrontDetection };
+})();
 
 
 (async () => {
   await Feeds.init();
-
-  // WebGPU init
-  const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-  const hasF16 = adapter.features.has("shader-f16");
-  device = await adapter.requestDevice({
-    requiredFeatures: hasF16 ? ["shader-f16"] : []
-  });
-  console.log("shader-f16:", hasF16);
-  ctxTop = $('#topTex').getContext('webgpu');
-  ctxTop.configure({ device, format: 'rgba8unorm' });
-  ctxFront = $('#frontTex').getContext('webgpu');
-  ctxFront.configure({ device, format: 'rgba8unorm' });
-
-  // textures
-  const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
-  const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-  frameTex1 = device.createTexture({ size: [TOP_W, TOP_H], format: 'rgba8unorm', usage: texUsage1 });
-  maskTex1 = device.createTexture({ size: [TOP_W, TOP_H], format: 'rgba8unorm', usage: maskUsage });
-  frameTex2 = device.createTexture({ size: [FRONT_W, FRONT_H], format: 'rgba8unorm', usage: texUsage1 });
-  maskTex2 = device.createTexture({ size: [FRONT_W, FRONT_H], format: 'rgba8unorm', usage: maskUsage });
-  sampler = device.createSampler();
-
-  // buffers
-  uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-  statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-  //statsF = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-  readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-  readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-  //readF = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-
-  // pipelines
-  const code = await fetch('shader.wgsl').then(r => r.text());
-  const mod = device.createShaderModule({ code });
-  pipeC = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'main' } });
-  pipeQ = device.createRenderPipeline({ layout: 'auto', vertex: { module: mod, entryPoint: 'vs' }, fragment: { module: mod, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] }, primitive: { topology: 'triangle-list' } });
-
-  // bind-groups
-  bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries: [{ binding: 0, resource: frameTex1.createView() }, { binding: 4, resource: maskTex1.createView() }, { binding: 5, resource: sampler }] });
-  bgRF = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries: [{ binding: 0, resource: frameTex2.createView() }, { binding: 4, resource: maskTex2.createView() }, { binding: 5, resource: sampler }] });
-  bgTop = device.createBindGroup({
-    layout: pipeC.getBindGroupLayout(0),
-    entries: [
-      { binding: 0, resource: frameTex1.createView() },
-      { binding: 1, resource: maskTex1.createView() },
-      { binding: 2, resource: { buffer: statsA } },
-      { binding: 3, resource: { buffer: statsB } },
-      { binding: 6, resource: { buffer: uni } }
-    ]
-  });
-
-  bgFront = device.createBindGroup({
-    layout: pipeC.getBindGroupLayout(0),
-    entries: [
-      { binding: 0, resource: frameTex2.createView() },
-      { binding: 1, resource: maskTex2.createView() },
-      { binding: 2, resource: { buffer: statsA } },
-      { binding: 3, resource: { buffer: statsB } },
-      { binding: 6, resource: { buffer: uni } }
-    ]
-  });
+  await Detect.init();
   // —————————————
   // 2) NEW FRAME LOOP
   // —————————————
@@ -543,7 +649,7 @@ function rectFront() {
     lastTop = ts;
 
     // 1) Detect on the MJPEG / top camera
-    const { detected: topDetected, cntA, cntB } = await runTopDetection();
+    const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection();
 
     // 2) If the blob was big enough, IMMEDIATELY analyse the front feed
     if (topDetected) {
@@ -551,7 +657,7 @@ function rectFront() {
       if (cntA > TOP_MIN_AREA) flags |= FLAG_TEAM_A_ACTIVE;
       if (cntB > TOP_MIN_AREA) flags |= FLAG_TEAM_B_ACTIVE;
 
-      const { detected: frontDetected, hits } = await runFrontDetection(flags);
+      const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags);
 
 
       if (frontDetected) {
@@ -568,163 +674,5 @@ function rectFront() {
     }
     // queue next top frame
     requestAnimationFrame(topLoop);
-  }
-  async function runTopDetection() {
-
-    // 0) clear the statsF buffer to zeros
-    //    (so if no new blob is found, cntF will be 0)
-
-    //evice.queue.writeBuffer(statsF, 0, zero);
-    device.queue.writeBuffer(statsA, 0, zero);
-    device.queue.writeBuffer(statsB, 0, zero);
-
-    /* copy the <img> element directly to GPU texture – no canvas */
-    // copy the vertically-centred strip of the <img> directly to the texture
-    const srcY = Math.floor((Feeds.top().naturalHeight - TOP_H) / 2);
-    device.queue.copyExternalImageToTexture(
-      { source: Feeds.top(), origin: { x: 0, y: srcY } },
-      { texture: frameTex1 },
-      [TOP_W, TOP_H]
-    );
-
-    const enc = device.createCommandEncoder();
-    enc.beginRenderPass({
-      colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }]
-    }).end();
-    /* always keep both teams active in the TOP pass */
-    const flagsTop =
-        (params.preview ? FLAG_PREVIEW : 0) |
-        FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-
-    writeUniform(
-      uni,
-      hsvRange(params.teamA), hsvRange(params.teamB),
-      rectTop(),
-      flagsTop);
-    let cp = enc.beginComputePass();
-    cp.setPipeline(pipeC);
-    cp.setBindGroup(0, bgTop);
-    cp.dispatchWorkgroups(Math.ceil(TOP_W / 8), Math.ceil(TOP_H / 32));
-    cp.end();
-    enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
-    enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-    // –– draw the MJPEG feed + mask only in preview mode
-    if (params.preview) {
-      const rp = enc.beginRenderPass({
-        colorAttachments: [{
-          view: ctxTop.getCurrentTexture().createView(),
-          loadOp: 'clear', storeOp: 'store'
-        }]
-      });
-      rp.setPipeline(pipeQ);
-      rp.setBindGroup(0, bgR);
-      rp.draw(3);
-      rp.end();
-    }
-    device.queue.submit([enc.finish()]);
-    // read back
-    await Promise.all([
-      readA.mapAsync(GPUMapMode.READ),
-      readB.mapAsync(GPUMapMode.READ)
-    ]);
-    const [cntA] = new Uint32Array(readA.getMappedRange());
-    readA.unmap();
-    const [cntB] = new Uint32Array(readB.getMappedRange());
-    readB.unmap();
-
-    const topDetected = cntA > TOP_MIN_AREA || cntB > TOP_MIN_AREA;
-    /* return counts too, so the caller can decide which team(s) to process */
-    return { detected: topDetected, cntA, cntB };
-  }
-  /* ------------------------------------------------------------------
-  * FRONT-camera detection
-  * ------------------------------------------------------------------ */
-
-  let lastCaptureTime = 0;             // global
-
-  async function runFrontDetection(flags) {
-    // 0) use rVFC to avoid re-processing the same video frame
-    const meta = await new Promise(res =>
-      Feeds.front().requestVideoFrameCallback((_now, m) => res(m))
-    );
-    if (meta.captureTime === lastCaptureTime) {
-      return { detected: false, hits: [] };
-    }
-    lastCaptureTime = meta.captureTime;
-
-    // 0) clear both team stats
-    device.queue.writeBuffer(statsA, 0, zero);
-    device.queue.writeBuffer(statsB, 0, zero);
-
-    // copy into texture & dispatch WGSL
-    device.queue.copyExternalImageToTexture(
-      { source: Feeds.front() },
-      { texture: frameTex2 },
-      [FRONT_W, FRONT_H]
-    );
-    const enc2 = device.createCommandEncoder();
-    enc2.beginRenderPass({
-      colorAttachments: [{ view: maskTex2.createView(), loadOp: 'clear', storeOp: 'store' }]
-    }).end();
-    writeUniform(
-      uni,
-      hsvRange(params.teamA), hsvRange(params.teamB),
-      rectFront(),
-      flags);
-    let cp2 = enc2.beginComputePass();
-    cp2.setPipeline(pipeC);
-    cp2.setBindGroup(0, bgFront);
-    cp2.dispatchWorkgroups(Math.ceil(FRONT_W / 8), Math.ceil(FRONT_H / 32));
-    cp2.end();
-    // copy both team results into their read-back buffers
-    enc2.copyBufferToBuffer(statsA, 0, readA, 0, 12);
-    enc2.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-    // –– draw the device‐cam feed + mask only in preview mode
-    if (params.preview) {
-      const view2 = ctxFront.getCurrentTexture().createView();
-      const rp2 = enc2.beginRenderPass({
-        colorAttachments: [{ view: view2, loadOp: 'clear', storeOp: 'store' }]
-      });
-      rp2.setPipeline(pipeQ);
-      rp2.setBindGroup(0, bgRF);
-      rp2.draw(3);
-      rp2.end();
-    }
-    device.queue.submit([enc2.finish()]);
-
-    // read back both teams
-    await Promise.all([
-      readA.mapAsync(GPUMapMode.READ),
-      readB.mapAsync(GPUMapMode.READ)
-    ]);
-    const [cntA, sumXA, sumYA] = new Uint32Array(readA.getMappedRange());
-    readA.unmap();
-    const [cntB, sumXB, sumYB] = new Uint32Array(readB.getMappedRange());
-    readB.unmap();
-
-    // build up zero, one or two hits
-    const hits = [];
-    if (cntA > FRONT_MIN_AREA) {
-      const cx = sumXA / cntA, cy = sumYA / cntA;
-      hits.push({ team: params.teamA, x: cx / FRONT_W, y: cy / FRONT_H });
-    }
-    if (cntB > FRONT_MIN_AREA) {
-      const cx = sumXB / cntB, cy = sumYB / cntB;
-      hits.push({ team: params.teamB, x: cx / FRONT_W, y: cy / FRONT_H });
-    }
-
-    // optionally draw both in preview
-    if (params.preview && hits.length) {
-      const ctx2d = frontOv.getContext('2d');
-      for (const h of hits) {
-        ctx2d.fillStyle = h.team;
-        const px = h.x * FRONT_W, py = h.y * FRONT_H;
-        ctx2d.beginPath();
-        ctx2d.arc(px, py, 8, 0, Math.PI * 2);
-        ctx2d.fill();
-      }
-    }
-    return { detected: hits.length > 0, hits };
-
   }
 })();
