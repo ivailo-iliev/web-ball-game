@@ -638,6 +638,11 @@ function updateScore() {
   bs.textContent = `${state.scores.teamB}`;
 }
 
+function setTeams(a, b) {
+  as.className = a;
+  bs.className = b;
+}
+
 function calculatePoints(sprite) {
   // Smaller & faster ⇒ larger score; Bigger & slower ⇒ smaller score
   const speed = Math.hypot(sprite.dx, sprite.dy);
@@ -730,6 +735,7 @@ const Game = {
   cfg,
   state,
   utils: { rand, between, applyTransform },
+  setTeams,
   setMode,
   spawn,
   burst
