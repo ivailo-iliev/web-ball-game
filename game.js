@@ -22,70 +22,14 @@
     burst: ['✨', '💥', '💫']
   };
 
-  const state = {
-    sprites: [],
-    pending: 0,
-    scores: { teamA: 0, teamB: 0 }
-  };
-
-  const ModeHandlers = {};
-  function registerMode(name, handler) {
-    ModeHandlers[name] = handler;
-    return handler;
-  }
-
-  function buildCfg(mode) {
-    return Object.assign({}, baseCfg, ModeHandlers[mode]?.opts || {}, { mode });
-  }
-
-  let cfg = buildCfg(baseCfg.mode);
-
-  // DOM elements
-  const gameContainer = document.createElement('div');
-  gameContainer.id = 'game';
-  const gameScreen = document.getElementById('gameScreen');
-  gameScreen.appendChild(gameContainer);
-  const as = document.getElementById('teamAScore');
-  const bs = document.getElementById('teamBScore');
-
-  let winW = window.visualViewport.width || window.innerWidth;
-  let winH = window.visualViewport.height || window.innerHeight;
-
-  function onSpritePointerDown(e) {
-    const target = e.target.closest('.emoji');
-    if (!target || !target._sprite) return;
-    const rect = gameContainer.getBoundingClientRect();
-    doHit(
-      e.clientX - rect.left,
-      e.clientY - rect.top,
-      e.button === 2 ? 'teamA' : 'teamB',
-      target._sprite
-    );
-  }
-
-  gameContainer.addEventListener('pointerdown', onSpritePointerDown);
-
-  window.addEventListener('resize', () => {
-    winW = window.visualViewport.width || window.innerWidth;
-    winH = window.visualViewport.height || window.innerHeight;
-    Game.winW = winW;
-    Game.winH = winH;
-  });
-
-  window.addEventListener('orientationchange', () => {
-    winW = window.visualViewport.width || window.innerWidth;
-    winH = window.visualViewport.height || window.innerHeight;
-    Game.winW = winW;
-    Game.winH = winH;
-  });
-
+  const DELAY = 3000;
 
   const rand = n => Math.random() * n;
   const between = (a, b) => a + rand(b - a);
-  const randRadius = () => between(cfg.rMin, cfg.rMax);
-  const randSpeed = () => between(cfg.vMin, cfg.vMax);
-  const randX = r => between(r, winW - r);
-  const randY = r => between(r, winH - r);
+  const randRadius = () => between(Game.cfg.rMin, Game.cfg.rMax);
+  const randSpeed = () => between(Game.cfg.vMin, Game.cfg.vMax);
+  const randX = r => between(r, Game.winW - r);
+  const randY = r => between(r, Game.winH - r);
   const pick = arr => arr[Math.floor(rand(arr.length))];
 
   const randVec = (speed = randSpeed()) => {
@@ -110,9 +54,9 @@
       });
       el.style.setProperty('--dx', `${dx}px`);
       el.style.setProperty('--dy', `${dy}px`);
-      el.style.setProperty('--life', `${cfg.particleLife}s`);
+      el.style.setProperty('--life', `${Game.cfg.particleLife}s`);
       el.addEventListener('animationend', () => el.remove(), { once: true });
-      gameContainer.appendChild(el);
+      Game.elements.container.appendChild(el);
       this.el = el;
     }
   }
@@ -127,7 +71,7 @@
       this.pop = 0;
       this.alive = true;
       this.angle = 0;
-      this.mode = currentMode;
+      this.mode = Game.engine ? Game.engine.currentMode : null;
 
       this.el = document.createElement('div');
       this.el.className = 'emoji';
@@ -140,14 +84,14 @@
         fontSize: `${size}px`
       });
 
-      gameContainer.appendChild(this.el);
+      Game.elements.container.appendChild(this.el);
       this.el._sprite = this;
       this.draw();
     }
 
     reset() {
-      const W = winW, H = winH;
-      this.r = randRadius();
+      const W = Game.winW, H = Game.winH;
+      this.r = Game.utils.randRadius();
       const r = this.r;
       const size = r * 2;
       Object.assign(this.el.style, {
@@ -156,9 +100,9 @@
         lineHeight: `${size}px`,
         fontSize: `${size}px`
       });
-      this.x = randX(r);
-      this.y = randY(r);
-      const { dx, dy } = randVec();
+      this.x = Game.utils.randX(r);
+      this.y = Game.utils.randY(r);
+      const { dx, dy } = Game.utils.randVec();
       this.dx = dx;
       this.dy = dy;
       this.pop = 0;
@@ -179,7 +123,7 @@
     spawn() {}
     updateSpriteMovement(s, dt) { s.x += s.dx * dt; s.y += s.dy * dt; }
     checkOffscreen(s) {
-      const W = winW, H = winH;
+      const W = Game.winW, H = Game.winH;
       if (
         s.x < -s.r * 2 ||
         s.x > W + s.r * 2 ||
@@ -197,155 +141,223 @@
     onRemove(_s) {}
   }
 
-  let currentMode = null;
+  class Engine {
+    constructor(rootEl, config = {}) {
+      this.root = rootEl;
+      this.container = document.createElement('div');
+      this.container.id = 'game';
+      this.root.appendChild(this.container);
 
-  const spawnTimers = [];
-  const DELAY = 3000;
+      this.as = document.getElementById('teamAScore');
+      this.bs = document.getElementById('teamBScore');
 
-  function scheduleSpawn() {
-    state.pending++;
-    const id = setTimeout(() => {
-      spawn();
-      state.pending--;
-      const idx = spawnTimers.indexOf(id);
-      if (idx !== -1) spawnTimers.splice(idx, 1);
-    }, rand(DELAY));
-    spawnTimers.push(id);
-  }
+      this.winW = window.visualViewport.width || window.innerWidth;
+      this.winH = window.visualViewport.height || window.innerHeight;
+      Game.winW = this.winW;
+      Game.winH = this.winH;
 
-  function clearSpawnTimers() { for (const t of spawnTimers) clearTimeout(t); spawnTimers.length = 0; }
+      this.state = { sprites: [], pending: 0, scores: { teamA: 0, teamB: 0 } };
+      this.modes = {};
+      this.spawnTimers = [];
+      this.currentMode = null;
 
-  function spawn() { if (currentMode && currentMode.spawn) currentMode.spawn(); }
+      this.cfg = Object.assign({}, baseCfg, config);
+      Game.cfg = this.cfg;
 
-  const burstTemplate = document.createElement('div');
-  burstTemplate.className = 'burst';
-  burstTemplate.style.display = 'none';
-  gameContainer.appendChild(burstTemplate);
+      this.onSpritePointerDown = this.onSpritePointerDown.bind(this);
+      this.container.addEventListener('pointerdown', this.onSpritePointerDown);
 
-  function burst(x, y, emojiArr = cfg.burst) {
-    for (let i = 0; i < cfg.burstN; i++) {
-      const sp = 150 + rand(150);
-      const { dx: dxp, dy: dyp } = randVec(sp);
-      const b = burstTemplate.cloneNode(true);
-      b.style.display = 'block';
-      b.textContent = emojiArr[Math.floor(rand(emojiArr.length))];
-      Object.assign(b.style, { left: `${x}px`, top: `${y}px` });
-      b.style.setProperty('--dx', `${dxp}px`);
-      b.style.setProperty('--dy', `${dyp}px`);
-      gameContainer.appendChild(b);
-      b.addEventListener('animationend', () => b.remove(), { once: true });
+      window.addEventListener('resize', () => {
+        this.winW = window.visualViewport.width || window.innerWidth;
+        this.winH = window.visualViewport.height || window.innerHeight;
+        Game.winW = this.winW;
+        Game.winH = this.winH;
+      });
+      window.addEventListener('orientationchange', () => {
+        this.winW = window.visualViewport.width || window.innerWidth;
+        this.winH = window.visualViewport.height || window.innerHeight;
+        Game.winW = this.winW;
+        Game.winH = this.winH;
+      });
+
+      this.burstTemplate = document.createElement('div');
+      this.burstTemplate.className = 'burst';
+      this.burstTemplate.style.display = 'none';
+      this.container.appendChild(this.burstTemplate);
+
+      this.ripple = document.createElement('div');
+      this.ripple.classList.add('ripple');
+      this.container.appendChild(this.ripple);
+
+      const cfgGame = App.Config.get();
+      this.as.className = cfgGame.teamA;
+      this.bs.className = cfgGame.teamB;
+      this.updateScore();
+
+      this.addInputListeners();
+
+      for (let i = 0; i < this.cfg.count; i++) this.scheduleSpawn();
+
+      this.last = performance.now();
+      requestAnimationFrame(this.loop.bind(this));
     }
-  }
 
-  const ripple = document.createElement('div');
-  ripple.classList.add('ripple');
-  gameContainer.appendChild(ripple);
+    registerMode(name, handler) {
+      this.modes[name] = handler;
+      handler.engine = this;
+      if (typeof handler.init === 'function') handler.init();
+      return handler;
+    }
 
-  function maintain() {
-    for (let i = state.sprites.length - 1; i >= 0; i--) {
-      if (!state.sprites[i].alive) {
-        const sp = state.sprites[i];
-        if (sp.mode && sp.mode.onRemove) sp.mode.onRemove(sp);
-        sp.el.remove();
-        state.sprites.splice(i, 1);
+    buildCfg(mode) {
+      return Object.assign({}, baseCfg, this.modes[mode]?.opts || {}, { mode });
+    }
+
+    scheduleSpawn() {
+      this.state.pending++;
+      const id = setTimeout(() => {
+        this.spawn();
+        this.state.pending--;
+        const idx = this.spawnTimers.indexOf(id);
+        if (idx !== -1) this.spawnTimers.splice(idx, 1);
+      }, rand(DELAY));
+      this.spawnTimers.push(id);
+    }
+
+    clearSpawnTimers() {
+      for (const t of this.spawnTimers) clearTimeout(t);
+      this.spawnTimers.length = 0;
+    }
+
+    spawn() { if (this.currentMode && this.currentMode.spawn) this.currentMode.spawn(); }
+
+    burst(x, y, emojiArr = this.cfg.burst) {
+      for (let i = 0; i < this.cfg.burstN; i++) {
+        const sp = 150 + rand(150);
+        const { dx: dxp, dy: dyp } = randVec(sp);
+        const b = this.burstTemplate.cloneNode(true);
+        b.style.display = 'block';
+        b.textContent = emojiArr[Math.floor(rand(emojiArr.length))];
+        Object.assign(b.style, { left: `${x}px`, top: `${y}px` });
+        b.style.setProperty('--dx', `${dxp}px`);
+        b.style.setProperty('--dy', `${dyp}px`);
+        this.container.appendChild(b);
+        b.addEventListener('animationend', () => b.remove(), { once: true });
       }
     }
-    while (state.sprites.length + state.pending < cfg.count) scheduleSpawn();
-  }
 
-  for (let i = 0; i < cfg.count; i++) scheduleSpawn();
+    maintain() {
+      for (let i = this.state.sprites.length - 1; i >= 0; i--) {
+        if (!this.state.sprites[i].alive) {
+          const sp = this.state.sprites[i];
+          if (sp.mode && sp.mode.onRemove) sp.mode.onRemove(sp);
+          sp.el.remove();
+          this.state.sprites.splice(i, 1);
+        }
+      }
+      while (this.state.sprites.length + this.state.pending < this.cfg.count) this.scheduleSpawn();
+    }
 
-  const cfgGame = App.Config.get();
-  as.className = cfgGame.teamA;
-  bs.className = cfgGame.teamB;
-  updateScore();
+    updateScore() {
+      this.as.textContent = `${this.state.scores.teamA}`;
+      this.bs.textContent = `${this.state.scores.teamB}`;
+    }
 
-  function updateScore() {
-    as.textContent = `${state.scores.teamA}`;
-    bs.textContent = `${state.scores.teamB}`;
-  }
+    setTeams(a, b) { this.as.className = a; this.bs.className = b; }
 
-  function setTeams(a, b) { as.className = a; bs.className = b; }
+    calculatePoints(sprite) {
+      const speed = Math.hypot(sprite.dx, sprite.dy);
+      const sizeRatio = this.cfg.rMax / sprite.r;
+      const speedRatio = speed / this.cfg.vMax;
+      return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
+    }
 
-  function calculatePoints(sprite) {
-    const speed = Math.hypot(sprite.dx, sprite.dy);
-    const sizeRatio = cfg.rMax / sprite.r;
-    const speedRatio = speed / cfg.vMax;
-    return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
-  }
+    doHit(px, py, team, sprite) {
+      Object.assign(this.ripple.style, { left: `${px}px`, top: `${py}px` });
+      this.ripple.classList.remove('animate');
+      void this.ripple.offsetWidth;
+      this.ripple.classList.add('animate');
 
-  function doHit(px, py, team, sprite) {
-    Object.assign(ripple.style, { left: `${px}px`, top: `${py}px` });
-    ripple.classList.remove('animate');
-    void ripple.offsetWidth;
-    ripple.classList.add('animate');
-
-    const targets = sprite ? [sprite] : state.sprites;
-    for (const s of targets) {
-      if (s.alive && (!sprite ? s.contains(px, py) : true) && s.pop === 0) {
-        s.doHit();
-        state.scores[team] += calculatePoints(s);
-        updateScore();
-        break;
+      const targets = sprite ? [sprite] : this.state.sprites;
+      for (const s of targets) {
+        if (s.alive && (!sprite ? s.contains(px, py) : true) && s.pop === 0) {
+          s.doHit();
+          this.state.scores[team] += this.calculatePoints(s);
+          this.updateScore();
+          break;
+        }
       }
     }
-  }
 
-  function preventContextMenu(e) { e.preventDefault(); }
-  function addInputListeners() { window.addEventListener('contextmenu', preventContextMenu); }
-  function removeInputListeners() { window.removeEventListener('contextmenu', preventContextMenu); }
-  addInputListeners();
+    preventContextMenu(e) { e.preventDefault(); }
+    addInputListeners() { window.addEventListener('contextmenu', this.preventContextMenu); }
+    removeInputListeners() { window.removeEventListener('contextmenu', this.preventContextMenu); }
 
-  let last = performance.now();
-  function loop(now) {
-    const dt = (now - last) / 1000;
-    last = now;
+    onSpritePointerDown(e) {
+      const target = e.target.closest('.emoji');
+      if (!target || !target._sprite) return;
+      const rect = this.container.getBoundingClientRect();
+      this.doHit(
+        e.clientX - rect.left,
+        e.clientY - rect.top,
+        e.button === 2 ? 'teamA' : 'teamB',
+        target._sprite
+      );
+    }
 
-    state.sprites.forEach(s => s.update(dt));
-    if (currentMode && currentMode.resolveCollisions) currentMode.resolveCollisions();
-    maintain();
-    state.sprites.forEach(s => s.draw());
+    loop(now) {
+      const dt = (now - this.last) / 1000;
+      this.last = now;
 
-    requestAnimationFrame(loop);
-  }
-  requestAnimationFrame(loop);
+      this.state.sprites.forEach(s => s.update(dt));
+      if (this.currentMode && this.currentMode.resolveCollisions) this.currentMode.resolveCollisions();
+      this.maintain();
+      this.state.sprites.forEach(s => s.draw());
 
-  function setMode(m) {
-    if (currentMode && currentMode.cleanup) currentMode.cleanup();
-    removeInputListeners();
-    cfg = buildCfg(m);
-    Game.cfg = cfg;
-    currentMode = ModeHandlers[m];
+      requestAnimationFrame(this.loop.bind(this));
+    }
 
-    state.sprites.forEach(s => s.el.remove());
-    state.sprites.length = 0;
-    clearSpawnTimers();
-    state.pending = 0;
+    setMode(m) {
+      if (this.currentMode && this.currentMode.cleanup) this.currentMode.cleanup();
+      this.removeInputListeners();
+      this.cfg = this.buildCfg(m);
+      Game.cfg = this.cfg;
+      this.currentMode = this.modes[m];
 
-    if (currentMode && currentMode.setup) currentMode.setup();
+      this.state.sprites.forEach(s => s.el.remove());
+      this.state.sprites.length = 0;
+      this.clearSpawnTimers();
+      this.state.pending = 0;
 
-    addInputListeners();
+      if (this.currentMode && this.currentMode.setup) this.currentMode.setup();
 
-    for (let i = 0; i < cfg.count; i++) scheduleSpawn();
+      this.addInputListeners();
+
+      for (let i = 0; i < this.cfg.count; i++) this.scheduleSpawn();
+    }
   }
 
   const Game = {
     MODES,
-    cfg,
-    state,
-    utils: { rand, between, randRadius, randSpeed, randX, randY, randVec, pick, applyTransform },
-    elements: { container: gameContainer },
-    winW,
-    winH,
-    Sprite,
-    setTeams,
-    setMode,
-    spawn,
-    burst,
-    registerMode,
+    Engine,
     GameMode,
-    buildCfg
+    Sprite,
+    utils: { rand, between, randRadius, randSpeed, randX, randY, randVec, pick, applyTransform }
   };
+
+  const engine = new Game.Engine(document.getElementById('gameScreen'));
+  Game.engine = engine;
+  Game.cfg = engine.cfg;
+  Game.state = engine.state;
+  Game.elements = { container: engine.container };
+  Game.winW = engine.winW;
+  Game.winH = engine.winH;
+  Game.setTeams = (...a) => engine.setTeams(...a);
+  Game.setMode = (...a) => engine.setMode(...a);
+  Game.spawn = (...a) => engine.spawn(...a);
+  Game.burst = (...a) => engine.burst(...a);
+  Game.registerMode = (...a) => engine.registerMode(...a);
+  Game.buildCfg = (...a) => engine.buildCfg(...a);
 
   window.Game = Game;
 })();
