@@ -79,7 +79,6 @@ const params = {
   preview: false                 // setup mode
 };
 
-let urlI, selA, selB, topOv, frontOv, frontCtx, topCtx, zoomSlider;
 
 const Setup = (() => {
   const detectionUI = `
@@ -105,7 +104,33 @@ const Setup = (() => {
     <button onclick="location.reload()">Refresh</button>
   </div>`;
 
+  function bind() {
+    $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
+    const urlI = $('#url');
+    const selA = $('#a');
+    const selB = $('#b');
+    const topOv = $('#topOv');
+    const frontOv = $('#frontOv');
+    const frontCtx = frontOv.getContext('2d');
+    const topCtx = topOv.getContext('2d');
+    const zoomSlider = $('#zoomSlider');
+
   const topROI = { y: 0, h: params.topH };
+
+  function drawPolygon(ctx, pts, color) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    if (pts.length !== 4) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(...pts[0]);
+    pts.slice(1).forEach(p => ctx.lineTo(...p));
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  function drawPolyTop() { drawPolygon(topCtx, params.polyT, 'lime'); }
+  function drawPolyFront() { drawPolygon(frontCtx, params.polyF, 'aqua'); }
 
   function commitTop() {
     topROI.y = Math.min(Math.max(0, topROI.y), TOP_H - topROI.h);
@@ -115,16 +140,21 @@ const Setup = (() => {
     drawPolyTop();
   }
 
-  function bind() {
-    $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
-    urlI = $('#url');
-    selA = $('#a');
-    selB = $('#b');
-    topOv = $('#topOv');
-    frontOv = $('#frontOv');
-    frontCtx = frontOv.getContext('2d');
-    topCtx = topOv.getContext('2d');
-    zoomSlider = $('#zoomSlider');
+  function orderPoints(pts) {
+    const arr = pts.map(p => [...p]);
+    let tr = 0, bl = 0, mx = arr[0][0] - arr[0][1], mn = mx;
+    arr.forEach((p, i) => {
+      const v = p[0] - p[1];
+      if (v > mx) { mx = v; tr = i; }
+      if (v < mn) { mn = v; bl = i; }
+    });
+    const rem = [0, 1, 2, 3].filter(i => i !== tr && i !== bl);
+    const [a, b] = rem;
+    const sumA = arr[a][0] + arr[a][1], sumB = arr[b][0] + arr[b][1];
+    const tl = sumA < sumB ? a : b;
+    const br = rem.find(i => i !== tl);
+    return [arr[tl], arr[tr], arr[br], arr[bl]];
+  }
 
     if (params.polyT.length === 4) {
       const ys = params.polyT.map(p => p[1]);
@@ -335,6 +365,7 @@ const Feeds = (() => {
     if (cap.powerEfficient) adv.powerEfficient = false;
 
     if (cap.zoom) {
+      const zoomSlider = document.getElementById('zoomSlider');
       const { min, max, step } = cap.zoom;
       zoomSlider.min = min;
       zoomSlider.max = Math.min(2, max);
@@ -363,42 +394,6 @@ const Feeds = (() => {
     front: () => videoFront
   };
 })();
-
-/** reorder any 4 points into [TR, TL, BL, BR] (CCW) */
-function orderPoints(pts) {
-  const arr = pts.map(p => [...p]);
-  // TR = max(x−y), BL = min(x−y)
-  let tr = 0, bl = 0, mx = arr[0][0] - arr[0][1], mn = mx;
-  arr.forEach((p, i) => {
-    const v = p[0] - p[1];
-    if (v > mx) { mx = v; tr = i; }
-    if (v < mn) { mn = v; bl = i; }
-  });
-  // the other two are TL/BR; TL=min(x+y)
-  const rem = [0, 1, 2, 3].filter(i => i !== tr && i !== bl);
-  const [a, b] = rem;
-  const sumA = arr[a][0] + arr[a][1], sumB = arr[b][0] + arr[b][1];
-  const tl = sumA < sumB ? a : b;
-  const br = rem.find(i => i !== tl);
-  return [arr[tl], arr[tr], arr[br], arr[bl]];
-}
-
-/** single canvas polygon drawer */
-function drawPolygon(ctx, pts, color) {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  if (pts.length !== 4) return;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(...pts[0]);
-  pts.slice(1).forEach(p => ctx.lineTo(...p));
-  ctx.closePath();
-  ctx.stroke();
-}
-
-function drawPolyTop() { drawPolygon(topCtx, params.polyT, 'lime'); }
-function drawPolyFront() { drawPolygon(frontCtx, params.polyF, 'aqua'); }
-
 
 const Detect = (() => {
   /* GPU globals */
@@ -615,7 +610,7 @@ const Detect = (() => {
     }
 
     if (params.preview && hits.length) {
-      const ctx2d = frontOv.getContext('2d');
+      const ctx2d = document.getElementById('frontOv').getContext('2d');
       for (const h of hits) {
         ctx2d.fillStyle = h.team;
         const px = h.x * FRONT_W, py = h.y * FRONT_H;
