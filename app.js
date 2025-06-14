@@ -79,38 +79,230 @@ const params = {
   preview: false                 // setup mode
 };
 
-/* Build UI */
-const detectionUI = `
-<div class=cam id=topCam>
-  <canvas id=topTex width=${TOP_W} height=${TOP_H}></canvas>
-  <canvas id=topOv class=overlay width=${TOP_W} height=${TOP_H}></canvas>
-</div>
-<div class=cam id=frontCam>
- <video id=vid autoplay playsinline style="display: none;"></video>
- <canvas id="frontTex" width=${FRONT_W} height=${FRONT_H}></canvas>
- <canvas id=frontOv  class=overlay width=${FRONT_W} height=${FRONT_H}></canvas>
-</div>
-<div id=cfg>
-  <input type="range" id="zoomSlider" style="width: 100%;">
-  Top H <input id=topHInp   type=number min=10 max=${TOP_H}   step=1 style="width:5em">
-  Front H <input id=frontHInp type=number min=10 max=${FRONT_H} step=1 style="width:5em">
-  <button onclick="$('#configScreen').className = 'onlyTop'">Top</button>
-  <button onclick="$('#configScreen').className = 'onlyFront'">Front</button>
-  <button onclick="$('#configScreen').className = ''">Both</button>
-  IP-Cam URL <input id=url size=32>
-  Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
-  Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
-  <button onclick="location.reload()">Refresh</button>
-</div>`;
-$('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
-/* Wire UI */
-const urlI = $('#url');
-const selA = $('#a'), selB = $('#b');
-const topOv = $('#topOv'),
-  frontOv = $('#frontOv');
-const frontCtx = frontOv.getContext("2d");
-const topCtx = topOv.getContext("2d");
-const zoomSlider = $('#zoomSlider');
+let urlI, selA, selB, topOv, frontOv, frontCtx, topCtx, zoomSlider;
+
+const Setup = (() => {
+  const detectionUI = `
+  <div class=cam id=topCam>
+    <canvas id=topTex width=${TOP_W} height=${TOP_H}></canvas>
+    <canvas id=topOv class=overlay width=${TOP_W} height=${TOP_H}></canvas>
+  </div>
+  <div class=cam id=frontCam>
+   <video id=vid autoplay playsinline style="display: none;"></video>
+   <canvas id="frontTex" width=${FRONT_W} height=${FRONT_H}></canvas>
+   <canvas id=frontOv  class=overlay width=${FRONT_W} height=${FRONT_H}></canvas>
+  </div>
+  <div id=cfg>
+    <input type="range" id="zoomSlider" style="width: 100%;">
+    Top H <input id=topHInp   type=number min=10 max=${TOP_H}   step=1 style="width:5em">
+    Front H <input id=frontHInp type=number min=10 max=${FRONT_H} step=1 style="width:5em">
+    <button onclick="$('#configScreen').className = 'onlyTop'">Top</button>
+    <button onclick="$('#configScreen').className = 'onlyFront'">Front</button>
+    <button onclick="$('#configScreen').className = ''">Both</button>
+    IP-Cam URL <input id=url size=32>
+    Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
+    Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
+    <button onclick="location.reload()">Refresh</button>
+  </div>`;
+
+  const topROI = { y: 0, h: params.topH };
+
+  function commitTop() {
+    topROI.y = Math.min(Math.max(0, topROI.y), TOP_H - topROI.h);
+    const { y, h } = topROI;
+    params.polyT = [[0, y], [TOP_W, y], [TOP_W, y + h], [0, y + h]];
+    Config.save('polyT', params.polyT);
+    drawPolyTop();
+  }
+
+  function bind() {
+    $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
+    urlI = $('#url');
+    selA = $('#a');
+    selB = $('#b');
+    topOv = $('#topOv');
+    frontOv = $('#frontOv');
+    frontCtx = frontOv.getContext('2d');
+    topCtx = topOv.getContext('2d');
+    zoomSlider = $('#zoomSlider');
+
+    if (params.polyT.length === 4) {
+      const ys = params.polyT.map(p => p[1]);
+      topROI.y = Math.min(...ys);
+      topROI.h = Math.max(...ys) - topROI.y;
+    }
+
+    /* vertical drag on overlay */
+    let dragY = null;
+    topOv.addEventListener('pointerdown', e => {
+      if (!params.preview) return;
+      const r = topOv.getBoundingClientRect();
+      dragY = (e.clientY - r.top) * TOP_H / r.height;
+      topOv.setPointerCapture(e.pointerId);
+    });
+    topOv.addEventListener('pointermove', e => {
+      if (dragY == null || !params.preview) return;
+      const r = topOv.getBoundingClientRect();
+      const curY = (e.clientY - r.top) * TOP_H / r.height;
+      topROI.y += curY - dragY;
+      dragY = curY;
+      commitTop();
+    });
+    topOv.addEventListener('pointerup', () => dragY = null);
+    topOv.addEventListener('pointercancel', () => dragY = null);
+
+    commitTop();
+
+    (function () {
+      const ASPECT = FRONT_W / FRONT_H;
+      const MIN_W = 60;
+
+      let roi = { x: 0, y: 0, w: params.frontH * ASPECT, h: params.frontH };
+      if (params.polyF?.length === 4) {
+        const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
+        roi.x = Math.min(...xs);
+        roi.y = Math.min(...ys);
+        roi.w = Math.max(...xs) - roi.x;
+      }
+
+      const fingers = new Map();
+      let startRect, startDist, startMid;
+
+      function commit() {
+        roi.w = Math.max(MIN_W, roi.w);
+        roi.w = roi.h * ASPECT;
+
+        if (roi.w > FRONT_W) { roi.w = FRONT_W; roi.h = roi.w / ASPECT; }
+        if (roi.h > FRONT_H) { roi.h = FRONT_H; roi.w = roi.h * ASPECT; }
+
+        roi.x = Math.min(Math.max(0, roi.x), FRONT_W - roi.w);
+        roi.y = Math.min(Math.max(0, roi.y), FRONT_H - roi.h);
+
+        const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
+        const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
+        params.polyF = orderPoints([[x1, y0], [x0, y0], [x0, y1], [x1, y1]]);
+        Config.save('polyF', params.polyF);
+        drawPolyFront();
+      }
+
+      function toCanvas(e) {
+        const r = frontOv.getBoundingClientRect();
+        return {
+          x: (e.clientX - r.left) * FRONT_W / r.width,
+          y: (e.clientY - r.top) * FRONT_H / r.height
+        };
+      }
+
+      frontOv.addEventListener('pointerdown', e => {
+        if (!params.preview) return;
+        frontOv.setPointerCapture(e.pointerId);
+        fingers.set(e.pointerId, toCanvas(e));
+
+        if (fingers.size === 1) {
+          startRect = { ...roi };
+          startMid = { ...fingers.values().next().value };
+        } else if (fingers.size === 2) {
+          const [a, b] = [...fingers.values()];
+          startDist = Math.hypot(b.x - a.x, b.y - a.y);
+          startMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          startRect = { ...roi };
+        }
+      });
+
+      frontOv.addEventListener('pointermove', e => {
+        if (!fingers.has(e.pointerId) || !params.preview) return;
+        fingers.set(e.pointerId, toCanvas(e));
+
+        if (fingers.size === 1) {
+          const cur = [...fingers.values()][0];
+          roi.x = startRect.x + (cur.x - startMid.x);
+          roi.y = startRect.y + (cur.y - startMid.y);
+          commit();
+        }
+        else if (fingers.size === 2) {
+          const [a, b] = [...fingers.values()];
+          const dist = Math.hypot(b.x - a.x, b.y - a.y);
+          const scale = dist / startDist;
+          roi.h = startRect.h / scale;
+          roi.w = roi.h * ASPECT;
+          const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          roi.x = mid.x - roi.w / 2;
+          roi.y = mid.y - roi.h / 2;
+          commit();
+        }
+      });
+
+      function lift(e) {
+        fingers.delete(e.pointerId);
+        if (!fingers.size) commit();
+      }
+      frontOv.addEventListener('pointerup', lift);
+      frontOv.addEventListener('pointercancel', lift);
+
+      function zoomFromWheel(deltaY) {
+        return Math.exp(deltaY * 0.001);
+      }
+
+      frontOv.addEventListener('wheel', e => {
+        if (!params.preview) return;
+        e.preventDefault();
+        const scale = zoomFromWheel(e.deltaY);
+        const prevW = roi.w, prevH = roi.h;
+        const newW = prevW * scale, newH = newW / ASPECT;
+
+        roi.x -= (newW - prevW) / 2;
+        roi.y -= (newH - prevH) / 2;
+        roi.w = newW;
+        roi.h = newH;
+        commit();
+      }, { passive: false });
+
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
+        frontOv.addEventListener(t, e => e.preventDefault())
+      );
+
+      frontOv.style.touchAction = 'none';
+      const topHInp = $('#topHInp');
+      const frontHInp = $('#frontHInp');
+      topHInp.value = params.topH;
+      frontHInp.value = params.frontH;
+
+      topHInp.onchange = e => {
+        params.topH = Math.max(10, Math.min(TOP_H, +e.target.value));
+        Config.save('topH', params.topH);
+        topROI.h = params.topH;
+        commitTop();
+      };
+      frontHInp.onchange = e => {
+        params.frontH = Math.max(10, Math.min(FRONT_H, +e.target.value));
+        Config.save('frontH', params.frontH);
+        roi.h = params.frontH;
+        roi.w = roi.h * ASPECT;
+        commit();
+      };
+
+      commit();
+    })();
+
+    urlI.value = params.url;
+    selA.value = params.teamA;
+    selB.value = params.teamB;
+
+    urlI.onblur = () => { params.url = urlI.value; Config.save('url', params.url); };
+    selA.onchange = e => {
+      params.teamA = e.target.value;
+      Config.save('teamA', params.teamA);
+      Game.setTeams(params.teamA, params.teamB);
+    };
+    selB.onchange = e => {
+      params.teamB = e.target.value;
+      Config.save('teamB', params.teamB);
+      Game.setTeams(params.teamA, params.teamB);
+    };
+  }
+
+  return { bind };
+})();
 
 const Feeds = (() => {
   let videoTop, videoFront, track;
@@ -204,194 +396,9 @@ function drawPolygon(ctx, pts, color) {
   ctx.stroke();
 }
 
-function drawPolyTop() { drawPolygon(topCtx, params.polyT, "lime"); }
-function drawPolyFront() { drawPolygon(frontCtx, params.polyF, "aqua"); }
+function drawPolyTop() { drawPolygon(topCtx, params.polyT, 'lime'); }
+function drawPolyFront() { drawPolygon(frontCtx, params.polyF, 'aqua'); }
 
-/* ─────────── TOP ROI  (full-width rectangle, vertical drag) ─────────── */
-const topROI = { y: 0, h: params.topH };            // state
-
-function commitTop() {
-  // clamp within canvas
-  topROI.y = Math.min(Math.max(0, topROI.y), TOP_H - topROI.h);
-
-  // build the four rectangle corners → params.polyT
-  const { y, h } = topROI;
-  params.polyT = [[0, y], [TOP_W, y], [TOP_W, y + h], [0, y + h]];
-  Config.save("polyT", params.polyT);
-  drawPolyTop();
-}
-
-/* vertical drag on overlay */
-let dragY = null;
-topOv.addEventListener("pointerdown", e => {
-  if (!params.preview) return;
-  const r = topOv.getBoundingClientRect();
-  dragY = (e.clientY - r.top) * TOP_H / r.height;
-  topOv.setPointerCapture(e.pointerId);
-});
-topOv.addEventListener("pointermove", e => {
-  if (dragY == null || !params.preview) return;
-  const r = topOv.getBoundingClientRect();
-  const curY = (e.clientY - r.top) * TOP_H / r.height;
-  topROI.y += curY - dragY;
-  dragY = curY;
-  commitTop();
-});
-topOv.addEventListener("pointerup", () => dragY = null);
-topOv.addEventListener("pointercancel", () => dragY = null);
-
-commitTop();       // draw once on load
-
-(() => {
-  const ASPECT = FRONT_W / FRONT_H;      // canvas ratio (e.g. 16/9)
-  const MIN_W = 60;                       // min rectangle width
-
-  /* Current rectangle — start from saved polygon if present */
-  let roi = { x: 0, y: 0, w: params.frontH * ASPECT, h: params.frontH }; // NEW
-
-  if (params.polyF?.length === 4) {
-    const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
-    roi.x = Math.min(...xs);
-    roi.y = Math.min(...ys);
-    roi.w = Math.max(...xs) - roi.x;
-  }
-
-  /* Pointer-gesture state */
-  const fingers = new Map();               // pointerId → {x,y}
-  let startRect, startDist, startMid;
-
-  /* Commit rectangle: clamp, persist, redraw cyan outline */
-  function commit() {
-    roi.w = Math.max(MIN_W, roi.w);
-    roi.w = roi.h * ASPECT;
-
-    if (roi.w > FRONT_W) { roi.w = FRONT_W; roi.h = roi.w / ASPECT; }
-    if (roi.h > FRONT_H) { roi.h = FRONT_H; roi.w = roi.h * ASPECT; }
-
-    roi.x = Math.min(Math.max(0, roi.x), FRONT_W - roi.w);
-    roi.y = Math.min(Math.max(0, roi.y), FRONT_H - roi.h);
-
-    const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
-    const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
-    params.polyF = orderPoints([[x1, y0], [x0, y0], [x0, y1], [x1, y1]]);
-    Config.save('polyF', params.polyF);
-    drawPolyFront();
-  }
-
-  /* Client → canvas coordinates */
-  function toCanvas(e) {
-    const r = frontOv.getBoundingClientRect();
-    return {
-      x: (e.clientX - r.left) * FRONT_W / r.width,
-      y: (e.clientY - r.top) * FRONT_H / r.height
-    };
-  }
-
-  /* ──────────── Touch-/pen-based pan & pinch (pointer events) ──────────── */
-  frontOv.addEventListener('pointerdown', e => {
-    if (!params.preview) return;
-    frontOv.setPointerCapture(e.pointerId);
-    fingers.set(e.pointerId, toCanvas(e));
-
-    if (fingers.size === 1) {
-      startRect = { ...roi };
-      startMid = { ...fingers.values().next().value };
-    } else if (fingers.size === 2) {
-      const [a, b] = [...fingers.values()];
-      startDist = Math.hypot(b.x - a.x, b.y - a.y);
-      startMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      startRect = { ...roi };
-    }
-  });
-
-  frontOv.addEventListener('pointermove', e => {
-    if (!fingers.has(e.pointerId) || !params.preview) return;
-    fingers.set(e.pointerId, toCanvas(e));
-
-    if (fingers.size === 1) {                          // Pan
-      const cur = [...fingers.values()][0];
-      roi.x = startRect.x + (cur.x - startMid.x);
-      roi.y = startRect.y + (cur.y - startMid.y);
-      commit();
-    }
-    else if (fingers.size === 2) {                     // Pinch-zoom
-      const [a, b] = [...fingers.values()];
-      const dist = Math.hypot(b.x - a.x, b.y - a.y);
-      const scale = dist / startDist;                  // >1 ⇒ zoom-in
-      roi.h = startRect.h / scale;     // NEW  – zoom changes HEIGHT
-      roi.w = roi.h * ASPECT;          // NEW
-      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      roi.x = mid.x - roi.w / 2;
-      roi.y = mid.y - roi.h / 2;
-      commit();
-    }
-  });
-
-  function lift(e) {
-    fingers.delete(e.pointerId);
-    if (!fingers.size) commit();
-  }
-  frontOv.addEventListener('pointerup', lift);
-  frontOv.addEventListener('pointercancel', lift);
-
-  /* ──────────── Track-pad pinch (wheel / gesture events) ──────────── */
-
-  /* Smooth zoom factor from wheel delta  (negative → zoom-in, positive → out) */
-  function zoomFromWheel(deltaY) {
-    return Math.exp(deltaY * 0.001);        // ≈ ±10% per 100px wheel delta
-  }
-
-  frontOv.addEventListener('wheel', e => {
-    if (!params.preview) return;
-    e.preventDefault();                     // **stop page scroll / zoom**
-    const scale = zoomFromWheel(e.deltaY);
-    const prevW = roi.w, prevH = roi.h;
-    const newW = prevW * scale, newH = newW / ASPECT;
-
-    roi.x -= (newW - prevW) / 2;
-    roi.y -= (newH - prevH) / 2;
-    roi.w = newW;
-    roi.h = newH;
-    commit();
-  }, { passive: false });                    // passive:false => allow preventDefault()
-
-  /* Safari: prevent default page-zoom for pinch gestures */
-  ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
-    frontOv.addEventListener(t, e => e.preventDefault())
-  );
-
-  /* Disable default touch actions on the overlay */
-  frontOv.style.touchAction = 'none';
-  const topHInp = $('#topHInp');
-  const frontHInp = $('#frontHInp');
-  topHInp.value = params.topH;
-  frontHInp.value = params.frontH;
-
-    topHInp.onchange = e => {
-      params.topH = Math.max(10, Math.min(TOP_H, +e.target.value));
-      Config.save("topH", params.topH);
-      topROI.h = params.topH;
-      commitTop();
-    };
-    frontHInp.onchange = e => {
-      params.frontH = Math.max(10, Math.min(FRONT_H, +e.target.value));
-      Config.save("frontH", params.frontH);
-      roi.h = params.frontH;              // use the closure from gesture code
-      roi.w = roi.h * ASPECT;
-      commit();                           // re-draw front rectangle
-  };
-
-  /* Initial draw */
-  commit();
-})();
-
-urlI.value = params.url;
-selA.value = params.teamA;
-selB.value = params.teamB;
-
-urlI.onblur = () => { params.url = urlI.value; Config.save("url", params.url); };
-selA.onchange = e => { params.teamA = e.target.value; Config.save("teamA", params.teamA); };
-selB.onchange = e => { params.teamB = e.target.value; Config.save("teamB", params.teamB); };
 
 const Detect = (() => {
   /* GPU globals */
@@ -436,7 +443,8 @@ const Detect = (() => {
   }
 
   function rectTop() {
-    return { min: [0, topROI.y], max: [TOP_W, topROI.y + topROI.h] };
+    const ys = params.polyT.map(p => p[1]);
+    return { min: [0, Math.min(...ys)], max: [TOP_W, Math.max(...ys)] };
   }
   function rectFront() {
     const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
@@ -625,6 +633,7 @@ const Detect = (() => {
 
 
 (async () => {
+  Setup.bind();
   await Feeds.init();
   await Detect.init();
   // —————————————
