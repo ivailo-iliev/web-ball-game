@@ -21,10 +21,11 @@ obs1.observe(sec1);
 
 // Section 2
 const sec2 = document.getElementById('configScreen');
-const cfg = Config.get();
+const cfg = App.Config.get();
+Game.setTeams(cfg.teamA, cfg.teamB);
 const obs2 = createSectionObserver(
-    () => { console.log('Enter configScreen'); cfg.preview=true; /* start 2 */ },
-    () => { console.log('Leave configScreen'); cfg.preview=false;/* stop 2 */ }
+    () => { console.log('Enter configScreen'); App.Controller.setPreview(true); },
+    () => { console.log('Leave configScreen'); App.Controller.setPreview(false); }
 );
 obs2.observe(sec2);
 
