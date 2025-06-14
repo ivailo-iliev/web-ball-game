@@ -21,9 +21,10 @@ obs1.observe(sec1);
 
 // Section 2
 const sec2 = document.getElementById('configScreen');
+const cfg = Config.get();
 const obs2 = createSectionObserver(
-    () => { console.log('Enter configScreen'); params.preview=true; /* start 2 */ },
-    () => { console.log('Leave configScreen'); params.preview=false;/* stop 2 */ }
+    () => { console.log('Enter configScreen'); cfg.preview=true; /* start 2 */ },
+    () => { console.log('Leave configScreen'); cfg.preview=false;/* stop 2 */ }
 );
 obs2.observe(sec2);
 

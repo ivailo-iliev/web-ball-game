@@ -7,17 +7,12 @@
 /* ---------------- CONSTANTS ---------------- */
 // ——————— CONSTANTS ———————
 // top-camera MJPEG feed (over Wi-Fi)
-const TOP_W = 640;
-const TOP_H = 480;
-const TOP_MIN_AREA = 600;
+// moved constants into Config
 const FLAG_PREVIEW = 1;   // bit 0 – you already use this
-const FLAG_TEAM_A_ACTIVE = 2;   // bit 1 – set when cntA > TOP_MIN_AREA
-const FLAG_TEAM_B_ACTIVE = 4;   // bit 2 – set when cntB > TOP_MIN_AREA
+const FLAG_TEAM_A_ACTIVE = 2;   // bit 1 – set when cntA > cfg.TOP_MIN_AREA
+const FLAG_TEAM_B_ACTIVE = 4;   // bit 2 – set when cntB > cfg.TOP_MIN_AREA
 
 // front-camera (device camera)
-const FRONT_W = 1280;
-const FRONT_H = 590;
-const FRONT_MIN_AREA = 50000;
 
 /* HSV ranges per team */
 // const COLOR_TABLE = {
@@ -43,40 +38,67 @@ function hsvRange(team) {
 const $ = q => document.querySelector(q);
 
 const Config = (() => {
-  const SETTINGS = {
-    url:    { key: "frontURL",    def: "http://192.168.43.1:8080/video" },
-    teamA:  { key: "teamA",       def: "green" },
-    teamB:  { key: "teamB",       def: "blue" },
-    polyT:  { key: "roiPolyTop",  def: [] },
-    polyF:  { key: "roiPolyFront", def: [] },
-    zoom:   { key: "zoom",        def: 1.0 },
-    topH:   { key: "topH",        def: 160 },
-    frontH: { key: "frontH",      def: 220 }
+  const DEFAULTS = {
+    TOP_W: 640,
+    TOP_H: 480,
+    FRONT_W: 1280,
+    FRONT_H: 590,
+    TOP_MIN_AREA: 600,
+    FRONT_MIN_AREA: 50000,
+    url:    "http://192.168.43.1:8080/video",
+    teamA:  "green",
+    teamB:  "blue",
+    polyT:  [],
+    polyF:  [],
+    zoom:   1.0,
+    topH:   160,
+    frontH: 220,
+    preview: false
   };
 
+  const PERSIST = {
+    url:    "frontURL",
+    teamA:  "teamA",
+    teamB:  "teamB",
+    polyT:  "roiPolyTop",
+    polyF:  "roiPolyFront",
+    zoom:   "zoom",
+    topH:   "topH",
+    frontH: "frontH"
+  };
+
+  let cfg;
+
   function load() {
-    const cfg = {};
-    for (const [name, { key, def }] of Object.entries(SETTINGS)) {
-      const raw = localStorage.getItem(key);
-      cfg[name] = raw !== null ? JSON.parse(raw) : def;
+    cfg = {};
+    for (const [name, def] of Object.entries(DEFAULTS)) {
+      if (PERSIST[name]) {
+        const raw = localStorage.getItem(PERSIST[name]);
+        cfg[name] = raw !== null ? JSON.parse(raw) : def;
+      } else {
+        cfg[name] = def;
+      }
     }
     return cfg;
   }
 
   function save(name, value) {
-    const entry = SETTINGS[name];
-    if (entry) {
-      localStorage.setItem(entry.key, JSON.stringify(value));
+    if (PERSIST[name]) {
+      localStorage.setItem(PERSIST[name], JSON.stringify(value));
     }
+    if (cfg) cfg[name] = value;
   }
 
-  return { load, save };
+  function get() { return cfg; }
+
+  return { load, save, get };
 })();
 
-const params = Config.load();
-params.preview = false;             // setup mode
+Config.load();
+Config.get().preview = false;             // setup mode
 
 const PreviewGfx = (() => {
+  const cfg = Config.get();
   let ctxTop2d, ctxFront2d, ctxTopGPU, ctxFrontGPU;
 
   function ensure2d() {
@@ -126,7 +148,7 @@ const PreviewGfx = (() => {
     ensure2d();
     if (!ctxFront2d) return;
     ctxFront2d.fillStyle = hit.team;
-    const px = hit.x * FRONT_W, py = hit.y * FRONT_H;
+    const px = hit.x * cfg.FRONT_W, py = hit.y * cfg.FRONT_H;
     ctxFront2d.beginPath();
     ctxFront2d.arc(px, py, 8, 0, Math.PI * 2);
     ctxFront2d.fill();
@@ -150,20 +172,21 @@ const PreviewGfx = (() => {
 
 
 const Setup = (() => {
+  const cfg = Config.get();
   const detectionUI = `
   <div class=cam id=topCam>
-    <canvas id=topTex width=${TOP_W} height=${TOP_H}></canvas>
-    <canvas id=topOv class=overlay width=${TOP_W} height=${TOP_H}></canvas>
+    <canvas id=topTex width=${cfg.TOP_W} height=${cfg.TOP_H}></canvas>
+    <canvas id=topOv class=overlay width=${cfg.TOP_W} height=${cfg.TOP_H}></canvas>
   </div>
   <div class=cam id=frontCam>
    <video id=vid autoplay playsinline style="display: none;"></video>
-   <canvas id="frontTex" width=${FRONT_W} height=${FRONT_H}></canvas>
-   <canvas id=frontOv  class=overlay width=${FRONT_W} height=${FRONT_H}></canvas>
+   <canvas id="frontTex" width=${cfg.FRONT_W} height=${cfg.FRONT_H}></canvas>
+   <canvas id=frontOv  class=overlay width=${cfg.FRONT_W} height=${cfg.FRONT_H}></canvas>
   </div>
   <div id=cfg>
     <input type="range" id="zoomSlider" style="width: 100%;">
-    Top H <input id=topHInp   type=number min=10 max=${TOP_H}   step=1 style="width:5em">
-    Front H <input id=frontHInp type=number min=10 max=${FRONT_H} step=1 style="width:5em">
+    Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H}   step=1 style="width:5em">
+    Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 style="width:5em">
     <button onclick="$('#configScreen').className = 'onlyTop'">Top</button>
     <button onclick="$('#configScreen').className = 'onlyFront'">Front</button>
     <button onclick="$('#configScreen').className = ''">Both</button>
@@ -182,16 +205,16 @@ const Setup = (() => {
     const frontOv = $('#frontOv');
     const zoomSlider = $('#zoomSlider');
 
-  const topROI = { y: 0, h: params.topH };
+  const topROI = { y: 0, h: cfg.topH };
 
-  function drawPolyTop() { PreviewGfx.drawROI(params.polyT, 'lime', 'top'); }
-  function drawPolyFront() { PreviewGfx.drawROI(params.polyF, 'aqua', 'front'); }
+  function drawPolyTop() { PreviewGfx.drawROI(cfg.polyT, 'lime', 'top'); }
+  function drawPolyFront() { PreviewGfx.drawROI(cfg.polyF, 'aqua', 'front'); }
 
   function commitTop() {
-    topROI.y = Math.min(Math.max(0, topROI.y), TOP_H - topROI.h);
+    topROI.y = Math.min(Math.max(0, topROI.y), cfg.TOP_H - topROI.h);
     const { y, h } = topROI;
-    params.polyT = [[0, y], [TOP_W, y], [TOP_W, y + h], [0, y + h]];
-    Config.save('polyT', params.polyT);
+    cfg.polyT = [[0, y], [cfg.TOP_W, y], [cfg.TOP_W, y + h], [0, y + h]];
+    Config.save('polyT', cfg.polyT);
     drawPolyTop();
   }
 
@@ -211,8 +234,8 @@ const Setup = (() => {
     return [arr[tl], arr[tr], arr[br], arr[bl]];
   }
 
-    if (params.polyT.length === 4) {
-      const ys = params.polyT.map(p => p[1]);
+    if (cfg.polyT.length === 4) {
+      const ys = cfg.polyT.map(p => p[1]);
       topROI.y = Math.min(...ys);
       topROI.h = Math.max(...ys) - topROI.y;
     }
@@ -220,15 +243,15 @@ const Setup = (() => {
     /* vertical drag on overlay */
     let dragY = null;
     topOv.addEventListener('pointerdown', e => {
-      if (!params.preview) return;
+      if (!cfg.preview) return;
       const r = topOv.getBoundingClientRect();
-      dragY = (e.clientY - r.top) * TOP_H / r.height;
+      dragY = (e.clientY - r.top) * cfg.TOP_H / r.height;
       topOv.setPointerCapture(e.pointerId);
     });
     topOv.addEventListener('pointermove', e => {
-      if (dragY == null || !params.preview) return;
+      if (dragY == null || !cfg.preview) return;
       const r = topOv.getBoundingClientRect();
-      const curY = (e.clientY - r.top) * TOP_H / r.height;
+      const curY = (e.clientY - r.top) * cfg.TOP_H / r.height;
       topROI.y += curY - dragY;
       dragY = curY;
       commitTop();
@@ -239,12 +262,12 @@ const Setup = (() => {
     commitTop();
 
     (function () {
-      const ASPECT = FRONT_W / FRONT_H;
+      const ASPECT = cfg.FRONT_W / cfg.FRONT_H;
       const MIN_W = 60;
 
-      let roi = { x: 0, y: 0, w: params.frontH * ASPECT, h: params.frontH };
-      if (params.polyF?.length === 4) {
-        const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
+      let roi = { x: 0, y: 0, w: cfg.frontH * ASPECT, h: cfg.frontH };
+      if (cfg.polyF?.length === 4) {
+        const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
         roi.x = Math.min(...xs);
         roi.y = Math.min(...ys);
         roi.w = Math.max(...xs) - roi.x;
@@ -257,29 +280,29 @@ const Setup = (() => {
         roi.w = Math.max(MIN_W, roi.w);
         roi.w = roi.h * ASPECT;
 
-        if (roi.w > FRONT_W) { roi.w = FRONT_W; roi.h = roi.w / ASPECT; }
-        if (roi.h > FRONT_H) { roi.h = FRONT_H; roi.w = roi.h * ASPECT; }
+        if (roi.w > cfg.FRONT_W) { roi.w = cfg.FRONT_W; roi.h = roi.w / ASPECT; }
+        if (roi.h > cfg.FRONT_H) { roi.h = cfg.FRONT_H; roi.w = roi.h * ASPECT; }
 
-        roi.x = Math.min(Math.max(0, roi.x), FRONT_W - roi.w);
-        roi.y = Math.min(Math.max(0, roi.y), FRONT_H - roi.h);
+        roi.x = Math.min(Math.max(0, roi.x), cfg.FRONT_W - roi.w);
+        roi.y = Math.min(Math.max(0, roi.y), cfg.FRONT_H - roi.h);
 
         const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
         const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
-        params.polyF = orderPoints([[x1, y0], [x0, y0], [x0, y1], [x1, y1]]);
-        Config.save('polyF', params.polyF);
+        cfg.polyF = orderPoints([[x1, y0], [x0, y0], [x0, y1], [x1, y1]]);
+        Config.save('polyF', cfg.polyF);
         drawPolyFront();
       }
 
       function toCanvas(e) {
         const r = frontOv.getBoundingClientRect();
         return {
-          x: (e.clientX - r.left) * FRONT_W / r.width,
-          y: (e.clientY - r.top) * FRONT_H / r.height
+          x: (e.clientX - r.left) * cfg.FRONT_W / r.width,
+          y: (e.clientY - r.top) * cfg.FRONT_H / r.height
         };
       }
 
       frontOv.addEventListener('pointerdown', e => {
-        if (!params.preview) return;
+        if (!cfg.preview) return;
         frontOv.setPointerCapture(e.pointerId);
         fingers.set(e.pointerId, toCanvas(e));
 
@@ -295,7 +318,7 @@ const Setup = (() => {
       });
 
       frontOv.addEventListener('pointermove', e => {
-        if (!fingers.has(e.pointerId) || !params.preview) return;
+        if (!fingers.has(e.pointerId) || !cfg.preview) return;
         fingers.set(e.pointerId, toCanvas(e));
 
         if (fingers.size === 1) {
@@ -329,7 +352,7 @@ const Setup = (() => {
       }
 
       frontOv.addEventListener('wheel', e => {
-        if (!params.preview) return;
+        if (!cfg.preview) return;
         e.preventDefault();
         const scale = zoomFromWheel(e.deltaY);
         const prevW = roi.w, prevH = roi.h;
@@ -349,19 +372,19 @@ const Setup = (() => {
       frontOv.style.touchAction = 'none';
       const topHInp = $('#topHInp');
       const frontHInp = $('#frontHInp');
-      topHInp.value = params.topH;
-      frontHInp.value = params.frontH;
+      topHInp.value = cfg.topH;
+      frontHInp.value = cfg.frontH;
 
       topHInp.onchange = e => {
-        params.topH = Math.max(10, Math.min(TOP_H, +e.target.value));
-        Config.save('topH', params.topH);
-        topROI.h = params.topH;
+        cfg.topH = Math.max(10, Math.min(cfg.TOP_H, +e.target.value));
+        Config.save('topH', cfg.topH);
+        topROI.h = cfg.topH;
         commitTop();
       };
       frontHInp.onchange = e => {
-        params.frontH = Math.max(10, Math.min(FRONT_H, +e.target.value));
-        Config.save('frontH', params.frontH);
-        roi.h = params.frontH;
+        cfg.frontH = Math.max(10, Math.min(cfg.FRONT_H, +e.target.value));
+        Config.save('frontH', cfg.frontH);
+        roi.h = cfg.frontH;
         roi.w = roi.h * ASPECT;
         commit();
       };
@@ -369,20 +392,20 @@ const Setup = (() => {
       commit();
     })();
 
-    urlI.value = params.url;
-    selA.value = params.teamA;
-    selB.value = params.teamB;
+    urlI.value = cfg.url;
+    selA.value = cfg.teamA;
+    selB.value = cfg.teamB;
 
-    urlI.onblur = () => { params.url = urlI.value; Config.save('url', params.url); };
+    urlI.onblur = () => { cfg.url = urlI.value; Config.save('url', cfg.url); };
     selA.onchange = e => {
-      params.teamA = e.target.value;
-      Config.save('teamA', params.teamA);
-      Game.setTeams(params.teamA, params.teamB);
+      cfg.teamA = e.target.value;
+      Config.save('teamA', cfg.teamA);
+      Game.setTeams(cfg.teamA, cfg.teamB);
     };
     selB.onchange = e => {
-      params.teamB = e.target.value;
-      Config.save('teamB', params.teamB);
-      Game.setTeams(params.teamA, params.teamB);
+      cfg.teamB = e.target.value;
+      Config.save('teamB', cfg.teamB);
+      Game.setTeams(cfg.teamA, cfg.teamB);
     };
   }
 
@@ -390,6 +413,7 @@ const Setup = (() => {
 })();
 
 const Feeds = (() => {
+  const cfg = Config.get();
   let videoTop, videoFront, track;
 
   async function init() {
@@ -397,14 +421,14 @@ const Feeds = (() => {
 
     videoTop = new Image();
     videoTop.crossOrigin = 'anonymous';
-    videoTop.src = params.url;
+    videoTop.src = cfg.url;
     await videoTop.decode();
 
     const frontStream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
-        width: { exact: FRONT_W },
-        height: { exact: FRONT_H },
+        width: { exact: cfg.FRONT_W },
+        height: { exact: cfg.FRONT_H },
         facingMode: 'environment',
         frameRate: { ideal: 60, max: 120 }
       }
@@ -425,11 +449,11 @@ const Feeds = (() => {
       zoomSlider.min = min;
       zoomSlider.max = Math.min(2, max);
       zoomSlider.step = step || 0.1;
-      zoomSlider.value = params.zoom;
+      zoomSlider.value = cfg.zoom;
       zoomSlider.addEventListener('input', async () => {
         adv.zoom = parseFloat(zoomSlider.value);
-        params.zoom = adv.zoom;
-        Config.save('zoom', params.zoom);
+        cfg.zoom = adv.zoom;
+        Config.save('zoom', cfg.zoom);
         try {
           await track.applyConstraints({ advanced: [adv] });
         } catch (err) {
@@ -451,6 +475,7 @@ const Feeds = (() => {
 })();
 
 const Detect = (() => {
+  const cfg = Config.get();
   /* GPU globals */
   let device;
   let frameTex1, maskTex1, frameTex2, maskTex2, sampler;
@@ -493,11 +518,11 @@ const Detect = (() => {
   }
 
   function rectTop() {
-    const ys = params.polyT.map(p => p[1]);
-    return { min: [0, Math.min(...ys)], max: [TOP_W, Math.max(...ys)] };
+    const ys = cfg.polyT.map(p => p[1]);
+    return { min: [0, Math.min(...ys)], max: [cfg.TOP_W, Math.max(...ys)] };
   }
   function rectFront() {
-    const xs = params.polyF.map(p => p[0]), ys = params.polyF.map(p => p[1]);
+    const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
     return {
       min: [Math.min(...xs), Math.min(...ys)],
       max: [Math.max(...xs), Math.max(...ys)]
@@ -513,10 +538,10 @@ const Detect = (() => {
 
     const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
     const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-    frameTex1 = device.createTexture({ size: [TOP_W, TOP_H], format: 'rgba8unorm', usage: texUsage1 });
-    maskTex1 = device.createTexture({ size: [TOP_W, TOP_H], format: 'rgba8unorm', usage: maskUsage });
-    frameTex2 = device.createTexture({ size: [FRONT_W, FRONT_H], format: 'rgba8unorm', usage: texUsage1 });
-    maskTex2 = device.createTexture({ size: [FRONT_W, FRONT_H], format: 'rgba8unorm', usage: maskUsage });
+    frameTex1 = device.createTexture({ size: [cfg.TOP_W, cfg.TOP_H], format: 'rgba8unorm', usage: texUsage1 });
+    maskTex1 = device.createTexture({ size: [cfg.TOP_W, cfg.TOP_H], format: 'rgba8unorm', usage: maskUsage });
+    frameTex2 = device.createTexture({ size: [cfg.FRONT_W, cfg.FRONT_H], format: 'rgba8unorm', usage: texUsage1 });
+    maskTex2 = device.createTexture({ size: [cfg.FRONT_W, cfg.FRONT_H], format: 'rgba8unorm', usage: maskUsage });
     sampler = device.createSampler();
 
     uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -571,26 +596,26 @@ const Detect = (() => {
     device.queue.writeBuffer(statsA, 0, zero);
     device.queue.writeBuffer(statsB, 0, zero);
 
-    const srcY = Math.floor((Feeds.top().naturalHeight - TOP_H) / 2);
+    const srcY = Math.floor((Feeds.top().naturalHeight - cfg.TOP_H) / 2);
     device.queue.copyExternalImageToTexture(
       { source: Feeds.top(), origin: { x: 0, y: srcY } },
       { texture: frameTex1 },
-      [TOP_W, TOP_H]
+      [cfg.TOP_W, cfg.TOP_H]
     );
 
     const enc = device.createCommandEncoder();
     enc.beginRenderPass({ colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
 
-    const flagsTop = (params.preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-    writeUniform(uni, hsvRange(params.teamA), hsvRange(params.teamB), rectTop(), flagsTop);
+    const flagsTop = (cfg.preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+    writeUniform(uni, hsvRange(cfg.teamA), hsvRange(cfg.teamB), rectTop(), flagsTop);
     let cp = enc.beginComputePass();
     cp.setPipeline(pipeC);
     cp.setBindGroup(0, bgTop);
-    cp.dispatchWorkgroups(Math.ceil(TOP_W / 8), Math.ceil(TOP_H / 32));
+    cp.dispatchWorkgroups(Math.ceil(cfg.TOP_W / 8), Math.ceil(cfg.TOP_H / 32));
     cp.end();
     enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
     enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-    if (params.preview) {
+    if (cfg.preview) {
       PreviewGfx.drawMask(enc, pipeQ, bgR, device, 'top');
     }
     device.queue.submit([enc.finish()]);
@@ -600,7 +625,7 @@ const Detect = (() => {
     const [cntB] = new Uint32Array(readB.getMappedRange());
     readB.unmap();
 
-    const topDetected = cntA > TOP_MIN_AREA || cntB > TOP_MIN_AREA;
+    const topDetected = cntA > cfg.TOP_MIN_AREA || cntB > cfg.TOP_MIN_AREA;
     return { detected: topDetected, cntA, cntB };
   }
 
@@ -616,19 +641,19 @@ const Detect = (() => {
     device.queue.copyExternalImageToTexture(
       { source: Feeds.front() },
       { texture: frameTex2 },
-      [FRONT_W, FRONT_H]
+      [cfg.FRONT_W, cfg.FRONT_H]
     );
     const enc2 = device.createCommandEncoder();
     enc2.beginRenderPass({ colorAttachments: [{ view: maskTex2.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
-    writeUniform(uni, hsvRange(params.teamA), hsvRange(params.teamB), rectFront(), flags);
+    writeUniform(uni, hsvRange(cfg.teamA), hsvRange(cfg.teamB), rectFront(), flags);
     let cp2 = enc2.beginComputePass();
     cp2.setPipeline(pipeC);
     cp2.setBindGroup(0, bgFront);
-    cp2.dispatchWorkgroups(Math.ceil(FRONT_W / 8), Math.ceil(FRONT_H / 32));
+    cp2.dispatchWorkgroups(Math.ceil(cfg.FRONT_W / 8), Math.ceil(cfg.FRONT_H / 32));
     cp2.end();
     enc2.copyBufferToBuffer(statsA, 0, readA, 0, 12);
     enc2.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-    if (params.preview) {
+    if (cfg.preview) {
       PreviewGfx.drawMask(enc2, pipeQ, bgRF, device, 'front');
     }
     device.queue.submit([enc2.finish()]);
@@ -640,16 +665,16 @@ const Detect = (() => {
     readB.unmap();
 
     const hits = [];
-    if (cntA > FRONT_MIN_AREA) {
+    if (cntA > cfg.FRONT_MIN_AREA) {
       const cx = sumXA / cntA, cy = sumYA / cntA;
-      hits.push({ team: params.teamA, x: cx / FRONT_W, y: cy / FRONT_H });
+      hits.push({ team: cfg.teamA, x: cx / cfg.FRONT_W, y: cy / cfg.FRONT_H });
     }
-    if (cntB > FRONT_MIN_AREA) {
+    if (cntB > cfg.FRONT_MIN_AREA) {
       const cx = sumXB / cntB, cy = sumYB / cntB;
-      hits.push({ team: params.teamB, x: cx / FRONT_W, y: cy / FRONT_H });
+      hits.push({ team: cfg.teamB, x: cx / cfg.FRONT_W, y: cy / cfg.FRONT_H });
     }
 
-    if (params.preview && hits.length) {
+    if (cfg.preview && hits.length) {
       for (const h of hits) {
         PreviewGfx.drawHit(h);
       }
@@ -663,6 +688,7 @@ const Detect = (() => {
 
 
 const Controller = (() => {
+  const cfg = Config.get();
   const TOP_FPS = 30;               // throttle only the MJPEG-top feed
   const TOP_INTERVAL = 1000 / TOP_FPS;
   let lastTop = 0;
@@ -677,9 +703,9 @@ const Controller = (() => {
     const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection();
 
     if (topDetected) {
-      let flags = params.preview ? FLAG_PREVIEW : 0;
-      if (cntA > TOP_MIN_AREA) flags |= FLAG_TEAM_A_ACTIVE;
-      if (cntB > TOP_MIN_AREA) flags |= FLAG_TEAM_B_ACTIVE;
+      let flags = cfg.preview ? FLAG_PREVIEW : 0;
+      if (cntA > cfg.TOP_MIN_AREA) flags |= FLAG_TEAM_A_ACTIVE;
+      if (cntB > cfg.TOP_MIN_AREA) flags |= FLAG_TEAM_B_ACTIVE;
 
       const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags);
 
@@ -705,7 +731,7 @@ const Controller = (() => {
     requestAnimationFrame(topLoop);
   }
 
-  function setPreview(on) { params.preview = on; }
+  function setPreview(on) { cfg.preview = on; }
 
   return { start, setPreview };
 })();
