@@ -56,8 +56,7 @@ const Config = (() => {
     polyF:  [],
     zoom:   1.0,
     topH:   160,
-    frontH: 220,
-    preview: false
+    frontH: 220
   };
 
   const PERSIST = {
@@ -99,7 +98,6 @@ const Config = (() => {
 })();
 
 Config.load();
-Config.get().preview = false;             // setup mode
 
 const PreviewGfx = (() => {
   const cfg = Config.get();
@@ -247,13 +245,13 @@ const Setup = (() => {
     /* vertical drag on overlay */
     let dragY = null;
     topOv.addEventListener('pointerdown', e => {
-      if (!cfg.preview) return;
+      if (!Controller.isPreview()) return;
       const r = topOv.getBoundingClientRect();
       dragY = (e.clientY - r.top) * cfg.TOP_H / r.height;
       topOv.setPointerCapture(e.pointerId);
     });
     topOv.addEventListener('pointermove', e => {
-      if (dragY == null || !cfg.preview) return;
+      if (dragY == null || !Controller.isPreview()) return;
       const r = topOv.getBoundingClientRect();
       const curY = (e.clientY - r.top) * cfg.TOP_H / r.height;
       topROI.y += curY - dragY;
@@ -306,7 +304,7 @@ const Setup = (() => {
       }
 
       frontOv.addEventListener('pointerdown', e => {
-        if (!cfg.preview) return;
+        if (!Controller.isPreview()) return;
         frontOv.setPointerCapture(e.pointerId);
         fingers.set(e.pointerId, toCanvas(e));
 
@@ -322,7 +320,7 @@ const Setup = (() => {
       });
 
       frontOv.addEventListener('pointermove', e => {
-        if (!fingers.has(e.pointerId) || !cfg.preview) return;
+        if (!fingers.has(e.pointerId) || !Controller.isPreview()) return;
         fingers.set(e.pointerId, toCanvas(e));
 
         if (fingers.size === 1) {
@@ -356,7 +354,7 @@ const Setup = (() => {
       }
 
       frontOv.addEventListener('wheel', e => {
-        if (!cfg.preview) return;
+        if (!Controller.isPreview()) return;
         e.preventDefault();
         const scale = zoomFromWheel(e.deltaY);
         const prevW = roi.w, prevH = roi.h;
@@ -596,7 +594,7 @@ const Detect = (() => {
     });
   }
 
-  async function runTopDetection() {
+  async function runTopDetection(preview) {
     device.queue.writeBuffer(statsA, 0, zero);
     device.queue.writeBuffer(statsB, 0, zero);
 
@@ -610,7 +608,7 @@ const Detect = (() => {
     const enc = device.createCommandEncoder();
     enc.beginRenderPass({ colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
 
-    const flagsTop = (cfg.preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+    const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
     writeUniform(uni, hsvRange(cfg.teamA), hsvRange(cfg.teamB), rectTop(), flagsTop);
     let cp = enc.beginComputePass();
     cp.setPipeline(pipeC);
@@ -619,7 +617,7 @@ const Detect = (() => {
     cp.end();
     enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
     enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-    if (cfg.preview) {
+    if (preview) {
       PreviewGfx.drawMask(enc, pipeQ, bgR, device, 'top');
     }
     device.queue.submit([enc.finish()]);
@@ -634,7 +632,7 @@ const Detect = (() => {
   }
 
   let lastCaptureTime = 0;
-  async function runFrontDetection(flags) {
+  async function runFrontDetection(flags, preview) {
     const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
     if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
     lastCaptureTime = meta.captureTime;
@@ -657,7 +655,7 @@ const Detect = (() => {
     cp2.end();
     enc2.copyBufferToBuffer(statsA, 0, readA, 0, 12);
     enc2.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-    if (cfg.preview) {
+    if (preview) {
       PreviewGfx.drawMask(enc2, pipeQ, bgRF, device, 'front');
     }
     device.queue.submit([enc2.finish()]);
@@ -678,7 +676,7 @@ const Detect = (() => {
       hits.push({ team: cfg.teamB, x: cx / cfg.FRONT_W, y: cy / cfg.FRONT_H });
     }
 
-    if (cfg.preview && hits.length) {
+    if (preview && hits.length) {
       for (const h of hits) {
         PreviewGfx.drawHit(h);
       }
@@ -696,6 +694,7 @@ const Controller = (() => {
   const TOP_FPS = 30;               // throttle only the MJPEG-top feed
   const TOP_INTERVAL = 1000 / TOP_FPS;
   let lastTop = 0;
+  let preview = false;
 
   async function topLoop(ts) {
     if (ts - lastTop < TOP_INTERVAL) {
@@ -704,14 +703,14 @@ const Controller = (() => {
     }
     lastTop = ts;
 
-    const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection();
+    const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection(preview);
 
     if (topDetected) {
-      let flags = cfg.preview ? FLAG_PREVIEW : 0;
+      let flags = preview ? FLAG_PREVIEW : 0;
       if (cntA > cfg.TOP_MIN_AREA) flags |= FLAG_TEAM_A_ACTIVE;
       if (cntB > cfg.TOP_MIN_AREA) flags |= FLAG_TEAM_B_ACTIVE;
 
-      const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags);
+      const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags, preview);
 
       if (frontDetected) {
         for (const h of hits) {
@@ -735,9 +734,10 @@ const Controller = (() => {
     requestAnimationFrame(topLoop);
   }
 
-  function setPreview(on) { cfg.preview = on; }
+  function setPreview(on) { preview = on; }
+  function isPreview() { return preview; }
 
-  return { start, setPreview };
+  return { start, setPreview, isPreview };
 })();
 window.App = { Config, PreviewGfx, Setup, Feeds, Detect, Controller };
 Controller.start();
