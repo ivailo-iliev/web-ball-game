@@ -624,35 +624,20 @@ const Detect = (() => {
 })();
 
 
-(async () => {
-  Setup.bind();
-  await Feeds.init();
-  await Detect.init();
-  // —————————————
-  // 2) NEW FRAME LOOP
-  // —————————————
-
+const Controller = (() => {
   const TOP_FPS = 30;               // throttle only the MJPEG-top feed
   const TOP_INTERVAL = 1000 / TOP_FPS;
-  // —————————————
-  // 2) TOP-ONLY LOOP  (front runs on demand)
-  // —————————————
-
   let lastTop = 0;
-  requestAnimationFrame(topLoop);
 
   async function topLoop(ts) {
-    // throttle only the top feed
     if (ts - lastTop < TOP_INTERVAL) {
       requestAnimationFrame(topLoop);
       return;
     }
     lastTop = ts;
 
-    // 1) Detect on the MJPEG / top camera
     const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection();
 
-    // 2) If the blob was big enough, IMMEDIATELY analyse the front feed
     if (topDetected) {
       let flags = params.preview ? FLAG_PREVIEW : 0;
       if (cntA > TOP_MIN_AREA) flags |= FLAG_TEAM_A_ACTIVE;
@@ -660,9 +645,7 @@ const Detect = (() => {
 
       const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags);
 
-
       if (frontDetected) {
-        // emit each hit
         for (const h of hits) {
           doHit(
             h.x * window.innerWidth,
@@ -673,7 +656,20 @@ const Detect = (() => {
         }
       }
     }
-    // queue next top frame
     requestAnimationFrame(topLoop);
   }
+
+  async function start() {
+    Setup.bind();
+    await Feeds.init();
+    await Detect.init();
+    lastTop = 0;
+    requestAnimationFrame(topLoop);
+  }
+
+  function setPreview(on) { params.preview = on; }
+
+  return { start, setPreview };
 })();
+
+Controller.start();
