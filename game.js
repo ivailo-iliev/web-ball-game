@@ -189,6 +189,22 @@ function buildMoleBoard (opts = cfg) {
     cell.dataset.busy = '';
     moleHoles.push(cell);
   }
+
+  // cache bounding rects for quick lookup during gameplay
+  const boardRect = gameContainer.getBoundingClientRect();
+  gameContainer._rect = {
+    left: boardRect.left,
+    top: boardRect.top
+  };
+  moleHoles.forEach(h => {
+    const r = h.getBoundingClientRect();
+    h._rect = {
+      width: r.width,
+      height: r.height,
+      left: r.left - boardRect.left,
+      top: r.top - boardRect.top
+    };
+  });
 }
 // Utilities
 const rand = n => Math.random() * n;
@@ -214,16 +230,19 @@ function applyTransform(el, x, y, rot, sx, sy) {
   // CSSTransformValue and reuse the individual components thereafter.
   let cache = el._tf;
   if (!cache) {
-    const translate = new CSSTranslate(CSS.px(x), CSS.px(y));
-    const rotate = new CSSRotate(CSS.rad(rot));
+    const pxX = CSS.px(x);
+    const pxY = CSS.px(y);
+    const ang = CSS.rad(rot);
+    const translate = new CSSTranslate(pxX, pxY);
+    const rotate = new CSSRotate(ang);
     const scale = new CSSScale(sx, sy);
     const tv = new CSSTransformValue([translate, rotate, scale]);
     el.attributeStyleMap.set('transform', tv);
-    cache = el._tf = { translate, rotate, scale };
+    cache = el._tf = { translate, rotate, scale, pxX, pxY, ang };
   } else {
-    cache.translate.x.value = x;
-    cache.translate.y.value = y;
-    cache.rotate.angle.value = rot;
+    cache.pxX.value = x;
+    cache.pxY.value = y;
+    cache.ang.value = rot;
     cache.scale.x = sx;
     cache.scale.y = sy;
   }
@@ -474,7 +493,7 @@ class MoleGame extends GameMode {
     if (freeHoles.length === 0) return;
     const hole = pick(freeHoles);
     hole.dataset.busy = '1';
-    const rect = hole.getBoundingClientRect();
+    const rect = hole._rect;
     const r = Math.min(rect.width, rect.height) * 0.40;
     const x = rect.width * 0.5;
     const y = rect.height + r;
@@ -513,8 +532,8 @@ class MoleGame extends GameMode {
   hit(s) {
     s.pop = 0.01;
     if (s.phase && s.phase !== 'down') {
-      const game = gameContainer.getBoundingClientRect();
-      const hole = s.el.parentElement.getBoundingClientRect();
+      const game = gameContainer._rect;
+      const hole = s.hole._rect;
       const gx = s.x + hole.left - game.left;
       const gy = s.y + hole.top - game.top;
       burst(gx, gy, ['💫']);
@@ -524,8 +543,8 @@ class MoleGame extends GameMode {
     }
   }
   contains(s, px, py) {
-    const game = gameContainer.getBoundingClientRect();
-    const hole = s.el.parentElement.getBoundingClientRect();
+    const game = gameContainer._rect;
+    const hole = s.hole._rect;
     px -= hole.left - game.left;
     py -= hole.top - game.top;
     return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
