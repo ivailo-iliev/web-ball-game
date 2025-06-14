@@ -37,6 +37,24 @@ function hsvRange(team) {
   return COLOR_TABLE.subarray(i, i + 6);
 }
 
+function float32ToFloat16(val) {
+  const f32 = new Float32Array([val]);
+  const u32 = new Uint32Array(f32.buffer)[0];
+  const sign = (u32 >> 16) & 0x8000;
+  let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
+  let mant = u32 & 0x7FFFFF;
+  if (exp <= 0) return sign;
+  if (exp >= 0x1F) return sign | 0x7C00;
+  return sign | (exp << 10) | (mant >> 13);
+}
+
+function hsvRangeF16(team) {
+  const src = hsvRange(team);
+  const dst = new Uint16Array(6);
+  for (let i = 0; i < 6; i++) dst[i] = float32ToFloat16(src[i]);
+  return dst;
+}
+
 /* DOM helper with simple caching */
 const domCache = {};
 const $ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
@@ -82,6 +100,10 @@ const Config = (() => {
         cfg[name] = def;
       }
     }
+    cfg.f16Ranges = {};
+    for (const t of Object.keys(TEAM_INDICES)) {
+      cfg.f16Ranges[t] = hsvRangeF16(t);
+    }
     return cfg;
   }
 
@@ -89,7 +111,9 @@ const Config = (() => {
     if (PERSIST[name]) {
       localStorage.setItem(PERSIST[name], JSON.stringify(value));
     }
-    if (cfg) cfg[name] = value;
+    if (cfg) {
+      cfg[name] = value;
+    }
   }
 
   function get() { return cfg; }
@@ -485,18 +509,6 @@ const Detect = (() => {
   let pipeC, pipeQ, bgR, bgRF, bgTop, bgFront;
   const zero = new Uint32Array([0, 0, 0]);
 
-  // helper: encode a JavaScript Number (f32) into a 16-bit float bitpattern
-  function float32ToFloat16(val) {
-    const f32 = new Float32Array([val]);
-    const u32 = new Uint32Array(f32.buffer)[0];
-    const sign = (u32 >> 16) & 0x8000;
-    let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
-    let mant = u32 & 0x7FFFFF;
-
-    if (exp <= 0) return sign;
-    if (exp >= 0x1F) return sign | 0x7C00;
-    return sign | (exp << 10) | (mant >> 13);
-  }
 
   // Pre-allocate uniform buffer and typed-array views (64 bytes)
   const uniformArrayBuffer = new ArrayBuffer(64);
@@ -509,10 +521,10 @@ const Detect = (() => {
     const f32 = uniformF32;
     const u32 = uniformU32;
 
-    for (let i = 0; i < 3; i++) u16[i] = float32ToFloat16(hsvA6[i]);
-    for (let i = 0; i < 3; i++) u16[4 + i] = float32ToFloat16(hsvA6[i + 3]);
-    for (let i = 0; i < 3; i++) u16[8 + i] = float32ToFloat16(hsvB6[i]);
-    for (let i = 0; i < 3; i++) u16[12 + i] = float32ToFloat16(hsvB6[i + 3]);
+    for (let i = 0; i < 3; i++) u16[i] = hsvA6[i];
+    for (let i = 0; i < 3; i++) u16[4 + i] = hsvA6[i + 3];
+    for (let i = 0; i < 3; i++) u16[8 + i] = hsvB6[i];
+    for (let i = 0; i < 3; i++) u16[12 + i] = hsvB6[i + 3];
     f32[8] = rect.min[0]; f32[9] = rect.min[1];
     f32[10] = rect.max[0]; f32[11] = rect.max[1];
     u32[12] = flags;
@@ -609,7 +621,7 @@ const Detect = (() => {
     enc.beginRenderPass({ colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
 
     const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-    writeUniform(uni, hsvRange(cfg.teamA), hsvRange(cfg.teamB), rectTop(), flagsTop);
+    writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectTop(), flagsTop);
     let cp = enc.beginComputePass();
     cp.setPipeline(pipeC);
     cp.setBindGroup(0, bgTop);
@@ -647,7 +659,7 @@ const Detect = (() => {
     );
     const enc2 = device.createCommandEncoder();
     enc2.beginRenderPass({ colorAttachments: [{ view: maskTex2.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
-    writeUniform(uni, hsvRange(cfg.teamA), hsvRange(cfg.teamB), rectFront(), flags);
+    writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectFront(), flags);
     let cp2 = enc2.beginComputePass();
     cp2.setPipeline(pipeC);
     cp2.setBindGroup(0, bgFront);
