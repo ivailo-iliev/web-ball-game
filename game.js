@@ -629,8 +629,9 @@ for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 
 // ----- Score & Hit Logic -----
 
-as.className = params.teamA;
-bs.className = params.teamB;
+const cfgGame = Config.get();
+as.className = cfgGame.teamA;
+bs.className = cfgGame.teamB;
 updateScore();
 
 function updateScore() {
