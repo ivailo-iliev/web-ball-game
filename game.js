@@ -629,7 +629,7 @@ for (let i = 0; i < cfg.count; i++) scheduleSpawn();
 
 // ----- Score & Hit Logic -----
 
-const cfgGame = Config.get();
+const cfgGame = App.Config.get();
 as.className = cfgGame.teamA;
 bs.className = cfgGame.teamB;
 updateScore();

@@ -4,6 +4,9 @@
 // * One-shot WebGPU detection on device-camera "front" feed upon impact
 // * Identical pipeline in setup (throttled) and live (triggered)
 
+(function () {
+  'use strict';
+
 /* ---------------- CONSTANTS ---------------- */
 // ——————— CONSTANTS ———————
 // top-camera MJPEG feed (over Wi-Fi)
@@ -34,8 +37,9 @@ function hsvRange(team) {
   return COLOR_TABLE.subarray(i, i + 6);
 }
 
-/* DOM helper */
-const $ = q => document.querySelector(q);
+/* DOM helper with simple caching */
+const domCache = {};
+const $ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
 
 const Config = (() => {
   const DEFAULTS = {
@@ -102,20 +106,20 @@ const PreviewGfx = (() => {
   let ctxTop2d, ctxFront2d, ctxTopGPU, ctxFrontGPU;
 
   function ensure2d() {
-    if (!ctxTop2d) ctxTop2d = document.getElementById('topOv')?.getContext('2d');
-    if (!ctxFront2d) ctxFront2d = document.getElementById('frontOv')?.getContext('2d');
+    if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
+    if (!ctxFront2d) ctxFront2d = $('#frontOv')?.getContext('2d');
   }
 
   function ensureGPU(device) {
     if (!ctxTopGPU) {
-      const c = document.getElementById('topTex');
+      const c = $('#topTex');
       if (c) {
         ctxTopGPU = c.getContext('webgpu');
         ctxTopGPU.configure({ device, format: 'rgba8unorm' });
       }
     }
     if (!ctxFrontGPU) {
-      const c = document.getElementById('frontTex');
+      const c = $('#frontTex');
       if (c) {
         ctxFrontGPU = c.getContext('webgpu');
         ctxFrontGPU.configure({ device, format: 'rgba8unorm' });
@@ -417,7 +421,7 @@ const Feeds = (() => {
   let videoTop, videoFront, track;
 
   async function init() {
-    videoFront = document.getElementById('vid');
+    videoFront = $('#vid');
 
     videoTop = new Image();
     videoTop.crossOrigin = 'anonymous';
@@ -444,7 +448,7 @@ const Feeds = (() => {
     if (cap.powerEfficient) adv.powerEfficient = false;
 
     if (cap.zoom) {
-      const zoomSlider = document.getElementById('zoomSlider');
+      const zoomSlider = $('#zoomSlider');
       const { min, max, step } = cap.zoom;
       zoomSlider.min = min;
       zoomSlider.max = Math.min(2, max);
@@ -735,5 +739,6 @@ const Controller = (() => {
 
   return { start, setPreview };
 })();
-
+window.App = { Config, PreviewGfx, Setup, Feeds, Detect, Controller };
 Controller.start();
+})();
