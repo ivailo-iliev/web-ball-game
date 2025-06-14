@@ -79,40 +79,6 @@
     Game.winH = winH;
   });
 
-  const moleHoles = [];
-  function buildMoleBoard(opts = cfg) {
-    moleHoles.length = 0;
-
-    Object.assign(gameContainer.style, {
-      display: 'grid',
-      gridTemplateColumns: `repeat(${opts.moleGridCols},1fr)`,
-      gridTemplateRows: `repeat(${opts.moleGridRows},1fr)`
-    });
-
-    const total = opts.moleGridCols * opts.moleGridRows;
-    for (let i = 0; i < total; ++i) {
-      const cell = document.createElement('div');
-      cell.className = 'moleHole';
-      gameContainer.appendChild(cell);
-      cell.dataset.busy = '';
-      moleHoles.push(cell);
-    }
-
-    const boardRect = gameContainer.getBoundingClientRect();
-    gameContainer._rect = {
-      left: boardRect.left,
-      top: boardRect.top
-    };
-    moleHoles.forEach(h => {
-      const r = h.getBoundingClientRect();
-      h._rect = {
-        width: r.width,
-        height: r.height,
-        left: r.left - boardRect.left,
-        top: r.top - boardRect.top
-      };
-    });
-  }
 
   const rand = n => Math.random() * n;
   const between = (a, b) => a + rand(b - a);
@@ -378,9 +344,7 @@
     burst,
     registerMode,
     GameMode,
-    buildCfg,
-    moleHoles,
-    buildMoleBoard
+    buildCfg
   };
 
   window.Game = Game;
@@ -565,10 +529,47 @@
     animals: ['🐭','🐰']
   };
 
+  const moleHoles = [];
+
+  function buildMoleBoard(opts = cfg) {
+    moleHoles.length = 0;
+
+    const gameContainer = Game.elements.container;
+    Object.assign(gameContainer.style, {
+      display: 'grid',
+      gridTemplateColumns: `repeat(${opts.moleGridCols},1fr)`,
+      gridTemplateRows: `repeat(${opts.moleGridRows},1fr)`
+    });
+
+    const total = opts.moleGridCols * opts.moleGridRows;
+    for (let i = 0; i < total; ++i) {
+      const cell = document.createElement('div');
+      cell.className = 'moleHole';
+      gameContainer.appendChild(cell);
+      cell.dataset.busy = '';
+      moleHoles.push(cell);
+    }
+
+    const boardRect = gameContainer.getBoundingClientRect();
+    gameContainer._rect = {
+      left: boardRect.left,
+      top: boardRect.top
+    };
+    moleHoles.forEach(h => {
+      const r = h.getBoundingClientRect();
+      h._rect = {
+        width: r.width,
+        height: r.height,
+        left: r.left - boardRect.left,
+        top: r.top - boardRect.top
+      };
+    });
+  }
+
   class MoleGame extends Game.GameMode {
     spawn() {
       if (Game.state.sprites.length >= cfg.moleCount) return;
-      const freeHoles = Game.moleHoles.filter(h => !h.dataset.busy);
+      const freeHoles = moleHoles.filter(h => !h.dataset.busy);
       if (freeHoles.length === 0) return;
       const hole = Game.utils.pick(freeHoles);
       hole.dataset.busy = '1';
@@ -629,7 +630,7 @@
     }
     setup() {
       Game.cfg.count = cfg.moleCount;
-      Game.buildMoleBoard(cfg);
+      buildMoleBoard(cfg);
     }
     cleanup() {
       document.querySelectorAll('.moleHole').forEach(h => h.remove());
