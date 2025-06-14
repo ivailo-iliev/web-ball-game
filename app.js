@@ -76,6 +76,78 @@ const Config = (() => {
 const params = Config.load();
 params.preview = false;             // setup mode
 
+const PreviewGfx = (() => {
+  let ctxTop2d, ctxFront2d, ctxTopGPU, ctxFrontGPU;
+
+  function ensure2d() {
+    if (!ctxTop2d) ctxTop2d = document.getElementById('topOv')?.getContext('2d');
+    if (!ctxFront2d) ctxFront2d = document.getElementById('frontOv')?.getContext('2d');
+  }
+
+  function ensureGPU(device) {
+    if (!ctxTopGPU) {
+      const c = document.getElementById('topTex');
+      if (c) {
+        ctxTopGPU = c.getContext('webgpu');
+        ctxTopGPU.configure({ device, format: 'rgba8unorm' });
+      }
+    }
+    if (!ctxFrontGPU) {
+      const c = document.getElementById('frontTex');
+      if (c) {
+        ctxFrontGPU = c.getContext('webgpu');
+        ctxFrontGPU.configure({ device, format: 'rgba8unorm' });
+      }
+    }
+  }
+
+  function clear() {
+    ensure2d();
+    if (ctxTop2d) ctxTop2d.clearRect(0, 0, ctxTop2d.canvas.width, ctxTop2d.canvas.height);
+    if (ctxFront2d) ctxFront2d.clearRect(0, 0, ctxFront2d.canvas.width, ctxFront2d.canvas.height);
+  }
+
+  function drawROI(poly, color, which) {
+    ensure2d();
+    const ctx = which === 'front' ? ctxFront2d : ctxTop2d;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    if (poly.length !== 4) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(...poly[0]);
+    poly.slice(1).forEach(p => ctx.lineTo(...p));
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  function drawHit(hit) {
+    ensure2d();
+    if (!ctxFront2d) return;
+    ctxFront2d.fillStyle = hit.team;
+    const px = hit.x * FRONT_W, py = hit.y * FRONT_H;
+    ctxFront2d.beginPath();
+    ctxFront2d.arc(px, py, 8, 0, Math.PI * 2);
+    ctxFront2d.fill();
+  }
+
+  function drawMask(enc, pipe, bg, device, which) {
+    ensureGPU(device);
+    const ctx = which === 'front' ? ctxFrontGPU : ctxTopGPU;
+    if (!ctx) return;
+    const rp = enc.beginRenderPass({
+      colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store' }]
+    });
+    rp.setPipeline(pipe);
+    rp.setBindGroup(0, bg);
+    rp.draw(3);
+    rp.end();
+  }
+
+  return { drawMask, drawROI, drawHit, clear };
+})();
+
 
 const Setup = (() => {
   const detectionUI = `
@@ -108,26 +180,12 @@ const Setup = (() => {
     const selB = $('#b');
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
-    const frontCtx = frontOv.getContext('2d');
-    const topCtx = topOv.getContext('2d');
     const zoomSlider = $('#zoomSlider');
 
   const topROI = { y: 0, h: params.topH };
 
-  function drawPolygon(ctx, pts, color) {
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    if (pts.length !== 4) return;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(...pts[0]);
-    pts.slice(1).forEach(p => ctx.lineTo(...p));
-    ctx.closePath();
-    ctx.stroke();
-  }
-
-  function drawPolyTop() { drawPolygon(topCtx, params.polyT, 'lime'); }
-  function drawPolyFront() { drawPolygon(frontCtx, params.polyF, 'aqua'); }
+  function drawPolyTop() { PreviewGfx.drawROI(params.polyT, 'lime', 'top'); }
+  function drawPolyFront() { PreviewGfx.drawROI(params.polyF, 'aqua', 'front'); }
 
   function commitTop() {
     topROI.y = Math.min(Math.max(0, topROI.y), TOP_H - topROI.h);
@@ -394,7 +452,7 @@ const Feeds = (() => {
 
 const Detect = (() => {
   /* GPU globals */
-  let device, ctxTop, ctxFront;
+  let device;
   let frameTex1, maskTex1, frameTex2, maskTex2, sampler;
   let uni, statsA, statsB, readA, readB;
   let pipeC, pipeQ, bgR, bgRF, bgTop, bgFront;
@@ -452,10 +510,6 @@ const Detect = (() => {
     const hasF16 = adapter.features.has("shader-f16");
     device = await adapter.requestDevice({ requiredFeatures: hasF16 ? ["shader-f16"] : [] });
     console.log("shader-f16:", hasF16);
-    ctxTop = $('#topTex').getContext('webgpu');
-    ctxTop.configure({ device, format: 'rgba8unorm' });
-    ctxFront = $('#frontTex').getContext('webgpu');
-    ctxFront.configure({ device, format: 'rgba8unorm' });
 
     const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
     const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
@@ -537,13 +591,7 @@ const Detect = (() => {
     enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
     enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
     if (params.preview) {
-      const rp = enc.beginRenderPass({
-        colorAttachments: [{ view: ctxTop.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store' }]
-      });
-      rp.setPipeline(pipeQ);
-      rp.setBindGroup(0, bgR);
-      rp.draw(3);
-      rp.end();
+      PreviewGfx.drawMask(enc, pipeQ, bgR, device, 'top');
     }
     device.queue.submit([enc.finish()]);
     await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
@@ -581,12 +629,7 @@ const Detect = (() => {
     enc2.copyBufferToBuffer(statsA, 0, readA, 0, 12);
     enc2.copyBufferToBuffer(statsB, 0, readB, 0, 12);
     if (params.preview) {
-      const view2 = ctxFront.getCurrentTexture().createView();
-      const rp2 = enc2.beginRenderPass({ colorAttachments: [{ view: view2, loadOp: 'clear', storeOp: 'store' }] });
-      rp2.setPipeline(pipeQ);
-      rp2.setBindGroup(0, bgRF);
-      rp2.draw(3);
-      rp2.end();
+      PreviewGfx.drawMask(enc2, pipeQ, bgRF, device, 'front');
     }
     device.queue.submit([enc2.finish()]);
 
@@ -607,13 +650,8 @@ const Detect = (() => {
     }
 
     if (params.preview && hits.length) {
-      const ctx2d = document.getElementById('frontOv').getContext('2d');
       for (const h of hits) {
-        ctx2d.fillStyle = h.team;
-        const px = h.x * FRONT_W, py = h.y * FRONT_H;
-        ctx2d.beginPath();
-        ctx2d.arc(px, py, 8, 0, Math.PI * 2);
-        ctx2d.fill();
+        PreviewGfx.drawHit(h);
       }
     }
     return { detected: hits.length > 0, hits };
