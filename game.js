@@ -134,6 +134,7 @@ class GameMode {
   resolveCollisions() {}
   setup() {}
   cleanup() {}
+  onRemove(_s) {}
 }
 
 const gameContainer = document.createElement('div');
@@ -274,15 +275,7 @@ class Sprite {
       fontSize: `${size}px`
     });
 
-    /* BALLOON – give it a permanent tint ONCE */
-    if (this.mode === ModeHandlers[MODES.BALLOONS]) {
-      const hue = Math.random() * 360;                    // 0–360°
-      const bri = between(this.mode.opts.brightMin, this.mode.opts.brightMax);
-      const sat = between(this.mode.opts.satMin, this.mode.opts.satMax);
-      // this.el.style.filter =
-     this.el.style.filter = 
-       `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
-    }
+
 
     gameContainer.appendChild(this.el);
     this.el._sprite = this;
@@ -301,31 +294,11 @@ class Sprite {
       lineHeight: `${size}px`,
       fontSize: `${size}px`
     });
-    if (this.mode === ModeHandlers[MODES.FISH]) {
-      // spawn from left or right edge
-      const side = Math.random() < 0.5 ? 'left' : 'right';
-      // x just off-screen
-      this.x = side === 'left' ? -r : W + r;
-      // y anywhere within vertical bounds
-      this.y = randY(r);
-
-      // horizontal velocity toward screen center
-      this.dx = (side === 'left' ? 1 : -1) * randSpeed();
-      // small vertical variance
-      this.dy = between(-20, 20);
-
-      // set face direction based on movement
-      this.face = this.dx > 0 ? 1 : -1;
-      // choose random fish sprite
-      this.e = pick(this.mode.opts.fish);
-      this.dir = -this.face;
-    } else {
-      this.x = randX(r);
-      this.y = randY(r);
-      const { dx, dy } = randVec();
-      this.dx = dx;
-      this.dy = dy;
-    }
+    this.x = randX(r);
+    this.y = randY(r);
+    const { dx, dy } = randVec();
+    this.dx = dx;
+    this.dy = dy;
     this.pop = 0;
     this.alive = true;
   }
@@ -375,6 +348,10 @@ class EmojiGame extends GameMode {
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
     const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
     applyTransform(s.el, s.x - s.r, s.y - s.r, rot, scale, scale);
+  }
+  hit(s) {
+    s.pop = 0.01;
+    burst(s.x, s.y);
   }
   resolveCollisions() {
     for (let i = 0; i < state.sprites.length; i++) {
@@ -436,6 +413,10 @@ class FishGame extends GameMode {
     const flip = s.face > 0 ? -1 : 1;
     applyTransform(s.el, s.x - s.r, s.y - s.r, rot, flip, 1);
   }
+  hit(s) {
+    s.pop = 0.01;
+    burst(s.x, s.y, this.opts.bubble);
+  }
 }
 registerMode(MODES.FISH, new FishGame(modeCfgs[MODES.FISH]));
 
@@ -449,7 +430,12 @@ class BalloonGame extends GameMode {
     const y = winH + r;
     const dx = between(-20, 20);
     const dy = -between(this.opts.bVMin, this.opts.bVMax);
-    state.sprites.push(new Sprite({ x, y, dx, dy, r, e, face, dir:1 }));
+    const s = new Sprite({ x, y, dx, dy, r, e, face, dir:1 });
+    const hue = Math.random() * 360;
+    const bri = between(this.opts.brightMin, this.opts.brightMax);
+    const sat = between(this.opts.satMin, this.opts.satMax);
+    s.el.style.filter = `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
+    state.sprites.push(s);
   }
   update(s, dt) {
     this.updateSpriteMovement(s, dt);
@@ -464,6 +450,10 @@ class BalloonGame extends GameMode {
     let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
     const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
     applyTransform(s.el, s.x - s.r, s.y - s.r, rot, scale, scale);
+  }
+  hit(s) {
+    s.pop = 0.01;
+    burst(s.x, s.y);
   }
 }
 registerMode(MODES.BALLOONS, new BalloonGame(modeCfgs[MODES.BALLOONS]));
@@ -538,6 +528,9 @@ class MoleGame extends GameMode {
   cleanup() {
     document.querySelectorAll('.moleHole').forEach(h => h.remove());
     gameContainer.style.display = 'block';
+  }
+  onRemove(s) {
+    if (s.hole) s.hole.dataset.busy = '';
   }
 }
 registerMode(MODES.MOLE, new MoleGame(modeCfgs[MODES.MOLE]));
@@ -619,9 +612,7 @@ function maintain() {
   for (let i = state.sprites.length - 1; i >= 0; i--) {
     if (!state.sprites[i].alive) {
       const sp = state.sprites[i];
-      if (sp.mode === ModeHandlers[MODES.MOLE] && sp.hole) {
-        sp.hole.dataset.busy = '';
-      }
+      if (sp.mode && sp.mode.onRemove) sp.mode.onRemove(sp);
       sp.el.remove();
       state.sprites.splice(i, 1);
     }
@@ -679,12 +670,6 @@ function doHit(px, py, team, sprite) {
       // points depend on sprite size & speed
       state.scores[team] += calculatePoints(s);
       updateScore();
-
-      if (currentMode === ModeHandlers[MODES.EMOJI] || currentMode === ModeHandlers[MODES.BALLOONS]) {
-        burst(s.x, s.y); // normal emoji burst
-      } else if (currentMode === ModeHandlers[MODES.FISH]) {
-        burst(s.x, s.y, currentMode.opts.bubble); // fish bubble burst
-      }
       break;
     }
   }
