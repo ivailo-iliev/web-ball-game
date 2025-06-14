@@ -146,6 +146,20 @@ const bs = document.getElementById('teamBScore');
 let winW = window.visualViewport.width || window.innerWidth;
 let winH = window.visualViewport.height || window.innerHeight;
 
+function onSpritePointerDown(e) {
+  const target = e.target.closest('.emoji');
+  if (!target || !target._sprite) return;
+  const rect = gameContainer.getBoundingClientRect();
+  doHit(
+    e.clientX - rect.left,
+    e.clientY - rect.top,
+    e.button === 2 ? 'teamA' : 'teamB',
+    target._sprite
+  );
+}
+
+gameContainer.addEventListener('pointerdown', onSpritePointerDown);
+
 window.addEventListener('resize', () => {
  winW = window.visualViewport.width || window.innerWidth;
  winH = window.visualViewport.height || window.innerHeight;
@@ -270,15 +284,7 @@ class Sprite {
     }
 
     gameContainer.appendChild(this.el);
-    this.el.addEventListener('pointerdown', e => {
-      const rect = gameContainer.getBoundingClientRect();
-      doHit(
-        e.clientX - rect.left,
-        e.clientY - rect.top,
-        e.button === 2 ? 'teamA' : 'teamB',
-        this
-      );
-    });
+    this.el._sprite = this;
     this.draw(); // initial position/size
   }
 
