@@ -225,27 +225,9 @@ const randVec = (speed = randSpeed()) => {
 
 
 function applyTransform(el, x, y, rot, sx, sy) {
-  // cache typed OM objects on the element so we don't recreate
-  // them on every frame. When called the first time we create the
-  // CSSTransformValue and reuse the individual components thereafter.
-  let cache = el._tf;
-  if (!cache) {
-    const pxX = CSS.px(x);
-    const pxY = CSS.px(y);
-    const ang = CSS.rad(rot);
-    const translate = new CSSTranslate(pxX, pxY);
-    const rotate = new CSSRotate(ang);
-    const scale = new CSSScale(sx, sy);
-    const tv = new CSSTransformValue([translate, rotate, scale]);
-    el.attributeStyleMap.set('transform', tv);
-    cache = el._tf = { translate, rotate, scale, pxX, pxY, ang };
-  } else {
-    cache.pxX.value = x;
-    cache.pxY.value = y;
-    cache.ang.value = rot;
-    cache.scale.x = sx;
-    cache.scale.y = sy;
-  }
+  const st = el._st || (el._st = el.style);
+  st.transform =
+    `translate3d(${x}px, ${y}px, 0) rotate(${rot}rad) scale(${sx}, ${sy})`;
 }
 
 // PARTICLE CLASS (DOM version)
