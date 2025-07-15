@@ -734,7 +734,7 @@ const Controller = (() => {
 
       if (frontDetected) {
         for (const h of hits) {
-          doHit(
+          Game.doHit(
             h.x * window.innerWidth,
             h.y * window.innerHeight,
             h.team

@@ -358,6 +358,7 @@
   Game.burst = (...a) => engine.burst(...a);
   Game.registerMode = (...a) => engine.registerMode(...a);
   Game.buildCfg = (...a) => engine.buildCfg(...a);
+  Game.doHit = (...a) => engine.doHit(...a);
 
   window.Game = Game;
 })();
