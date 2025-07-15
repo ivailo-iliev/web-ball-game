@@ -569,17 +569,28 @@
 
         const r = Math.min(this._cellW, this._cellH) * 0.40;
         const yBase = row * this._cellH;
+        const ground = yBase + this._cellH;
         const xOffset = colCount < this._rows[0] ? this._cellW * 0.5 : 0;
         const x = col * this._cellW + this._cellW * 0.5 + xOffset;
-        const y = yBase + this._cellH + r;
 
-        const s = new Game.Sprite({ x, y, dx: 0, dy: -cfg.moleUpV, r, e: Game.utils.pick(cfg.animals), face: 1, dir: 1 });
+        const s = new Game.Sprite({ x, y: ground - r, dx: 0, dy: 0, r, e: Game.utils.pick(cfg.animals), face: 1, dir: 1 });
+        s.el.classList.add('mole');
+        Object.assign(s.el.style, {
+          left: `${x - r}px`,
+          top: `${ground - r * 2}px`,
+          transform: 'scaleY(0)'
+        });
         s.phase = 'up';
         s.row = row;
         s.col = col;
-        s.topY = yBase + r;
-        s.bottomY = y;
+        s.baseY = ground;
         s.timer = Game.utils.between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
+        s.animEnd = () => {
+          if (s.phase === 'up') { s.phase = 'stay'; }
+          else if (s.phase === 'down') { s.alive = false; }
+        };
+        s.el.addEventListener('animationend', s.animEnd);
+        s.el.style.animation = 'moleRise 0.3s forwards';
         Game.state.sprites.push(s);
         this._occupied.add(key);
         break;
@@ -588,21 +599,19 @@
 
     update(s, dt) {
       if (!s.phase) return;
-      if (s.phase === 'up') {
-        s.y += s.dy * dt;
-        if (s.y <= s.topY) { s.y = s.topY; s.dy = 0; s.phase = 'stay'; }
-      } else if (s.phase === 'stay') {
+      if (s.phase === 'stay') {
         s.timer -= dt;
-        if (s.timer <= 0) { s.phase = 'down'; s.dy = cfg.moleUpV; }
-      } else if (s.phase === 'down') {
-        s.y += s.dy * dt;
-        if (s.y >= s.bottomY) s.alive = false;
+        if (s.timer <= 0) {
+          s.phase = 'down';
+          s.el.style.animation = 'moleFall 0.3s forwards';
+        }
       }
     }
 
     draw(s) {
-      if (!s.alive) return;
-      Game.utils.applyTransform(s.el, s.x - s.r, s.y - s.r, 0, 1, 1);
+      if (!s.alive || !s.phase) return;
+      s.el.style.left = `${s.x - s.r}px`;
+      s.el.style.top = `${s.baseY - s.r * 2}px`;
     }
 
     hit(s) {
@@ -610,8 +619,8 @@
       if (s.phase && s.phase !== 'down') {
         Game.burst(s.x, s.y, ['💫']);
         s.phase = 'down';
-        s.dy = cfg.moleUpV;
         s.timer = 0;
+        s.el.style.animation = 'moleFall 0.3s forwards';
       }
     }
 
@@ -631,6 +640,7 @@
       if (s.row !== undefined && s.col !== undefined) {
         this._occupied.delete(`${s.row}:${s.col}`);
       }
+      if (s.animEnd) s.el.removeEventListener('animationend', s.animEnd);
     }
   }
 

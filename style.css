@@ -160,6 +160,12 @@ input[type="range"] {
   align-items: center;
   transform-origin: center;
 }
+.emoji.mole {
+  overflow: hidden;
+  align-items: flex-end;
+  transform-origin: bottom;
+  will-change: transform;
+}
 
 .particle {
   position: absolute;
@@ -179,16 +185,15 @@ input[type="range"] {
   to   { transform: translate3d(var(--dx), var(--dy), 0); opacity: 0; }
 }
 
-.moleHole {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 30'%3E%3Cellipse cx='50' cy='15' rx='50' ry='15' fill='black'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: bottom;
-  background-size: contain;
+
+@keyframes moleRise {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes moleFall {
+  from { transform: scaleY(1); }
+  to   { transform: scaleY(0); }
 }
 
 .burst {
