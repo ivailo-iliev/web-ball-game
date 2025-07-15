@@ -656,3 +656,10 @@
 
   Game.registerMode(Game.MODES.MOLE, new MoleGame(cfg));
 })(Game);
+
+// Start a random game mode on page load
+(function(Game){
+  const modes = Object.values(Game.MODES);
+  const randomMode = modes[Math.floor(Math.random() * modes.length)];
+  Game.setMode(randomMode);
+})(Game);
