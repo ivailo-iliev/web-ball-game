@@ -575,10 +575,11 @@
 
         const s = new Game.Sprite({ x, y: ground - r, dx: 0, dy: 0, r, e: Game.utils.pick(cfg.animals), face: 1, dir: 1 });
         s.el.classList.add('mole');
+        s.el.style.setProperty('--mole-h', `${r * 2}px`);
         Object.assign(s.el.style, {
           left: `${x - r}px`,
           top: `${ground - r * 2}px`,
-          transform: 'scaleY(0)'
+          height: '0px'
         });
         s.phase = 'up';
         s.row = row;
