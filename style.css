@@ -164,7 +164,7 @@ input[type="range"] {
   overflow: hidden;
   align-items: flex-end;
   transform-origin: bottom;
-  will-change: transform;
+  will-change: height;
 }
 
 .particle {
@@ -187,13 +187,13 @@ input[type="range"] {
 
 
 @keyframes moleRise {
-  from { transform: scaleY(0); }
-  to   { transform: scaleY(1); }
+  from { height: 0; }
+  to   { height: var(--mole-h); }
 }
 
 @keyframes moleFall {
-  from { transform: scaleY(1); }
-  to   { transform: scaleY(0); }
+  from { height: var(--mole-h); }
+  to   { height: 0; }
 }
 
 .burst {
