@@ -547,6 +547,8 @@
       this._rows = opts.rows || [3, 2, 3];
       this._rowCount = this._rows.length;
       this._resize = this._initGrid.bind(this);
+      this._totalCells = this._rows.reduce((a, b) => a + b, 0);
+      this._occupied = new Set();
     }
 
     _initGrid() {
@@ -558,22 +560,30 @@
     spawn() {
       if (Game.state.sprites.length >= cfg.moleCount) return;
 
-      const row = Math.floor(Math.random() * this._rowCount);
-      const colCount = this._rows[row];
-      const col = Math.floor(Math.random() * colCount);
+      for (let i = 0; i < this._totalCells; i++) {
+        const row = Math.floor(Math.random() * this._rowCount);
+        const colCount = this._rows[row];
+        const col = Math.floor(Math.random() * colCount);
+        const key = `${row}:${col}`;
+        if (this._occupied.has(key)) continue;
 
-      const r = Math.min(this._cellW, this._cellH) * 0.40;
-      const yBase = row * this._cellH;
-      const xOffset = colCount < this._rows[0] ? this._cellW * 0.5 : 0;
-      const x = col * this._cellW + this._cellW * 0.5 + xOffset;
-      const y = yBase + this._cellH + r;
+        const r = Math.min(this._cellW, this._cellH) * 0.40;
+        const yBase = row * this._cellH;
+        const xOffset = colCount < this._rows[0] ? this._cellW * 0.5 : 0;
+        const x = col * this._cellW + this._cellW * 0.5 + xOffset;
+        const y = yBase + this._cellH + r;
 
-      const s = new Game.Sprite({ x, y, dx: 0, dy: -cfg.moleUpV, r, e: Game.utils.pick(cfg.animals), face: 1, dir: 1 });
-      s.phase = 'up';
-      s.topY = yBase + r;
-      s.bottomY = y;
-      s.timer = Game.utils.between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
-      Game.state.sprites.push(s);
+        const s = new Game.Sprite({ x, y, dx: 0, dy: -cfg.moleUpV, r, e: Game.utils.pick(cfg.animals), face: 1, dir: 1 });
+        s.phase = 'up';
+        s.row = row;
+        s.col = col;
+        s.topY = yBase + r;
+        s.bottomY = y;
+        s.timer = Game.utils.between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
+        Game.state.sprites.push(s);
+        this._occupied.add(key);
+        break;
+      }
     }
 
     update(s, dt) {
@@ -615,6 +625,12 @@
     cleanup() {
       window.removeEventListener('resize', this._resize);
       Game.elements.container.style.display = 'block';
+    }
+
+    onRemove(s) {
+      if (s.row !== undefined && s.col !== undefined) {
+        this._occupied.delete(`${s.row}:${s.col}`);
+      }
     }
   }
 
