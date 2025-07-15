@@ -578,7 +578,8 @@
         s.el.style.setProperty('--mole-h', `${r * 2}px`);
         Object.assign(s.el.style, {
           left: `${x - r}px`,
-          top: `${ground - r * 2}px`,
+          bottom: `${Game.winH - ground}px`,
+          top: 'auto',
           height: '0px'
         });
         s.phase = 'up';
@@ -612,7 +613,8 @@
     draw(s) {
       if (!s.alive || !s.phase) return;
       s.el.style.left = `${s.x - s.r}px`;
-      s.el.style.top = `${s.baseY - s.r * 2}px`;
+      s.el.style.bottom = `${Game.winH - s.baseY}px`;
+      s.el.style.top = 'auto';
     }
 
     hit(s) {
