@@ -533,124 +533,88 @@
 // ------------------ Mole Mode ------------------
 (function(Game){
   const cfg = {
-    moleGridCols: 5,
-    moleGridRows: 3,
     moleUpV: 350,
     moleStayMin: 1000,
     moleStayMax: 3000,
     moleCount: 12,
-    animals: ['🐭','🐰']
+    animals: ['🐭','🐰'],
+    rows: [3, 2, 3]
   };
 
-  const moleHoles = [];
-
-  function buildMoleBoard(opts = cfg) {
-    moleHoles.length = 0;
-
-    const gameContainer = Game.elements.container;
-    Object.assign(gameContainer.style, {
-      display: 'grid',
-      gridTemplateColumns: `repeat(${opts.moleGridCols},1fr)`,
-      gridTemplateRows: `repeat(${opts.moleGridRows},1fr)`
-    });
-
-    const total = opts.moleGridCols * opts.moleGridRows;
-    for (let i = 0; i < total; ++i) {
-      const cell = document.createElement('div');
-      cell.className = 'moleHole';
-      gameContainer.appendChild(cell);
-      cell.dataset.busy = '';
-      moleHoles.push(cell);
+  class MoleGame extends Game.GameMode {
+    constructor(opts = {}) {
+      super(opts);
+      this._rows = opts.rows || [3, 2, 3];
+      this._rowCount = this._rows.length;
+      this._resize = this._initGrid.bind(this);
     }
 
-    const boardRect = gameContainer.getBoundingClientRect();
-    gameContainer._rect = {
-      left: boardRect.left,
-      top: boardRect.top
-    };
-    moleHoles.forEach(h => {
-      const r = h.getBoundingClientRect();
-      h._rect = {
-        width: r.width,
-        height: r.height,
-        left: r.left - boardRect.left,
-        top: r.top - boardRect.top
-      };
-    });
-  }
+    _initGrid() {
+      const { width, height } = Game.elements.container.getBoundingClientRect();
+      this._cellW = width / this._rows[0];
+      this._cellH = height / this._rowCount;
+    }
 
-  class MoleGame extends Game.GameMode {
     spawn() {
       if (Game.state.sprites.length >= cfg.moleCount) return;
-      const freeHoles = moleHoles.filter(h => !h.dataset.busy);
-      if (freeHoles.length === 0) return;
-      const hole = Game.utils.pick(freeHoles);
-      hole.dataset.busy = '1';
-      const rect = hole._rect;
-      const r = Math.min(rect.width, rect.height) * 0.40;
-      const x = rect.width * 0.5;
-      const y = rect.height + r;
-      const dx = 0;
-      const dy = -cfg.moleUpV;
-      const e = Game.utils.pick(cfg.animals);
-      const s = new Game.Sprite({ x, y, dx, dy, r, e, face:1, dir:1 });
-      s.hole = hole;
+
+      const row = Math.floor(Math.random() * this._rowCount);
+      const colCount = this._rows[row];
+      const col = Math.floor(Math.random() * colCount);
+
+      const r = Math.min(this._cellW, this._cellH) * 0.40;
+      const yBase = row * this._cellH;
+      const xOffset = colCount < this._rows[0] ? this._cellW * 0.5 : 0;
+      const x = col * this._cellW + this._cellW * 0.5 + xOffset;
+      const y = yBase + this._cellH + r;
+
+      const s = new Game.Sprite({ x, y, dx: 0, dy: -cfg.moleUpV, r, e: Game.utils.pick(cfg.animals), face: 1, dir: 1 });
       s.phase = 'up';
+      s.topY = yBase + r;
+      s.bottomY = y;
       s.timer = Game.utils.between(cfg.moleStayMin, cfg.moleStayMax) / 1000;
-      s.el.remove();
-      hole.appendChild(s.el);
       Game.state.sprites.push(s);
     }
+
     update(s, dt) {
-      if (s.phase) {
-        if (s.phase === 'up') {
-          s.y += s.dy * dt;
-          if (s.y <= s.r) { s.y = s.r; s.dy = 0; s.phase = 'stay'; }
-        } else if (s.phase === 'stay') {
-          s.timer -= dt;
-          if (s.timer <= 0) { s.phase = 'down'; s.dy = cfg.moleUpV; }
-        } else if (s.phase === 'down') {
-          s.y += s.dy * dt;
-          const h = s.el.parentElement.clientHeight;
-          if (s.y >= h + s.r) s.alive = false;
-        }
-        return;
+      if (!s.phase) return;
+      if (s.phase === 'up') {
+        s.y += s.dy * dt;
+        if (s.y <= s.topY) { s.y = s.topY; s.dy = 0; s.phase = 'stay'; }
+      } else if (s.phase === 'stay') {
+        s.timer -= dt;
+        if (s.timer <= 0) { s.phase = 'down'; s.dy = cfg.moleUpV; }
+      } else if (s.phase === 'down') {
+        s.y += s.dy * dt;
+        if (s.y >= s.bottomY) s.alive = false;
       }
     }
+
     draw(s) {
       if (!s.alive) return;
       Game.utils.applyTransform(s.el, s.x - s.r, s.y - s.r, 0, 1, 1);
     }
+
     hit(s) {
       s.pop = 0.01;
       if (s.phase && s.phase !== 'down') {
-        const game = Game.elements.container._rect;
-        const hole = s.hole._rect;
-        const gx = s.x + hole.left - game.left;
-        const gy = s.y + hole.top - game.top;
-        Game.burst(gx, gy, ['💫']);
+        Game.burst(s.x, s.y, ['💫']);
         s.phase = 'down';
         s.dy = cfg.moleUpV;
         s.timer = 0;
       }
     }
-    contains(s, px, py) {
-      const game = Game.elements.container._rect;
-      const hole = s.hole._rect;
-      px -= hole.left - game.left;
-      py -= hole.top - game.top;
-      return (px - s.x) ** 2 + (py - s.y) ** 2 <= s.r ** 2;
-    }
+
     setup() {
       Game.cfg.count = cfg.moleCount;
-      buildMoleBoard(cfg);
-    }
-    cleanup() {
-      document.querySelectorAll('.moleHole').forEach(h => h.remove());
       Game.elements.container.style.display = 'block';
+      this._initGrid();
+      window.addEventListener('resize', this._resize);
     }
-    onRemove(s) {
-      if (s.hole) s.hole.dataset.busy = '';
+
+    cleanup() {
+      window.removeEventListener('resize', this._resize);
+      Game.elements.container.style.display = 'block';
     }
   }
 
