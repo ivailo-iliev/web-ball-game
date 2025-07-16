@@ -85,7 +85,9 @@ const Config = (() => {
     polyF:  "roiPolyFront",
     zoom:   "zoom",
     topH:   "topH",
-    frontH: "frontH"
+    frontH: "frontH",
+    TOP_MIN_AREA: "topMinArea",
+    FRONT_MIN_AREA: "frontMinArea"
   };
 
   let cfg;
@@ -213,6 +215,8 @@ const Setup = (() => {
     <input type="range" id="zoomSlider" style="width: 100%;">
     Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H}   step=1 style="width:5em">
     Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 style="width:5em">
+    Top Min <input id=topMinInp   type=number min=0 step=25 style="width:6em">
+    Front Min <input id=frontMinInp type=number min=0 step=100 style="width:6em">
     <button id=btnTop>Top</button>
     <button id=btnFront>Front</button>
     <button id=btnBoth>Both</button>
@@ -406,8 +410,12 @@ const Setup = (() => {
       frontOv.style.touchAction = 'none';
       const topHInp = $('#topHInp');
       const frontHInp = $('#frontHInp');
+      const topMinInp = $('#topMinInp');
+      const frontMinInp = $('#frontMinInp');
       topHInp.value = cfg.topH;
       frontHInp.value = cfg.frontH;
+      topMinInp.value = cfg.TOP_MIN_AREA;
+      frontMinInp.value = cfg.FRONT_MIN_AREA;
 
       topHInp.onchange = e => {
         cfg.topH = Math.max(10, Math.min(cfg.TOP_H, +e.target.value));
@@ -421,6 +429,14 @@ const Setup = (() => {
         roi.h = cfg.frontH;
         roi.w = roi.h * ASPECT;
         commit();
+      };
+      topMinInp.onchange = e => {
+        cfg.TOP_MIN_AREA = Math.max(0, +e.target.value);
+        Config.save('TOP_MIN_AREA', cfg.TOP_MIN_AREA);
+      };
+      frontMinInp.onchange = e => {
+        cfg.FRONT_MIN_AREA = Math.max(0, +e.target.value);
+        Config.save('FRONT_MIN_AREA', cfg.FRONT_MIN_AREA);
       };
 
       commit();
