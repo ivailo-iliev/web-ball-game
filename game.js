@@ -555,6 +555,27 @@
       const { width, height } = Game.elements.container.getBoundingClientRect();
       this._cellW = width / this._rows[0];
       this._cellH = height / this._rowCount;
+      const holeSize = Math.min(this._cellW, this._cellH) * 0.80;
+      const cont = Game.elements.container;
+      cont.style.setProperty('--hole-size', `${holeSize}px`);
+      let idx = 1;
+      for (let r = 0; r < this._rowCount; r++) {
+        const cols = this._rows[r];
+        const ground = (r + 1) * this._cellH;
+        const xOffset = cols < this._rows[0] ? this._cellW * 0.5 : 0;
+        for (let c = 0; c < cols; c++) {
+          const x = c * this._cellW + this._cellW * 0.5 + xOffset;
+          const left = x - holeSize / 2;
+          const top = ground - holeSize / 2;
+          cont.style.setProperty(`--hole${idx}-x`, `${left}px`);
+          cont.style.setProperty(`--hole${idx}-y`, `${top}px`);
+          idx++;
+        }
+      }
+      for (; idx <= 8; idx++) {
+        cont.style.setProperty(`--hole${idx}-x`, `-100vw`);
+        cont.style.setProperty(`--hole${idx}-y`, `-100vh`);
+      }
     }
 
     spawn() {
@@ -630,12 +651,14 @@
     setup() {
       Game.cfg.count = cfg.moleCount;
       Game.elements.container.style.display = 'block';
+      Game.elements.container.classList.add('mole-bg');
       this._initGrid();
       window.addEventListener('resize', this._resize);
     }
 
     cleanup() {
       window.removeEventListener('resize', this._resize);
+      Game.elements.container.classList.remove('mole-bg');
       Game.elements.container.style.display = 'block';
     }
 

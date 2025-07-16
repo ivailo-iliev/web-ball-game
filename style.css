@@ -147,6 +147,47 @@ input[type="range"] {
   contain: layout style size;
 }
 
+/* Mole mode background */
+#game.mole-bg {
+  --hole-size: 40px;
+  --hole1-x: -100vw; --hole1-y: -100vh;
+  --hole2-x: -100vw; --hole2-y: -100vh;
+  --hole3-x: -100vw; --hole3-y: -100vh;
+  --hole4-x: -100vw; --hole4-y: -100vh;
+  --hole5-x: -100vw; --hole5-y: -100vh;
+  --hole6-x: -100vw; --hole6-y: -100vh;
+  --hole7-x: -100vw; --hole7-y: -100vh;
+  --hole8-x: -100vw; --hole8-y: -100vh;
+  background-image:
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
+    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%);
+  background-repeat: no-repeat;
+  background-size:
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size);
+  background-position:
+    var(--hole1-x) var(--hole1-y),
+    var(--hole2-x) var(--hole2-y),
+    var(--hole3-x) var(--hole3-y),
+    var(--hole4-x) var(--hole4-y),
+    var(--hole5-x) var(--hole5-y),
+    var(--hole6-x) var(--hole6-y),
+    var(--hole7-x) var(--hole7-y),
+    var(--hole8-x) var(--hole8-y);
+}
+
 .emoji {
   position: absolute;
   font-family: sans-serif;
