@@ -183,20 +183,27 @@ class BaseGame {
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team = 0) {
     if (this.onHit && this.onHit(s, team) === false) return;  // optional veto
-    /* decrement hp; if hp <= 0 → this._popSprite(s, team);   */
-    /* update score; dispatch 'score' event; check winPoints  */
+    if (--s.hp > 0) return;
+    this.score[team] += 1;
+    window.dispatchEvent(new CustomEvent('score', { detail: [...this.score] }));
+    this._popSprite(s);
+    if (this.score[team] >= this.cfg.winPoints) this.end(team);
   }
 
   /* ---- 3.8 POP animation ---- */
   _popSprite(s, team) {                // visual + remove()
-    /* add .pop class, optional particles / sound            */
-    /* setTimeout(s.remove, cfg.popTime);                    */
+    s.el.classList.add('pop');
+    setTimeout(() => s.remove(), 200);
   }
 
   /* ---- 3.9 END game ---- */
   end(winner) {
-    /* stop loop (this.running=false), kill remaining sprites */
-    /* dispatch 'gameover' CustomEvent                        */
+    this.running = false;
+    this.sprites.forEach(sp => sp.remove());
+    window.dispatchEvent(new CustomEvent('gameover', { detail: {
+      winner,
+      score: [...this.score]
+    }}));
   }
 }
 
