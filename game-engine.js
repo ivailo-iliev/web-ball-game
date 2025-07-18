@@ -6,19 +6,49 @@
 
 /* ══════════ 1.  Pure helpers – kept tiny & global ══════════ */
 const R = {
-  rand    : n       => /* … */,
-  pick    : arr     => /* … */,
-  between : (a, b)  => /* … */
+  rand    : n       => Math.random() * n,
+  pick    : arr     => arr[Math.floor(R.rand(arr.length))],
+  between : (a, b)  => a + R.rand(b - a)
 };
 win.R = R;
 
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
-  constructor(data) {                 /* << paste DOM-build code */
-    /* data: {x,y,vx,vy,r,html,hp,…} */
+  constructor({ x, y, dx, dy, r, e, face, dir }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
+    this.x = x; this.y = y;
+    this.dx = dx; this.dy = dy;
+    this.r = r; this.e = e;
+    this.face = face; this.dir = dir;
+    this.mass = r * r;
+    this.pop = 0;
+    this.alive = true;
+    this.angle = 0;
+
+    this.el = document.createElement('div');
+    this.el.className = 'emoji';
+    this.el.textContent = e;
+    const size = this.r * 2;
+    Object.assign(this.el.style, {
+      width: `${size}px`,
+      height: `${size}px`,
+      lineHeight: `${size}px`,
+      fontSize: `${size}px`
+    });
+
+    if (Sprite.layer) Sprite.layer.appendChild(this.el);
+    this.el._sprite = this;
+    this.draw();
   }
-  draw()   { /* position element */ }
-  remove() { /* detach element, mark dead */ }
+
+  draw() {
+    this.el.style.transform =
+      `translate3d(${this.x - this.r}px, ${this.y - this.r}px, 0)`;
+  }
+
+  remove() {
+    this.alive = false;
+    this.el.remove();
+  }
 }
 Sprite.layer = null;                  // set once in Game.init()
 
@@ -115,5 +145,6 @@ function GameRun(id) {
 win.GameRegister = GameRegister;
 win.GameRun      = GameRun;
 win.BaseGame     = BaseGame;
+win.Sprite       = Sprite;
 
 })(window);
