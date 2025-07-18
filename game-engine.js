@@ -83,6 +83,7 @@ class BaseGame {
     this.score = [0, 0];
     this.timers = [];
     this.running = true;
+    this.spawnClock = 0;
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
@@ -115,13 +116,36 @@ class BaseGame {
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
-  loop(_dt) {
+  loop(dt) {
+    if (this.sprites.length < this.cfg.count) {
+      this.spawnClock -= dt;
+      if (this.spawnClock <= 0) {
+        this.spawnClock = R.rand(3);
+        const desc = this.spawn();
+        if (desc) this.addSprite(desc);
+      }
+    }
     /* game logic here */
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
   addSprite(desc) {
-    /* merge defaults & desc, create new Sprite, push into array */
+    const r = desc.r ?? R.between(this.cfg.rMin, this.cfg.rMax);
+    const speed = R.between(this.cfg.vMin, this.cfg.vMax);
+    const ang = R.rand(Math.PI * 2);
+    const defaults = {
+      r,
+      e: desc.e ?? R.pick(this.cfg.emojis || []),
+      dx: Math.cos(ang) * speed,
+      dy: Math.sin(ang) * speed
+    };
+    const sprite = new Sprite(Object.assign(defaults, desc));
+    this.sprites.push(sprite);
+    return sprite;
+  }
+
+  spawn() {
+    return { x: R.rand(this.W), y: R.rand(this.H) };
   }
 
   /* ---- 3.5 SPAWN pipeline ---- */
