@@ -8,7 +8,7 @@
     '🧋','🌞','🌺','🌵','📸','⌚','🧸'
   ];
 
-  const MAX_EMOJIS = 6;
+  const EMOJI_COUNT = 6;
   const R_MIN = 25;
   const R_MAX = 90;
   const V_MIN = 10;
@@ -19,7 +19,7 @@
 
   g.GameRegister('emoji', g.BaseGame.make({
     theme      : 'sky',
-    max        : MAX_EMOJIS,
+    count      : EMOJI_COUNT,
     emojis     : EMOJI_SET,
     spawnEvery : SPAWN_SECS,
 
