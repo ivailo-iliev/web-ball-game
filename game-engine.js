@@ -12,6 +12,12 @@ const R = {
 };
 win.R = R;
 
+function applyTransform(el, x, y, rot, sx, sy) {
+  const st = el._st || (el._st = el.style);
+  st.transform =
+    `translate3d(${x}px, ${y}px, 0) rotate(${rot}rad) scale(${sx}, ${sy})`;
+}
+
 /* -------- GAME MODES -------- */
 const MODES = {
   FISH: 'fish',
@@ -125,7 +131,13 @@ class BaseGame {
         if (desc) this.addSprite(desc);
       }
     }
-    /* game logic here */
+    for (const s of this.sprites) {
+      this.move ? this.move(s, dt) : BaseGame._moveDefault(s, dt);
+      this._wallBounce(s);
+      s.draw();
+    }
+    this.sprites = this.sprites.filter(sp => sp.alive);
+    if (this.tick) this.tick(dt);
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
@@ -155,8 +167,18 @@ class BaseGame {
   }
 
   /* ---- 3.6 COLLISION helpers ---- */
-  _wallBounce(s) { /* flip vx / vy at edges (opt-in via cfg) */ }
-  static _moveDefault(s, dt) { /* random drift */ }
+  _wallBounce(s) {
+    const W = this.W, H = this.H;
+    if ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0)) s.dx *= -1;
+    if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
+  }
+  static _moveDefault(s, dt) {
+    s.x += s.dx * dt;
+    s.y += s.dy * dt;
+    let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
+    const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
+    applyTransform(s.el, s.x - s.r, s.y - s.r, rot, scale, scale);
+  }
 
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team = 0) {
