@@ -12,6 +12,27 @@ const R = {
 };
 win.R = R;
 
+/* -------- GAME MODES -------- */
+const MODES = {
+  FISH: 'fish',
+  EMOJI: 'emoji',
+  BALLOONS: 'balloons',
+  MOLE: 'mole'
+};
+
+const baseCfg = {
+  mode: MODES.EMOJI,
+  count: 6,
+  rMin: 25,
+  rMax: 90,
+  vMin: 10,
+  vMax: 180,
+  spin: 25,
+  burstN: 14,
+  particleLife: 1,
+  burst: ['✨', '💥', '💫']
+};
+
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
   constructor({ x, y, dx, dy, r, e, face, dir }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
@@ -57,29 +78,45 @@ class BaseGame {
 
   /* ---- 3.1 constructor : store cfg & init state ---- */
   constructor(cfg = {}) {
-    /* this.cfg = {defaults …cfg}                      */
-    /* this.sprites = []; this.score = [0,0]; etc.     */
+    this.cfg = Object.assign({}, baseCfg, cfg);
+    this.sprites = [];
+    this.score = [0, 0];
+    this.timers = [];
+    this.running = true;
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
   init(layer) {
     Sprite.layer = layer;                 // drawing parent
-    /* set this.W / this.H, resize listener            */
-    /* pointer listener → this.hit()                   */
-    /* apply theme class if cfg.theme exists           */
+    this.container = layer;
+    this.W = window.innerWidth;
+    this.H = window.innerHeight;
+    const resize = () => {
+      this.W = window.innerWidth;
+      this.H = window.innerHeight;
+    };
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+
+    this.onPointerDown = e => {
+      const rect = this.container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      for (const s of this.sprites) {
+        if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
+          this.hit(s, e.button === 2 ? 1 : 0);
+          break;
+        }
+      }
+    };
+    this.container.addEventListener('pointerdown', this.onPointerDown);
+    this.container.addEventListener('contextmenu', e => e.preventDefault());
+    this.container.className = 'game' + (this.cfg.theme ? ` ${this.cfg.theme}` : '');
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
-  loop(dt) {
-    this._maybeSpawn(dt);                 // internal timer
-    this.sprites.forEach(s => {
-      this.move ? this.move(s, dt)        // game override
-                : BaseGame._moveDefault(s, dt);
-      this._wallBounce(s);
-      s.draw();
-    });
-    if (this.tick) this.tick(dt);         // optional per-frame hook
-    this.sprites = this.sprites.filter(s => s.alive);
+  loop(_dt) {
+    /* game logic here */
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
