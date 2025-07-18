@@ -18,16 +18,8 @@ function applyTransform(el, x, y, rot, sx, sy) {
     `translate3d(${x}px, ${y}px, 0) rotate(${rot}rad) scale(${sx}, ${sy})`;
 }
 
-/* -------- GAME MODES -------- */
-const MODES = {
-  FISH: 'fish',
-  EMOJI: 'emoji',
-  BALLOONS: 'balloons',
-  MOLE: 'mole'
-};
-
 const baseCfg = {
-  mode: MODES.EMOJI,
+  mode: 'emoji',
   count: 6,
   rMin: 25,
   rMax: 90,
@@ -36,20 +28,19 @@ const baseCfg = {
   spin: 25,
   burstN: 14,
   particleLife: 1,
-  burst: ['✨', '💥', '💫']
+  burst: ['✨', '💥', '💫'],
+  winPoints  : 30,                  // first team to reach this wins
+  spawnEvery : 0.6,                 // seconds between spawns
+  emojis     : ['😀','😎','🤖','👻'] // fallback artwork
 };
 
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
-  constructor({ x, y, dx, dy, r, e, face, dir }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
+  constructor({ x, y, dx, dy, r, e }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
     this.x = x; this.y = y;
     this.dx = dx; this.dy = dy;
     this.r = r; this.e = e;
-    this.face = face; this.dir = dir;
-    this.mass = r * r;
-    this.pop = 0;
     this.alive = true;
-    this.angle = 0;
 
     this.el = document.createElement('div');
     this.el.className = 'emoji';
@@ -87,7 +78,6 @@ class BaseGame {
     this.cfg = Object.assign({}, baseCfg, cfg);
     this.sprites = [];
     this.score = [0, 0];
-    this.timers = [];
     this.running = true;
     this.spawnClock = 0;
   }
@@ -98,12 +88,12 @@ class BaseGame {
     this.container = layer;
     this.W = window.innerWidth;
     this.H = window.innerHeight;
-    const resize = () => {
+    this._resize = () => {
       this.W = window.innerWidth;
       this.H = window.innerHeight;
     };
-    window.addEventListener('resize', resize);
-    window.addEventListener('orientationchange', resize);
+    window.addEventListener('resize', this._resize);
+    window.addEventListener('orientationchange', this._resize);
 
     this.onPointerDown = e => {
       const rect = this.container.getBoundingClientRect();
@@ -118,7 +108,7 @@ class BaseGame {
     };
     this.container.addEventListener('pointerdown', this.onPointerDown);
     this.container.addEventListener('contextmenu', e => e.preventDefault());
-    this.container.className = 'game' + (this.cfg.theme ? ` ${this.cfg.theme}` : '');
+    this.container.className = 'game' + (this.cfg.theme ? ' ' + this.cfg.theme : '');
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
@@ -126,7 +116,7 @@ class BaseGame {
     if (this.sprites.length < this.cfg.count) {
       this.spawnClock -= dt;
       if (this.spawnClock <= 0) {
-        this.spawnClock = R.rand(3);
+        this.spawnClock = this.cfg.spawnEvery;
         const desc = this.spawn();
         if (desc) this.addSprite(desc);
       }
@@ -145,25 +135,20 @@ class BaseGame {
     const r = desc.r ?? R.between(this.cfg.rMin, this.cfg.rMax);
     const speed = R.between(this.cfg.vMin, this.cfg.vMax);
     const ang = R.rand(Math.PI * 2);
-    const defaults = {
+    const otherDefaults = {
       r,
       e: desc.e ?? R.pick(this.cfg.emojis || []),
       dx: Math.cos(ang) * speed,
       dy: Math.sin(ang) * speed
     };
-    const sprite = new Sprite(Object.assign(defaults, desc));
+    const full = { hp: 1, ...otherDefaults, ...desc };
+    const sprite = new Sprite(full);
     this.sprites.push(sprite);
     return sprite;
   }
 
   spawn() {
     return { x: R.rand(this.W), y: R.rand(this.H) };
-  }
-
-  /* ---- 3.5 SPAWN pipeline ---- */
-  _maybeSpawn(dt) {
-    /* accumulate dt; when >= cfg.spawnEvery → call spawn()
-       (game overrides spawn() to return {x,y,…})        */
   }
 
   /* ---- 3.6 COLLISION helpers ---- */
@@ -175,9 +160,6 @@ class BaseGame {
   static _moveDefault(s, dt) {
     s.x += s.dx * dt;
     s.y += s.dy * dt;
-    let scale = s.pop > 0 ? Math.max(0.01, 1 - s.pop * 4) : 1;
-    const rot = Math.sin((s.x + s.y) * 0.03) * 0.10;
-    applyTransform(s.el, s.x - s.r, s.y - s.r, rot, scale, scale);
   }
 
   /* ---- 3.7 HIT entry point ---- */
@@ -191,7 +173,7 @@ class BaseGame {
   }
 
   /* ---- 3.8 POP animation ---- */
-  _popSprite(s, team) {                // visual + remove()
+  _popSprite(s) {                // visual + remove()
     s.el.classList.add('pop');
     setTimeout(() => s.remove(), 200);
   }
@@ -200,6 +182,7 @@ class BaseGame {
   end(winner) {
     this.running = false;
     this.sprites.forEach(sp => sp.remove());
+    window.removeEventListener('resize', this._resize);
     window.dispatchEvent(new CustomEvent('gameover', { detail: {
       winner,
       score: [...this.score]
