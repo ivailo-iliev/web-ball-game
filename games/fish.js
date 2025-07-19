@@ -8,11 +8,9 @@
   const V_MAX = 180;
 
   g.Game.register('fish', g.BaseGame.make({
-    theme: 'ocean',
     max: FISH_MAX,
     emojis: FISH_SET,
     spawnEvery: SPAWN_SECS,
-    bounceX: false,
     bounceY: true,
 
     spawn(){

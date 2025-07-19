@@ -32,7 +32,9 @@ const baseCfg = {
   winPoints  : 30,                  // first team to reach this wins
   spawnEvery : 0.6,                 // seconds between spawns
   emojis     : ['😀','😎','🤖','👻'], // fallback artwork
-  collisions : false               // enable physics collisions
+  collisions : false,              // enable physics collisions
+  bounceX    : false,
+  bounceY    : false
 };
 
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
@@ -122,7 +124,7 @@ class BaseGame {
     };
     this.container.addEventListener('pointerdown', this.onPointerDown);
     this.container.addEventListener('contextmenu', e => e.preventDefault());
-    this.container.className = 'game' + (this.cfg.theme ? ' ' + this.cfg.theme : '');
+    this.container.className = 'game' + (this.gameName ? ' ' + this.gameName : '');
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
@@ -172,8 +174,12 @@ class BaseGame {
   /* ---- 3.6 COLLISION helpers ---- */
   _wallBounce(s) {
     const W = this.W, H = this.H;
-    if ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0)) s.dx *= -1;
-    if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0)) s.dy *= -1;
+    if (this.cfg.bounceX && ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0))) {
+      s.dx *= -1;
+    }
+    if (this.cfg.bounceY && ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > H && s.dy > 0))) {
+      s.dy *= -1;
+    }
   }
   static _moveDefault(s, dt) {
     s.x += s.dx * dt;
@@ -286,7 +292,10 @@ const REG = [];
 let idx = -1;
 let inst = null;
 
-Game.register = (id, cls) => REG.push({ id, cls });
+Game.register = (id, cls) => {
+  cls.prototype.gameName = id;
+  REG.push({ id, cls });
+};
 
 Object.defineProperty(Game, 'current', { get: () => idx });
 Object.defineProperty(Game, 'list',    { get: () => REG.map(e => e.id) });
