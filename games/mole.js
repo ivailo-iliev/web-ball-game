@@ -38,7 +38,7 @@
     game.holeR = Math.min(cellW, cellH) * 0.40;
   }
 
-  g.GameRegister('mole', g.BaseGame.make({
+  g.Game.register('mole', g.BaseGame.make({
     theme: 'mole',
     count: MOLE_COUNT,
     emojis: MOLE_EMOJIS,

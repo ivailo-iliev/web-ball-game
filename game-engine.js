@@ -281,30 +281,42 @@ BaseGame.make = cfg => class Game extends BaseGame {
 };
 
 /* ══════════ 5. registry + public runner ══════════ */
+const Game = {};
 const REG = [];
-function GameRegister(id, cls) { REG.push({ id, cls }); }
+let idx = -1;
+let inst = null;
 
-function GameRun(id) {
-  const entry = REG.find(e => e.id === id) || REG[0];
-  const game  = new entry.cls();
+Game.register = (id, cls) => REG.push({ id, cls });
+
+Object.defineProperty(Game, 'current', { get: () => idx });
+Object.defineProperty(Game, 'list',    { get: () => REG.map(e => e.id) });
+
+Game.run = target => {
+  const i = typeof target === 'number'
+           ? (target % REG.length + REG.length) % REG.length
+           : REG.findIndex(e => e.id === target);
+  if (i < 0) return;
+  if (inst) inst.end();
+  idx = i;
+  inst = new REG[i].cls();
   const layer = document.getElementById('gameLayer') || document.body;
-  game.init(layer);
-  // allow games to run custom logic after init
-  if (typeof game.onStart === 'function') game.onStart();
-
+  inst.init(layer);
+  if (typeof inst.onStart === 'function') inst.onStart();
+  const game = inst;
   let last = performance.now();
   (function frame(now) {
-    if (!game.running) return;
+    if (inst !== game || !game.running) return;
     const dt = (now - last) / 1000; last = now;
     game.loop(dt);
     requestAnimationFrame(frame);
   })();
-}
+};
+
+Object.freeze(Game);
 
 /* ══════════ 6. export globals ══════════ */
-win.GameRegister = GameRegister;
-win.GameRun      = GameRun;
-win.BaseGame     = BaseGame;
-win.Sprite       = Sprite;
+win.Game   = Game;
+win.BaseGame = BaseGame;
+win.Sprite   = Sprite;
 
 })(window);

@@ -7,7 +7,7 @@
   const V_MIN = 10;
   const V_MAX = 180;
 
-  g.GameRegister('fish', g.BaseGame.make({
+  g.Game.register('fish', g.BaseGame.make({
     theme: 'ocean',
     max: FISH_MAX,
     emojis: FISH_SET,
