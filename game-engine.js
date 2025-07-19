@@ -215,11 +215,18 @@ class BaseGame {
     }
   }
 
+  calculatePoints(s) {
+    const speed = Math.hypot(s.dx, s.dy);
+    const sizeRatio = this.cfg.rMax / s.r;
+    const speedRatio = speed / this.cfg.vMax;
+    return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
+  }
+
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team = 0) {
     if (this.onHit && this.onHit(s, team) === false) return;  // optional veto
     if (--s.hp > 0) return;
-    this.score[team] += 1;
+    this.score[team] += this.calculatePoints(s);
     window.dispatchEvent(new CustomEvent('score', { detail: [...this.score] }));
     this._popSprite(s);
     if (this.score[team] >= this.cfg.winPoints) this.end(team);
