@@ -16,7 +16,7 @@
 
   g.GameRegister('balloon', g.BaseGame.make({
     theme: 'balloon',
-    count: BALLOON_MAX,
+    max: BALLOON_MAX,
     emojis: BALLOON_SET,
     spawnEvery: SPAWN_SECS,
     bounceX: false,
@@ -24,41 +24,29 @@
 
     spawn(){
       const r = g.R.between(R_MIN, R_MAX);
-      const face = -1;
       const rare = Math.random() < 0.05;
       const e = rare ? g.R.pick(BALLOON_RARE) : BALLOON_SET[0];
       const x = g.R.between(r, this.W - r);
       const y = this.H + r;
       const dx = g.R.between(-20, 20);
       const dy = -g.R.between(B_V_MIN, B_V_MAX);
-      const sp = this.addSprite({ x, y, dx, dy, r, e, face, dir:1 });
+      const s = this.addSprite({ x, y, dx, dy, r, e });
       const hue = Math.random() * 360;
       const bri = g.R.between(BRIGHT_MIN, BRIGHT_MAX);
       const sat = g.R.between(SAT_MIN, SAT_MAX);
-      sp.el.style.filter = `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
-      sp.draw = function(){
-        const scale = sp.pop > 0 ? Math.max(0.01, 1 - sp.pop * 4) : 1;
-        const rot = Math.sin((sp.x + sp.y) * WOBBLE_FREQ) * WOBBLE_AMPL;
-        g.applyTransform(sp.el, sp.x - sp.r, sp.y - sp.r, rot, scale, scale);
-      };
+      s.el.style.filter = `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
+      return null;
     },
 
     move(s, dt){
-      s.x += s.dx * dt;
+      s.sway = (s.sway || 0) + dt * WOBBLE_FREQ;
+      s.x += s.dx * dt + Math.sin(s.sway) * WOBBLE_AMPL;
       s.y += s.dy * dt;
-      if(s.pop > 0){
-        s.pop += dt;
-        if(s.pop > 0.25) s.alive = false;
-      }
       if(
         s.x < -s.r*2 || s.x > this.W + s.r*2 ||
         s.y < -s.r*2 || s.y > this.H + s.r*2
       ) s.alive = false;
-    },
-
-    onHit(s){
-      s.pop = 0.01;
-      this.burst(s.x, s.y);
+      s.draw();
     }
   }));
 })(window);
