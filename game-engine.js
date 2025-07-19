@@ -95,10 +95,22 @@ class BaseGame {
     window.addEventListener('resize', this._resize);
     window.addEventListener('orientationchange', this._resize);
 
+    this.burstTemplate = document.createElement('div');
+    this.burstTemplate.className = 'burst';
+    this.burstTemplate.style.display = 'none';
+    this.container.appendChild(this.burstTemplate);
+
+    this.ripple = document.createElement('div');
+    this.ripple.classList.add('ripple');
+    this.container.appendChild(this.ripple);
+
     this.onPointerDown = e => {
       const rect = this.container.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
+
+      this._showRipple(x, y);
+
       for (const s of this.sprites) {
         if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
           this.hit(s, e.button === 2 ? 1 : 0);
@@ -175,7 +187,32 @@ class BaseGame {
   /* ---- 3.8 POP animation ---- */
   _popSprite(s) {                // visual + remove()
     s.el.classList.add('pop');
+    this.burst(s.x, s.y);
     setTimeout(() => s.remove(), 200);
+  }
+
+  burst(x, y, emojiArr = this.cfg.burst) {
+    for (let i = 0; i < this.cfg.burstN; i++) {
+      const sp = 150 + R.rand(150);
+      const ang = R.rand(Math.PI * 2);
+      const dxp = Math.cos(ang) * sp;
+      const dyp = Math.sin(ang) * sp;
+      const b = this.burstTemplate.cloneNode(true);
+      b.style.display = 'block';
+      b.textContent = emojiArr[Math.floor(R.rand(emojiArr.length))];
+      Object.assign(b.style, { left: `${x}px`, top: `${y}px` });
+      b.style.setProperty('--dx', `${dxp}px`);
+      b.style.setProperty('--dy', `${dyp}px`);
+      this.container.appendChild(b);
+      b.addEventListener('animationend', () => b.remove(), { once: true });
+    }
+  }
+
+  _showRipple(x, y) {
+    Object.assign(this.ripple.style, { left: `${x}px`, top: `${y}px` });
+    this.ripple.classList.remove('animate');
+    void this.ripple.offsetWidth;
+    this.ripple.classList.add('animate');
   }
 
   /* ---- 3.9 END game ---- */
