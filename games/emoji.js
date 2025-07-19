@@ -22,6 +22,7 @@
     count      : EMOJI_COUNT,
     emojis     : EMOJI_SET,
     spawnEvery : SPAWN_SECS,
+    collisions : true,
 
     spawn() {
       const r = g.R.between(R_MIN, R_MAX);
@@ -39,18 +40,7 @@
       s.y += Math.sin(s.wob) * WOBBLE_AMPL;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
-      this._wallBounce ? this._wallBounce(s) : this.wallBounce(s);
-      for (const other of this.sprites) {
-        if (other === s) continue;
-        const dx = other.x - s.x;
-        const dy = other.y - s.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < s.r + other.r) {
-          [s.dx, other.dx] = [other.dx, s.dx];
-          [s.dy, other.dy] = [other.dy, s.dy];
-        }
-      }
-      s.draw();
+      this._wallBounce(s);
     }
   }));
 })(window);
