@@ -46,8 +46,7 @@
     bounceX: false,
     bounceY: false,
 
-    init(layer){
-      g.BaseGame.prototype.init.call(this, layer);
+    onStart(){
       buildGrid(this);
       this._gridResize = () => buildGrid(this);
       window.addEventListener('resize', this._gridResize);

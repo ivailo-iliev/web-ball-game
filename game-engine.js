@@ -289,6 +289,8 @@ function GameRun(id) {
   const game  = new entry.cls();
   const layer = document.getElementById('gameLayer') || document.body;
   game.init(layer);
+  // allow games to run custom logic after init
+  if (typeof game.onStart === 'function') game.onStart();
 
   let last = performance.now();
   (function frame(now) {
