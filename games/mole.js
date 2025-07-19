@@ -63,7 +63,6 @@
       const sp = this.addSprite({ x: hole.x, y: hole.y, dx:0, dy:0, r:this.holeR, e: g.R.pick(this.emojis), hp:1 });
       sp.el.classList.add('mole');
       sp.el.style.setProperty('--mole-h', `${this.holeR*2}px`);
-      sp.el.style.animation = 'moleRise 0.3s forwards';
       sp.holeIndex = idx;
       sp.ttl = g.R.between(MOLE_STAY_MIN, MOLE_STAY_MAX) / 1000;
     },
@@ -83,7 +82,6 @@
     onHit(sp){
       const hole = this.holes[sp.holeIndex];
       if(hole) hole.occupied = false;
-      sp.el.style.animation = 'moleFall 0.3s forwards';
     }
 
   }));
