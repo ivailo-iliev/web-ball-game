@@ -15,12 +15,9 @@
   const SAT_MAX      = 1.0;
 
   g.Game.register('balloon', g.BaseGame.make({
-    theme: 'balloon',
     max: BALLOON_MAX,
     emojis: BALLOON_SET,
     spawnEvery: SPAWN_SECS,
-    bounceX: false,
-    bounceY: false,
 
     spawn(){
       const r = g.R.between(R_MIN, R_MAX);

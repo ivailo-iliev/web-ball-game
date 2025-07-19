@@ -39,12 +39,9 @@
   }
 
   g.Game.register('mole', g.BaseGame.make({
-    theme: 'mole',
     count: MOLE_COUNT,
     emojis: MOLE_EMOJIS,
     spawnEvery: SPAWN_SECS,
-    bounceX: false,
-    bounceY: false,
 
     onStart(){
       buildGrid(this);
