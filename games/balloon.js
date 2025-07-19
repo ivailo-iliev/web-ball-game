@@ -14,7 +14,7 @@
   const SAT_MIN      = 0.9;
   const SAT_MAX      = 1.0;
 
-  g.GameRegister('balloon', g.BaseGame.make({
+  g.Game.register('balloon', g.BaseGame.make({
     theme: 'balloon',
     max: BALLOON_MAX,
     emojis: BALLOON_SET,

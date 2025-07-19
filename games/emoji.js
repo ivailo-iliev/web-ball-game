@@ -17,7 +17,7 @@
   const WOBBLE_AMPL = 0.10;
   const WOBBLE_FREQ = 0.03;
 
-  g.GameRegister('emoji', g.BaseGame.make({
+  g.Game.register('emoji', g.BaseGame.make({
     theme      : 'sky',
     count      : EMOJI_COUNT,
     emojis     : EMOJI_SET,
