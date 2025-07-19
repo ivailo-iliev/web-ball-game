@@ -31,7 +31,8 @@ const baseCfg = {
   burst: ['✨', '💥', '💫'],
   winPoints  : 30,                  // first team to reach this wins
   spawnEvery : 0.6,                 // seconds between spawns
-  emojis     : ['😀','😎','🤖','👻'] // fallback artwork
+  emojis     : ['😀','😎','🤖','👻'], // fallback artwork
+  collisions : false               // enable physics collisions
 };
 
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
@@ -40,6 +41,7 @@ class Sprite {
     this.x = x; this.y = y;
     this.dx = dx; this.dy = dy;
     this.r = r; this.e = e;
+    this.mass = r * r;
     this.alive = true;
 
     this.el = document.createElement('div');
@@ -136,8 +138,12 @@ class BaseGame {
     for (const s of this.sprites) {
       this.move ? this.move(s, dt) : BaseGame._moveDefault(s, dt);
       this._wallBounce(s);
-      s.draw();
     }
+
+    if (this.cfg.collisions) this._resolveCollisions();
+
+    for (const s of this.sprites) s.draw();
+
     this.sprites = this.sprites.filter(sp => sp.alive);
     if (this.tick) this.tick(dt);
   }
@@ -172,6 +178,41 @@ class BaseGame {
   static _moveDefault(s, dt) {
     s.x += s.dx * dt;
     s.y += s.dy * dt;
+  }
+
+  _resolveCollisions() {
+    for (let i = 0; i < this.sprites.length; i++) {
+      const a = this.sprites[i];
+      if (!a.alive) continue;
+      for (let j = i + 1; j < this.sprites.length; j++) {
+        const b = this.sprites[j];
+        if (!b.alive) continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        const min = a.r + b.r;
+        if (dist === 0 || dist >= min) continue;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = min - dist;
+        const tot = a.mass + b.mass;
+        a.x -= nx * overlap * (b.mass / tot);
+        a.y -= ny * overlap * (b.mass / tot);
+        b.x += nx * overlap * (a.mass / tot);
+        b.y += ny * overlap * (a.mass / tot);
+        const rvx = b.dx - a.dx;
+        const rvy = b.dy - a.dy;
+        const rel = rvx * nx + rvy * ny;
+        if (rel > 0) continue;
+        const impulse = -(1 + 1) * rel / (1 / a.mass + 1 / b.mass);
+        const ix = impulse * nx;
+        const iy = impulse * ny;
+        a.dx -= ix / a.mass;
+        a.dy -= iy / a.mass;
+        b.dx += ix / b.mass;
+        b.dy += iy / b.mass;
+      }
+    }
   }
 
   /* ---- 3.7 HIT entry point ---- */
