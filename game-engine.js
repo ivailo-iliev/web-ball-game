@@ -18,6 +18,8 @@ function applyTransform(el, x, y, rot, sx, sy) {
     `translate3d(${x}px, ${y}px, 0) rotate(${rot}rad) scale(${sx}, ${sy})`;
 }
 
+const DEFAULT_BURST = ['✨', '💥', '💫'];
+
 const baseCfg = {
   mode: 'emoji',
   count: 6,
@@ -28,7 +30,7 @@ const baseCfg = {
   spin: 25,
   burstN: 14,
   particleLife: 1,
-  burst: ['✨', '💥', '💫'],
+  burst: DEFAULT_BURST,
   winPoints  : 30,                  // first team to reach this wins
   spawnEvery : 0.6,                 // seconds between spawns
   emojis     : ['😀','😎','🤖','👻'], // fallback artwork

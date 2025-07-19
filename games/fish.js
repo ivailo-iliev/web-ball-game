@@ -10,6 +10,7 @@
   g.Game.register('fish', g.BaseGame.make({
     max: FISH_MAX,
     emojis: FISH_SET,
+    burst: ['🫧'],
     spawnEvery: SPAWN_SECS,
     bounceY: true,
 
