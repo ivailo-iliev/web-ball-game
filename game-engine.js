@@ -50,6 +50,7 @@ class Sprite {
 
     this.el = document.createElement('div');
     this.el.className = 'emoji';
+    this.el.classList.add('spawn');
     this.el.textContent = e;
     const size = this.r * 2;
     Object.assign(this.el.style, {
@@ -242,6 +243,7 @@ class BaseGame {
 
   /* ---- 3.8 POP animation ---- */
   _popSprite(s) {                // visual + remove()
+    s.el.classList.remove('spawn');
     s.el.classList.add('pop');
     this.burst(s.x, s.y);
     setTimeout(() => s.remove(), 200);
