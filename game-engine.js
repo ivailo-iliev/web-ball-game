@@ -340,7 +340,12 @@ Game.run = target => {
   inst = new REG[i].cls();
   scoreAEl.textContent = '0';
   scoreBEl.textContent = '0';
-  const layer = document.getElementById('gameLayer') || document.body;
+  const layer = document.getElementById('gameLayer');
+  if (!layer) {
+    const msg = 'Game.run: missing element with id "gameLayer"';
+    console.error(msg);
+    throw new Error(msg);
+  }
   inst.init(layer);
   if (typeof inst.onStart === 'function') inst.onStart();
   const game = inst;
