@@ -26,6 +26,7 @@ const WOBBLE_FREQ = 0.03;
       const dx = (fromLeft ? 1 : -1) * g.R.between(V_MIN, V_MAX);
       const dy = g.R.between(-20, 20);
       const sp = this.addSprite({ x, y, dx, dy, r, e: g.R.pick(this.emojis), hp:1, phase: g.R.rand(Math.PI * 2) });
+      sp.el.style.setProperty('--flyX', dx < 0 ? '-120vw' : '120vw');
       if (dx < 0) sp.el.style.scale = '-1 1';
       return null;
     },
@@ -36,9 +37,6 @@ const WOBBLE_FREQ = 0.03;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
       if((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > this.H && s.dy > 0)) s.dy *= -1;
-    },
-
-    onHit(_s){
     }
   }));
 })(window);

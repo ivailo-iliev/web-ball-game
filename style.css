@@ -329,14 +329,14 @@ input[type="range"] {
 }
 
 .game.fish .spawn { animation: fishSpawn 0.3s ease-out forwards; }
-.game.fish .pop   { animation: fishPop 0.2s ease-out forwards; }
+.game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
 
 @keyframes fishSpawn {
   from { transform: scale(0); opacity: 0; }
   to   { transform: scale(1); opacity: 1; }
 }
 @keyframes fishPop {
-  to { transform: scale(0); opacity: 0; }
+  to { transform: translateX(var(--flyX)) rotate(360deg); }
 }
 
 .game.mole .spawn { animation: moleRise 0.3s forwards; }
