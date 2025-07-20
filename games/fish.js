@@ -6,7 +6,9 @@
   const R_MIN = 25;
   const R_MAX = 90;
   const V_MIN = 10;
-  const V_MAX = 180;
+const V_MAX = 180;
+const WOBBLE_AMPL = 0.10;
+const WOBBLE_FREQ = 0.03;
 
   g.Game.register('fish', g.BaseGame.make({
     max: FISH_MAX,
@@ -23,12 +25,14 @@
       const y = g.R.between(r, this.H - r);
       const dx = (fromLeft ? 1 : -1) * g.R.between(V_MIN, V_MAX);
       const dy = g.R.between(-20, 20);
-      const sp = this.addSprite({ x, y, dx, dy, r, e: g.R.pick(this.emojis), hp:1 });
+      const sp = this.addSprite({ x, y, dx, dy, r, e: g.R.pick(this.emojis), hp:1, phase: g.R.rand(Math.PI * 2) });
       if (dx < 0) sp.el.style.scale = '-1 1';
       return null;
     },
 
     move(s, dt){
+      s.phase = (s.phase || 0) + dt * WOBBLE_FREQ;
+      s.y += Math.sin(s.phase) * WOBBLE_AMPL;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
       if((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > this.H && s.dy > 0)) s.dy *= -1;

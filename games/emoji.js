@@ -43,14 +43,14 @@
         r,
         e: g.R.pick(this.emojis),
         hp: 1,
-        wob: g.R.rand(Math.PI * 2)
+        phase: g.R.rand(Math.PI * 2)
       });
       return null;
     },
 
     move(s, dt) {
-      s.wob = (s.wob || 0) + dt * WOBBLE_FREQ;
-      s.y += Math.sin(s.wob) * WOBBLE_AMPL;
+      s.phase = (s.phase || 0) + dt * WOBBLE_FREQ;
+      s.y += Math.sin(s.phase) * WOBBLE_AMPL;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
     }
