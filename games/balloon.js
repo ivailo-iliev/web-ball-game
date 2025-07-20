@@ -39,10 +39,6 @@
       s.sway = (s.sway || 0) + dt * WOBBLE_FREQ;
       s.x += s.dx * dt + Math.sin(s.sway) * WOBBLE_AMPL;
       s.y += s.dy * dt;
-      if(
-        s.x < -s.r*2 || s.x > this.W + s.r*2 ||
-        s.y < -s.r*2 || s.y > this.H + s.r*2
-      ) s.remove();
     }
   }));
 })(window);

@@ -30,10 +30,6 @@
       s.x += s.dx * dt;
       s.y += s.dy * dt;
       if((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > this.H && s.dy > 0)) s.dy *= -1;
-      if(
-        s.x < -s.r*2 || s.x > this.W + s.r*2 ||
-        s.y < -s.r*2 || s.y > this.H + s.r*2
-      ) s.remove();
     },
 
     onHit(_s){
