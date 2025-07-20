@@ -18,7 +18,7 @@
   const WOBBLE_FREQ = 0.03;
 
   g.Game.register('emoji', g.BaseGame.make({
-    count      : EMOJI_COUNT,
+    max        : EMOJI_COUNT,
     emojis     : EMOJI_SET,
     spawnEvery : SPAWN_SECS,
     collisions : true,
@@ -31,7 +31,17 @@
       const ang = g.R.rand(Math.PI * 2);
       const vx = Math.cos(ang) * speed;
       const vy = Math.sin(ang) * speed;
-      return { x, y, dx: vx, dy: vy, r, e: g.R.pick(this.emojis), hp: 1, wob:g.R.rand(Math.PI*2) };
+      this.addSprite({
+        x,
+        y,
+        dx: vx,
+        dy: vy,
+        r,
+        e: g.R.pick(this.emojis),
+        hp: 1,
+        wob: g.R.rand(Math.PI * 2)
+      });
+      return null;
     },
 
     move(s, dt) {
