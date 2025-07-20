@@ -42,6 +42,7 @@ class Sprite {
     this.r = r; this.e = e;
     this.mass = r * r;
     this.alive = true;
+    this.entered = false;
 
     this.el = document.createElement('div');
     this.el.className = 'emoji';
@@ -138,6 +139,18 @@ class BaseGame {
     for (const s of this.sprites) {
       this.move ? this.move(s, dt) : BaseGame._moveDefault(s, dt);
       this._wallBounce(s);
+
+      const left   = s.x - s.r;
+      const right  = s.x + s.r;
+      const top    = s.y - s.r;
+      const bottom = s.y + s.r;
+      if (!s.entered) {
+        if (right >= 0 && left <= this.W && bottom >= 0 && top <= this.H) {
+          s.entered = true;
+        }
+      } else if (right < 0 || left > this.W || bottom < 0 || top > this.H) {
+        s.remove();
+      }
     }
 
     if (this.cfg.collisions) this._resolveCollisions();
