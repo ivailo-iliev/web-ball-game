@@ -147,10 +147,15 @@ class BaseGame {
 
     if (this.cfg.collisions) this._resolveCollisions();
 
-    for (const s of this.sprites) s.draw();
+    for (const s of this.sprites) {
+      if (s.ttl !== undefined && (s.ttl -= dt) <= 0) {
+        this._popSprite(s);
+        continue;            // skip draw for a popped sprite
+      }
+      s.draw();
+    }
 
     this.sprites = this.sprites.filter(sp => sp.alive);
-    if (this.tick) this.tick(dt);
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
@@ -166,6 +171,7 @@ class BaseGame {
     };
     const full = { hp: 1, ...otherDefaults, ...desc };
     const sprite = new Sprite(full);
+    if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
     this.sprites.push(sprite);
     return sprite;
   }

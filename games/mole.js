@@ -2,6 +2,7 @@
   const MOLE_UP_V = 350;
   const MOLE_STAY_MIN = 1000;
   const MOLE_STAY_MAX = 3000;
+  const MOLE_LIFETIME_SECS = 2;
   const MOLE_COUNT = 12;
   const MOLE_EMOJIS = ['🐭','🐰'];
   const MOLE_ROWS = [3,2,3];
@@ -57,24 +58,21 @@
       if(idx === -1) return null;
       const hole = this.holes[idx];
       hole.occupied = true;
-      const sp = this.addSprite({ x: hole.x, y: hole.y, dx:0, dy:0, r:this.holeR, e: g.R.pick(this.emojis), hp:1 });
+      const sp = this.addSprite({
+        x: hole.x,
+        y: hole.y,
+        dx: 0,
+        dy: 0,
+        r: this.holeR,
+        e: g.R.pick(this.emojis),
+        hp: 1,
+        ttl: MOLE_LIFETIME_SECS
+      });
       sp.el.classList.add('mole');
       sp.el.style.setProperty('--mole-h', `${this.holeR*2}px`);
       sp.holeIndex = idx;
-      sp.ttl = g.R.between(MOLE_STAY_MIN, MOLE_STAY_MAX) / 1000;
     },
 
-    tick(dt){
-      for(const sp of this.sprites){
-        if(sp.ttl == null) continue;
-        sp.ttl -= dt;
-        if(sp.ttl <= 0){
-          const hole = this.holes[sp.holeIndex];
-          if(hole) hole.occupied = false;
-          this._popSprite(sp);
-        }
-      }
-    },
 
     onHit(sp){
       const hole = this.holes[sp.holeIndex];
