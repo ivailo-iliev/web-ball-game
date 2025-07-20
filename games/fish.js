@@ -1,7 +1,8 @@
 (function(g){
   const FISH_SET = ['🐳','🐋','🐬','🦭','🐟','🐠','🦈','🐙','🪼','🦀','🦞','🦐'];
   const FISH_MAX = 6;
-  const SPAWN_SECS = 0.6;
+  const SPAWN_DELAY_MIN = 0;
+  const SPAWN_DELAY_MAX = 3;
   const R_MIN = 25;
   const R_MAX = 90;
   const V_MIN = 10;
@@ -11,7 +12,8 @@
     max: FISH_MAX,
     emojis: FISH_SET,
     burst: ['🫧'],
-    spawnEvery: SPAWN_SECS,
+    spawnDelayMin: SPAWN_DELAY_MIN,
+    spawnDelayMax: SPAWN_DELAY_MAX,
     bounceY: true,
 
     spawn(){
