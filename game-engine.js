@@ -131,6 +131,12 @@ class BaseGame {
     this.container.className = 'game' + (this.gameName ? ' ' + this.gameName : '');
   }
 
+  /* ---- 3.2.1 spawn initial sprite(s) ---- */
+  start() {
+    const desc = this.spawn();
+    if (desc) this.addSprite(desc);
+  }
+
   /* ---- 3.3 main loop : called from rAF ---- */
   loop(dt) {
     if (this.sprites.length < this.cfg.max) {
@@ -348,6 +354,7 @@ Game.run = target => {
   }
   inst.init(layer);
   if (typeof inst.onStart === 'function') inst.onStart();
+  if (typeof inst.start === 'function') inst.start();
   const game = inst;
   let last = performance.now();
   (function frame(now) {
