@@ -8,7 +8,8 @@
   const B_V_MAX      = 60;
   const WOBBLE_FREQ  = 0.03;
   const WOBBLE_AMPL  = 0.10;
-  const SPAWN_SECS   = 0.6;
+  const SPAWN_DELAY_MIN = 0;
+  const SPAWN_DELAY_MAX = 3;
   const BRIGHT_MIN   = 0.9;
   const BRIGHT_MAX   = 2;
   const SAT_MIN      = 0.9;
@@ -17,7 +18,8 @@
   g.Game.register('balloon', g.BaseGame.make({
     max: BALLOON_MAX,
     emojis: BALLOON_SET,
-    spawnEvery: SPAWN_SECS,
+    spawnDelayMin: SPAWN_DELAY_MIN,
+    spawnDelayMax: SPAWN_DELAY_MAX,
 
     spawn(){
       const r = g.R.between(R_MIN, R_MAX);

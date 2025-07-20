@@ -29,8 +29,9 @@ const baseCfg = {
   burstN: 14,
   particleLife: 1,
   burst: DEFAULT_BURST,
-  winPoints  : 30,                  // first team to reach this wins
-  spawnEvery : 0.6,                 // seconds between spawns
+  winPoints     : 30,                  // first team to reach this wins
+  spawnDelayMin : 0,                   // seconds (min)
+  spawnDelayMax : 3,                   // seconds (max)
   emojis     : ['😀','😎','🤖','👻'], // fallback artwork
   collisions : false,              // enable physics collisions
   bounceX    : false,
@@ -85,7 +86,8 @@ class BaseGame {
     this.sprites = [];
     this.score = [0, 0];
     this.running = true;
-    this.spawnClock = 0;
+    this._spawnElapsed = 0;
+    this._nextSpawn = R.between(this.cfg.spawnDelayMin, this.cfg.spawnDelayMax);
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
@@ -132,9 +134,10 @@ class BaseGame {
   /* ---- 3.3 main loop : called from rAF ---- */
   loop(dt) {
     if (this.sprites.length < this.cfg.max) {
-      this.spawnClock -= dt;
-      if (this.spawnClock <= 0) {
-        this.spawnClock = this.cfg.spawnEvery;
+      this._spawnElapsed += dt;
+      if (this._spawnElapsed >= this._nextSpawn) {
+        this._spawnElapsed = 0;
+        this._nextSpawn = R.between(this.cfg.spawnDelayMin, this.cfg.spawnDelayMax);
         const desc = this.spawn();
         if (desc) this.addSprite(desc);
       }

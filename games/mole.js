@@ -6,7 +6,8 @@
   const MOLE_COUNT = 12;
   const MOLE_EMOJIS = ['🐭','🐰'];
   const MOLE_ROWS = [3,2,3];
-  const SPAWN_SECS = 0.6;
+  const SPAWN_DELAY_MIN = 0;
+  const SPAWN_DELAY_MAX = 3;
 
   function buildGrid(game){
     const rows = MOLE_ROWS;
@@ -43,7 +44,8 @@
     max: MOLE_COUNT,
     emojis: MOLE_EMOJIS,
     burst: ['💫'],
-    spawnEvery: SPAWN_SECS,
+    spawnDelayMin: SPAWN_DELAY_MIN,
+    spawnDelayMax: SPAWN_DELAY_MAX,
 
     onStart(){
       buildGrid(this);

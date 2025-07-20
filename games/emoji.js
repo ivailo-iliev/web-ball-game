@@ -13,14 +13,16 @@
   const R_MAX = 90;
   const V_MIN = 10;
   const V_MAX = 180;
-  const SPAWN_SECS = 0.6;
+  const SPAWN_DELAY_MIN = 0;
+  const SPAWN_DELAY_MAX = 3;
   const WOBBLE_AMPL = 0.10;
   const WOBBLE_FREQ = 0.03;
 
   g.Game.register('emoji', g.BaseGame.make({
     max        : EMOJI_COUNT,
     emojis     : EMOJI_SET,
-    spawnEvery : SPAWN_SECS,
+    spawnDelayMin : SPAWN_DELAY_MIN,
+    spawnDelayMax : SPAWN_DELAY_MAX,
     collisions : true,
     bounceX    : true,
     bounceY    : true,
