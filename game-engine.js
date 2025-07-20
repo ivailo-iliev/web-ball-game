@@ -12,17 +12,12 @@ const R = {
 };
 win.R = R;
 
-function applyTransform(el, x, y, rot, sx, sy) {
-  const st = el._st || (el._st = el.style);
-  st.transform =
-    `translate3d(${x}px, ${y}px, 0) rotate(${rot}rad) scale(${sx}, ${sy})`;
-}
 
 const DEFAULT_BURST = ['✨', '💥', '💫'];
 
 const baseCfg = {
   mode: 'emoji',
-  count: 6,
+  max: 6,
   rMin: 25,
   rMax: 90,
   vMin: 10,
@@ -132,7 +127,7 @@ class BaseGame {
 
   /* ---- 3.3 main loop : called from rAF ---- */
   loop(dt) {
-    if (this.sprites.length < this.cfg.count) {
+    if (this.sprites.length < this.cfg.max) {
       this.spawnClock -= dt;
       if (this.spawnClock <= 0) {
         this.spawnClock = this.cfg.spawnEvery;

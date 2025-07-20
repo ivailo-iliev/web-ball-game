@@ -22,6 +22,8 @@
     emojis     : EMOJI_SET,
     spawnEvery : SPAWN_SECS,
     collisions : true,
+    bounceX    : true,
+    bounceY    : true,
 
     spawn() {
       const r = g.R.between(R_MIN, R_MAX);
@@ -49,7 +51,6 @@
       s.y += Math.sin(s.wob) * WOBBLE_AMPL;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
-      this._wallBounce(s);
     }
   }));
 })(window);
