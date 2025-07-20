@@ -49,9 +49,6 @@
       buildGrid(this);
     },
 
-    end(winner){
-      g.BaseGame.prototype.end.call(this, winner);
-    },
 
     spawn(){
       const idx = this.holes.findIndex(h => !h.occupied);

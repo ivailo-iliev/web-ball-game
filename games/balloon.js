@@ -43,7 +43,6 @@
         s.x < -s.r*2 || s.x > this.W + s.r*2 ||
         s.y < -s.r*2 || s.y > this.H + s.r*2
       ) s.remove();
-      s.draw();
     }
   }));
 })(window);
