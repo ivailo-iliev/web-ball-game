@@ -4,6 +4,9 @@
 (function (win) {
   'use strict';
 
+  const scoreAEl = document.getElementById('teamAScore');
+  const scoreBEl = document.getElementById('teamBScore');
+
 /* ══════════ 1.  Pure helpers – kept tiny & global ══════════ */
 const R = {
   rand    : n       => Math.random() * n,
@@ -250,7 +253,8 @@ class BaseGame {
     if (this.onHit && this.onHit(s, team) === false) return;  // optional veto
     if (--s.hp > 0) return;
     this.score[team] += this.calculatePoints(s);
-    window.dispatchEvent(new CustomEvent('score', { detail: [...this.score] }));
+    scoreAEl.textContent = `${this.score[0]}`;
+    scoreBEl.textContent = `${this.score[1]}`;
     this._popSprite(s);
     if (this.score[team] >= this.cfg.winPoints) this.end(team);
   }
@@ -326,6 +330,8 @@ Game.run = target => {
   if (inst) inst.end();
   idx = i;
   inst = new REG[i].cls();
+  scoreAEl.textContent = '0';
+  scoreBEl.textContent = '0';
   const layer = document.getElementById('gameLayer') || document.body;
   inst.init(layer);
   if (typeof inst.onStart === 'function') inst.onStart();
