@@ -40,7 +40,7 @@
   }
 
   g.Game.register('mole', g.BaseGame.make({
-    count: MOLE_COUNT,
+    max: MOLE_COUNT,
     emojis: MOLE_EMOJIS,
     burst: ['💫'],
     spawnEvery: SPAWN_SECS,
