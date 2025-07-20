@@ -1,7 +1,4 @@
 (function(g){
-  const MOLE_UP_V = 350;
-  const MOLE_STAY_MIN = 1000;
-  const MOLE_STAY_MAX = 3000;
   const MOLE_LIFETIME_SECS = 2;
   const MOLE_MAX = 12;
   const MOLE_EMOJIS = ['🐭','🐰'];
