@@ -46,12 +46,9 @@
 
     onStart(){
       buildGrid(this);
-      this._gridResize = () => buildGrid(this);
-      window.addEventListener('resize', this._gridResize);
     },
 
     end(winner){
-      window.removeEventListener('resize', this._gridResize);
       g.BaseGame.prototype.end.call(this, winner);
     },
 
