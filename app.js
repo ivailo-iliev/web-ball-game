@@ -472,7 +472,11 @@ const Feeds = (() => {
     videoTop = new Image();
     videoTop.crossOrigin = 'anonymous';
     videoTop.src = cfg.url;
-    await videoTop.decode();
+    try {
+      await videoTop.decode();
+    } catch (err) {
+      throw new Error('Failed to load top camera feed');
+    }
 
     const frontStream = await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -764,7 +768,13 @@ const Controller = (() => {
 
   async function start() {
     Setup.bind();
-    await Feeds.init();
+    try {
+      await Feeds.init();
+    } catch (err) {
+      alert(err.message);
+      console.error('Feed initialization failed:', err);
+      return;
+    }
     await Detect.init();
     lastTop = 0;
     requestAnimationFrame(topLoop);
