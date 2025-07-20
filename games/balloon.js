@@ -29,7 +29,7 @@
       const y = this.H + r;
       const dx = g.R.between(-20, 20);
       const dy = -g.R.between(B_V_MIN, B_V_MAX);
-      const s = this.addSprite({ x, y, dx, dy, r, e });
+      const s = this.addSprite({ x, y, dx, dy, r, e, phase: g.R.rand(Math.PI * 2) });
       const hue = Math.random() * 360;
       const bri = g.R.between(BRIGHT_MIN, BRIGHT_MAX);
       const sat = g.R.between(SAT_MIN, SAT_MAX);
@@ -38,8 +38,9 @@
     },
 
     move(s, dt){
-      s.sway = (s.sway || 0) + dt * WOBBLE_FREQ;
-      s.x += s.dx * dt + Math.sin(s.sway) * WOBBLE_AMPL;
+      s.phase = (s.phase || 0) + dt * WOBBLE_FREQ;
+      s.x += s.dx * dt;
+      s.x += Math.sin(s.phase) * WOBBLE_AMPL;
       s.y += s.dy * dt;
     }
   }));
