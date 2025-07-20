@@ -8,7 +8,7 @@
     '🧋','🌞','🌺','🌵','📸','⌚','🧸'
   ];
 
-  const EMOJI_COUNT = 6;
+  const EMOJI_MAX = 6;
   const R_MIN = 25;
   const R_MAX = 90;
   const V_MIN = 10;
@@ -19,7 +19,7 @@
   const WOBBLE_FREQ = 0.03;
 
   g.Game.register('emoji', g.BaseGame.make({
-    max        : EMOJI_COUNT,
+    max        : EMOJI_MAX,
     emojis     : EMOJI_SET,
     spawnDelayMin : SPAWN_DELAY_MIN,
     spawnDelayMax : SPAWN_DELAY_MAX,

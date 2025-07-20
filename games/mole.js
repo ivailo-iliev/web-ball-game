@@ -3,7 +3,7 @@
   const MOLE_STAY_MIN = 1000;
   const MOLE_STAY_MAX = 3000;
   const MOLE_LIFETIME_SECS = 2;
-  const MOLE_COUNT = 12;
+  const MOLE_MAX = 12;
   const MOLE_EMOJIS = ['🐭','🐰'];
   const MOLE_ROWS = [3,2,3];
   const SPAWN_DELAY_MIN = 0;
@@ -41,7 +41,7 @@
   }
 
   g.Game.register('mole', g.BaseGame.make({
-    max: MOLE_COUNT,
+    max: MOLE_MAX,
     emojis: MOLE_EMOJIS,
     burst: ['💫'],
     spawnDelayMin: SPAWN_DELAY_MIN,
