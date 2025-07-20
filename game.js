@@ -167,12 +167,6 @@
       this.onSpritePointerDown = this.onSpritePointerDown.bind(this);
       this.container.addEventListener('pointerdown', this.onSpritePointerDown);
 
-      window.addEventListener('resize', () => {
-        this.winW = window.visualViewport.width || window.innerWidth;
-        this.winH = window.visualViewport.height || window.innerHeight;
-        Game.winW = this.winW;
-        Game.winH = this.winH;
-      });
       window.addEventListener('orientationchange', () => {
         this.winW = window.visualViewport.width || window.innerWidth;
         this.winH = window.visualViewport.height || window.innerHeight;
@@ -653,11 +647,9 @@
       Game.elements.container.style.display = 'block';
       Game.elements.container.classList.add('mole-bg');
       this._initGrid();
-      window.addEventListener('resize', this._resize);
     }
 
     cleanup() {
-      window.removeEventListener('resize', this._resize);
       Game.elements.container.classList.remove('mole-bg');
       Game.elements.container.style.display = 'block';
     }

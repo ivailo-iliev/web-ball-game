@@ -325,6 +325,18 @@ Game.run = target => {
   })();
 };
 
+// Restart the current game when the window is resized
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (inst) {
+      inst.end();
+      Game.run(idx);
+    }
+  }, 200);
+}, { passive: true });
+
 Object.freeze(Game);
 
 /* ══════════ 6. export globals ══════════ */
