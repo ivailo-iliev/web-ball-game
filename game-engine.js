@@ -325,6 +325,11 @@ Game.register = (id, cls) => {
 Object.defineProperty(Game, 'current', { get: () => idx });
 Object.defineProperty(Game, 'list',    { get: () => REG.map(e => e.id) });
 
+Game.setTeams = (a, b) => {
+  scoreAEl.className = a;
+  scoreBEl.className = b;
+};
+
 Game.run = target => {
   const i = typeof target === 'number'
            ? (target % REG.length + REG.length) % REG.length
