@@ -306,7 +306,7 @@ input[type="range"] {
 }
 
 /* ----- Spawn and Pop effects ----- */
-.game.emoji .spawn { animation: emojiSpawn 0.3s ease-out forwards; }
+.game.emoji .spawn { animation: emojiSpawn 0.3s ease-out; }
 .game.emoji .pop   { animation: emojiPop 0.2s ease-out forwards; }
 
 @keyframes emojiSpawn {
@@ -317,7 +317,7 @@ input[type="range"] {
   to { transform: scale(0); opacity: 0; }
 }
 
-.game.balloon .spawn { animation: balloonSpawn 0.3s ease-out forwards; }
+.game.balloon .spawn { animation: balloonSpawn 0.3s ease-out; }
 .game.balloon .pop   { animation: balloonPop 0.2s ease-out forwards; }
 
 @keyframes balloonSpawn {
@@ -328,7 +328,7 @@ input[type="range"] {
   to { transform: translateY(-20px) scale(0); opacity: 0; }
 }
 
-.game.fish .spawn { animation: fishSpawn 0.3s ease-out forwards; }
+.game.fish .spawn { animation: fishSpawn 0.3s ease-out; }
 .game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
 
 @keyframes fishSpawn {
