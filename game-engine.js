@@ -58,14 +58,20 @@ class Sprite {
       transform: 'translate3d(var(--x), var(--y), 0) scale(1)'
     });
 
+    this.el.style.setProperty('--x', `${this.x - this.r}px`);
+    this.el.style.setProperty('--y', `${this.y - this.r}px`);
+
     if (Sprite.layer) Sprite.layer.appendChild(this.el);
     this.el._sprite = this;
-    this.draw();
+
+    this._spawnTimer = setTimeout(() => {
+      this.el.classList.remove('spawn');
+      this._spawnTimer = null;
+    }, Sprite.SPAWN_TIME);
   }
 
   draw() {
-    this.el.style.setProperty('--x', `${this.x - this.r}px`);
-    this.el.style.setProperty('--y', `${this.y - this.r}px`);
+    this.el.style.transform = `translate3d(${this.x - this.r}px, ${this.y - this.r}px, 0)`;
   }
 
   remove() {
@@ -74,6 +80,8 @@ class Sprite {
   }
 }
 Sprite.layer = null;                  // set once in Game.init()
+Sprite.SPAWN_TIME = 300;             // ms - must match CSS animation duration
+Sprite.POP_TIME   = 200;             // ms - pop animation duration
 
 /* ══════════ 3.  BaseGame  – orchestrates many sprites ══════════ */
 class BaseGame {
@@ -215,7 +223,13 @@ class BaseGame {
       for (const [k, v] of Object.entries(desc.p)) sprite.el.style.setProperty(k, v);
     }
     if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
-    this.sprites.push(sprite);
+
+    setTimeout(() => {
+      if (!this.running) return;
+      this.sprites.push(sprite);
+      sprite.draw();
+    }, Sprite.SPAWN_TIME);
+
     return sprite;
   }
 
@@ -293,10 +307,14 @@ class BaseGame {
 
   /* ---- 3.8 POP animation ---- */
   _popSprite(s) {                // visual + remove()
+    if (s._spawnTimer) { clearTimeout(s._spawnTimer); s._spawnTimer = null; }
+    s.alive = false;
     s.el.classList.remove('spawn');
+    s.el.style.setProperty('--x', `${s.x - s.r}px`);
+    s.el.style.setProperty('--y', `${s.y - s.r}px`);
     s.el.classList.add('pop');
     this.burst(s.x, s.y);
-    setTimeout(() => s.remove(), 200);
+    setTimeout(() => s.remove(), Sprite.POP_TIME);
   }
 
   burst(x, y, emojiArr = this.cfg.burst) {
