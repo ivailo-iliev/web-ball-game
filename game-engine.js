@@ -166,7 +166,12 @@ class BaseGame {
         if (right >= 0 && left <= this.W && bottom >= 0 && top <= this.H) {
           s.entered = true;
         }
-      } else if (right < 0 || left > this.W || bottom < 0 || top > this.H) {
+      } else if (
+        right < -s.r ||
+        left  > this.W + s.r ||
+        bottom < -s.r ||
+        top > this.H + s.r
+      ) {
         s.remove();
       }
     }
