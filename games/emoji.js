@@ -9,29 +9,25 @@
   ];
 
   const EMOJI_MAX = 6;
-  const R_MIN = 25;
-  const R_MAX = 90;
-  const V_MIN = 10;
-  const V_MAX = 180;
-  const SPAWN_DELAY_MIN = 0;
-  const SPAWN_DELAY_MAX = 3;
+  const R_RANGE = [25, 90];
+  const V_RANGE = [10, 180];
+  const SPAWN_DELAY_RANGE = [0, 3];
   const WOBBLE_AMPL = 0.10;
   const WOBBLE_FREQ = 0.03;
 
   g.Game.register('emoji', g.BaseGame.make({
     max        : EMOJI_MAX,
     emojis     : EMOJI_SET,
-    spawnDelayMin : SPAWN_DELAY_MIN,
-    spawnDelayMax : SPAWN_DELAY_MAX,
+    spawnDelayRange : SPAWN_DELAY_RANGE,
     collisions : true,
     bounceX    : true,
     bounceY    : true,
 
     spawn() {
-      const r = g.R.between(R_MIN, R_MAX);
+      const r = g.R.between(...R_RANGE);
       const x = g.R.rand(this.W);
       const y = g.R.rand(this.H);
-      const speed = g.R.between(V_MIN, V_MAX);
+      const speed = g.R.between(...V_RANGE);
       const ang = g.R.rand(Math.PI * 2);
       const vx = Math.cos(ang) * speed;
       const vy = Math.sin(ang) * speed;

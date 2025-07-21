@@ -1,12 +1,9 @@
 (function(g){
   const FISH_SET = ['🐳','🐋','🐬','🦭','🐟','🐠','🦈','🐙','🪼','🦀','🦞','🦐'];
   const FISH_MAX = 6;
-  const SPAWN_DELAY_MIN = 0;
-  const SPAWN_DELAY_MAX = 3;
-  const R_MIN = 25;
-  const R_MAX = 90;
-  const V_MIN = 10;
-const V_MAX = 180;
+  const SPAWN_DELAY_RANGE = [0, 3];
+  const R_RANGE = [25, 90];
+  const V_RANGE = [10, 180];
 const WOBBLE_AMPL = 0.10;
 const WOBBLE_FREQ = 0.03;
 
@@ -14,14 +11,13 @@ const WOBBLE_FREQ = 0.03;
     max: FISH_MAX,
     emojis: FISH_SET,
     burst: ['🫧'],
-    spawnDelayMin: SPAWN_DELAY_MIN,
-    spawnDelayMax: SPAWN_DELAY_MAX,
+    spawnDelayRange: SPAWN_DELAY_RANGE,
     bounceY: true,
 
     spawn(){
-      const r = g.R.between(R_MIN, R_MAX);
+      const r = g.R.between(...R_RANGE);
       const swimRight = Math.random() < 0.5;
-      const speed = g.R.between(V_MIN, V_MAX);
+      const speed = g.R.between(...V_RANGE);
       const dx = swimRight ? speed : -speed;
       const x = swimRight ? -r : this.W + r;
       const y = g.R.between(r, this.H - r);
