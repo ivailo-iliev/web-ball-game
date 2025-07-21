@@ -96,11 +96,15 @@ class BaseGame {
   init(layer) {
     Sprite.layer = layer;                 // drawing parent
     this.container = layer;
-    this.W = window.innerWidth;
-    this.H = window.innerHeight;
+    this.winW = window.visualViewport.width || window.innerWidth;
+    this.winH = window.visualViewport.height || window.innerHeight;
+    this.W = this.winW;
+    this.H = this.winH;
     this._resize = () => {
-      this.W = window.innerWidth;
-      this.H = window.innerHeight;
+      this.winW = window.visualViewport.width || window.innerWidth;
+      this.winH = window.visualViewport.height || window.innerHeight;
+      this.W = this.winW;
+      this.H = this.winH;
     };
     window.addEventListener('resize', this._resize);
     window.addEventListener('orientationchange', this._resize);
