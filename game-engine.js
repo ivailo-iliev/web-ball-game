@@ -41,6 +41,7 @@ const baseCfg = {
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
   constructor({ x, y, dx, dy, r, e }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
+    alert('Sprite ctor x=' + x + ', y=' + y);
     this.x = x; this.y = y;
     this.dx = dx; this.dy = dy;
     this.r = r; this.e = e;
@@ -92,6 +93,7 @@ class BaseGame {
 
   /* ---- 3.2 init : call ONCE after construction ---- */
   init(layer) {
+    alert('BaseGame.init, layer ok = ' + !!layer);
     Sprite.layer = layer;                 // drawing parent
     this.container = layer;
     this.W = window.innerWidth;
@@ -133,6 +135,7 @@ class BaseGame {
 
   /* ---- 3.2.1 spawn initial sprite(s) ---- */
   start() {
+    alert('BaseGame.start');
     const desc = this.spawn();
     if (desc) this.addSprite(desc);
   }
@@ -182,6 +185,7 @@ class BaseGame {
   // desc.s → object of style properties (camelCase or kebab)
   // desc.p → object of CSS custom properties (keys starting with --)
   addSprite(desc) {
+    alert('addSprite ' + JSON.stringify(desc));
     const r = desc.r ?? R.between(this.cfg.rMin, this.cfg.rMax);
     const speed = R.between(this.cfg.vMin, this.cfg.vMax);
     const ang = R.rand(Math.PI * 2);
@@ -343,23 +347,28 @@ Game.setTeams = (a, b) => {
 };
 
 Game.run = target => {
+  alert('Game.run start, id=' + target);
   const i = typeof target === 'number'
            ? (target % REG.length + REG.length) % REG.length
            : REG.findIndex(e => e.id === target);
   if (i < 0) return;
+  alert('registry index=' + i);
   if (inst) inst.end();
   idx = i;
   inst = new REG[i].cls();
   scoreAEl.textContent = '0';
   scoreBEl.textContent = '0';
   const layer = document.getElementById('gameLayer');
+  alert('layer present = ' + !!layer);
   if (!layer) {
     const msg = 'Game.run: missing element with id "gameLayer"';
     console.error(msg);
     throw new Error(msg);
   }
+  alert('calling init');
   inst.init(layer);
   if (typeof inst.onStart === 'function') inst.onStart();
+  alert('calling start');
   if (typeof inst.start === 'function') inst.start();
   const game = inst;
   let last = performance.now();
