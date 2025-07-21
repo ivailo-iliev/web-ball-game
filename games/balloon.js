@@ -29,12 +29,20 @@
       const y = this.H + r;
       const dx = g.R.between(-20, 20);
       const dy = -g.R.between(B_V_MIN, B_V_MAX);
-      const s = this.addSprite({ x, y, dx, dy, r, e, phase: g.R.rand(Math.PI * 2) });
       const hue = Math.random() * 360;
       const bri = g.R.between(BRIGHT_MIN, BRIGHT_MAX);
       const sat = g.R.between(SAT_MIN, SAT_MAX);
-      s.el.style.filter = `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})`;
-      return null;
+      const d = {
+        x,
+        y,
+        dx,
+        dy,
+        r,
+        e,
+        phase: g.R.rand(Math.PI * 2),
+        s: { filter: `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})` }
+      };
+      return d;
     },
 
     move(s, dt){

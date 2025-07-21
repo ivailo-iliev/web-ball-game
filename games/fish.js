@@ -25,10 +25,19 @@ const WOBBLE_FREQ = 0.03;
       const y = g.R.between(r, this.H - r);
       const dx = (fromLeft ? 1 : -1) * g.R.between(V_MIN, V_MAX);
       const dy = g.R.between(-20, 20);
-      const sp = this.addSprite({ x, y, dx, dy, r, e: g.R.pick(this.emojis), hp:1, phase: g.R.rand(Math.PI * 2) });
-      sp.el.style.setProperty('--flyX', dx < 0 ? '-120vw' : '120vw');
-      if (dx < 0) sp.el.style.scale = '-1 1';
-      return null;
+      const d = {
+        x,
+        y,
+        dx,
+        dy,
+        r,
+        e: g.R.pick(this.emojis),
+        hp: 1,
+        phase: g.R.rand(Math.PI * 2),
+        p: { '--flyX': dx < 0 ? '-120vw' : '120vw' }
+      };
+      if (dx < 0) d.s = { scale: '-1 1' };
+      return d;
     },
 
     move(s, dt){
