@@ -21,17 +21,14 @@ const DEFAULT_BURST = ['✨', '💥', '💫'];
 const baseCfg = {
   mode: 'emoji',
   max: 6,
-  rMin: 25,
-  rMax: 90,
-  vMin: 10,
-  vMax: 180,
+  rRange: [25, 90],
+  vRange: [10, 180],
   spin: 25,
   burstN: 14,
   particleLife: 1,
   burst: DEFAULT_BURST,
   winPoints     : 30,                  // first team to reach this wins
-  spawnDelayMin : 0,                   // seconds (min)
-  spawnDelayMax : 3,                   // seconds (max)
+  spawnDelayRange : [0, 3],            // seconds [min,max]
   emojis     : ['😀','😎','🤖','👻'], // fallback artwork
   collisions : false,              // enable physics collisions
   bounceX    : false,
@@ -89,7 +86,7 @@ class BaseGame {
     this.running = true;
     this._raf = null;
     this._spawnElapsed = 0;
-    this._nextSpawn = R.between(this.cfg.spawnDelayMin, this.cfg.spawnDelayMax);
+    this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
@@ -157,7 +154,7 @@ class BaseGame {
       this._spawnElapsed += dt;
       if (this._spawnElapsed >= this._nextSpawn) {
         this._spawnElapsed = 0;
-        this._nextSpawn = R.between(this.cfg.spawnDelayMin, this.cfg.spawnDelayMax);
+        this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
         const desc = this.spawn();
         if (desc) this.addSprite(desc);
       }
@@ -202,8 +199,8 @@ class BaseGame {
   // desc.s → object of style properties (camelCase or kebab)
   // desc.p → object of CSS custom properties (keys starting with --)
   addSprite(desc) {
-    const r = desc.r ?? R.between(this.cfg.rMin, this.cfg.rMax);
-    const speed = R.between(this.cfg.vMin, this.cfg.vMax);
+    const r = desc.r ?? R.between(...this.cfg.rRange);
+    const speed = R.between(...this.cfg.vRange);
     const ang = R.rand(Math.PI * 2);
     const otherDefaults = {
       r,
@@ -278,8 +275,8 @@ class BaseGame {
 
   calculatePoints(s) {
     const speed = Math.hypot(s.dx, s.dy);
-    const sizeRatio = this.cfg.rMax / s.r;
-    const speedRatio = speed / this.cfg.vMax;
+    const sizeRatio = this.cfg.rRange[1] / s.r;
+    const speedRatio = speed / this.cfg.vRange[1];
     return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
   }
 
