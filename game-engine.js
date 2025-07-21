@@ -87,6 +87,7 @@ class BaseGame {
     this.sprites = [];
     this.score = [0, 0];
     this.running = true;
+    this._raf = null;
     this._spawnElapsed = 0;
     this._nextSpawn = R.between(this.cfg.spawnDelayMin, this.cfg.spawnDelayMax);
   }
@@ -128,7 +129,8 @@ class BaseGame {
       }
     };
     this.container.addEventListener('pointerdown', this.onPointerDown);
-    this.container.addEventListener('contextmenu', e => e.preventDefault());
+    this._contextHandler = e => e.preventDefault();
+    this.container.addEventListener('contextmenu', this._contextHandler);
     this.container.className = 'game' + (this.gameName ? ' ' + this.gameName : '');
   }
 
@@ -138,11 +140,13 @@ class BaseGame {
     if (desc) this.addSprite(desc);
     this._last = performance.now();
     this._loop = this.loop.bind(this);
-    requestAnimationFrame(this._loop);
+    this.running = true;
+    this._raf = requestAnimationFrame(this._loop);
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
   loop(ts) {
+    if (!this.running) return;
     const dt = (ts - this._last) / 1000;
     this._last = ts;
     if (this.sprites.length < this.cfg.max) {
@@ -187,7 +191,7 @@ class BaseGame {
     }
 
     this.sprites = this.sprites.filter(sp => sp.alive);
-    requestAnimationFrame(this._loop);
+    if (this.running) this._raf = requestAnimationFrame(this._loop);
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
@@ -320,9 +324,16 @@ class BaseGame {
 
   /* ---- 3.9 END game ---- */
   end(winner) {
+    if (!this.running) return;
     this.running = false;
+    cancelAnimationFrame(this._raf);
     this.sprites.forEach(sp => sp.remove());
+    this.container.removeEventListener('pointerdown', this.onPointerDown);
+    this.container.removeEventListener('contextmenu', this._contextHandler);
     window.removeEventListener('resize', this._resize);
+    window.removeEventListener('orientationchange', this._resize);
+    if (this.ripple) this.ripple.remove();
+    this.container.querySelectorAll('.burst').forEach(b => b.remove());
     window.dispatchEvent(new CustomEvent('gameover', { detail: {
       winner,
       score: [...this.score]
