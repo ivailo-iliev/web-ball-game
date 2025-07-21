@@ -35,7 +35,7 @@
       const ang = g.R.rand(Math.PI * 2);
       const vx = Math.cos(ang) * speed;
       const vy = Math.sin(ang) * speed;
-      this.addSprite({
+      const d = {
         x,
         y,
         dx: vx,
@@ -44,8 +44,8 @@
         e: g.R.pick(this.emojis),
         hp: 1,
         phase: g.R.rand(Math.PI * 2)
-      });
-      return null;
+      };
+      return d;
     },
 
     move(s, dt) {

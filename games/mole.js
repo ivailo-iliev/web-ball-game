@@ -54,7 +54,7 @@
       if(idx === -1) return null;
       const hole = this.holes[idx];
       hole.occupied = true;
-      const sp = this.addSprite({
+      const d = {
         x: hole.x,
         y: hole.y,
         dx: 0,
@@ -62,17 +62,16 @@
         r: this.holeR,
         e: g.R.pick(this.emojis),
         hp: 1,
-        ttl: MOLE_LIFETIME_SECS
-      });
-      sp.el.classList.add('mole');
-      sp.el.style.setProperty('--mole-h', `${this.holeR*2}px`);
-      sp.holeIndex = idx;
+        ttl: MOLE_LIFETIME_SECS,
+        p: { '--mole-h': `${this.holeR * 2}px` }
+      };
+      return d;
     },
 
 
     onHit(sp){
-      const hole = this.holes[sp.holeIndex];
-      if(hole) hole.occupied = false;
+      const idx = this.holes.findIndex(h => h.x === sp.x && h.y === sp.y);
+      if(idx >= 0) this.holes[idx].occupied = false;
     }
 
   }));

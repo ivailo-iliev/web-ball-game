@@ -179,6 +179,8 @@ class BaseGame {
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
+  // desc.s → object of style properties (camelCase or kebab)
+  // desc.p → object of CSS custom properties (keys starting with --)
   addSprite(desc) {
     const r = desc.r ?? R.between(this.cfg.rMin, this.cfg.rMax);
     const speed = R.between(this.cfg.vMin, this.cfg.vMax);
@@ -191,6 +193,10 @@ class BaseGame {
     };
     const full = { hp: 1, ...otherDefaults, ...desc };
     const sprite = new Sprite(full);
+    if (desc.s) Object.assign(sprite.el.style, desc.s);
+    if (desc.p) {
+      for (const [k, v] of Object.entries(desc.p)) sprite.el.style.setProperty(k, v);
+    }
     if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
     this.sprites.push(sprite);
     return sprite;
