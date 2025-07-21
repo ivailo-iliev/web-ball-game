@@ -19,13 +19,15 @@ const WOBBLE_FREQ = 0.03;
     bounceY: true,
 
     spawn(){
-      const r = g.R.between(R_MIN, R_MAX);
-      const fromLeft = Math.random() < 0.5;
-      const x = fromLeft ? -r : this.W + r;
-      const y = g.R.between(r, this.H - r);
-      const dx = (fromLeft ? 1 : -1) * g.R.between(V_MIN, V_MAX);
-      const dy = g.R.between(-20, 20);
-      const d = {
+      const r     = g.R.between(R_MIN, R_MAX);
+      const right = Math.random() < 0.5 ? 1 : -1; // 1 → swim right
+      const speed = g.R.between(V_MIN, V_MAX);
+      const dx    = right * speed;
+      const x     = right > 0 ? -r : this.W + r;
+      const y     = g.R.between(r, this.H - r);
+      const dy    = g.R.between(-20, 20);
+
+      const desc = {
         x,
         y,
         dx,
@@ -34,10 +36,10 @@ const WOBBLE_FREQ = 0.03;
         e: g.R.pick(this.emojis),
         hp: 1,
         phase: g.R.rand(Math.PI * 2),
-        p: { '--flyX': dx < 0 ? '-120vw' : '120vw' }
+        p: { '--flyX': right > 0 ? '120vw' : '-120vw' }
       };
-      if (dx < 0) d.s = { scale: '-1 1' };
-      return d;
+      if (right > 0) desc.s = { scale: '-1 1' };
+      return desc;
     },
 
     move(s, dt){
