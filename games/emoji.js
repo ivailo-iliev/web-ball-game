@@ -28,7 +28,6 @@
     bounceY    : true,
 
     spawn() {
-      alert('emoji spawn');
       const r = g.R.between(R_MIN, R_MAX);
       const x = g.R.rand(this.W);
       const y = g.R.rand(this.H);

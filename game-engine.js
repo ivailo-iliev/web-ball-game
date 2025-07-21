@@ -57,7 +57,8 @@ class Sprite {
       width: `${size}px`,
       height: `${size}px`,
       lineHeight: `${size}px`,
-      fontSize: `${size}px`
+      fontSize: `${size}px`,
+      transform: 'translate3d(var(--x), var(--y), 0) scale(1)'
     });
 
     if (Sprite.layer) Sprite.layer.appendChild(this.el);
@@ -66,8 +67,8 @@ class Sprite {
   }
 
   draw() {
-    this.el.style.transform =
-      `translate3d(${this.x - this.r}px, ${this.y - this.r}px, 0) scale(1)`;
+    this.el.style.setProperty('--x', `${this.x - this.r}px`);
+    this.el.style.setProperty('--y', `${this.y - this.r}px`);
   }
 
   remove() {
