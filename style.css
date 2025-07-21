@@ -207,6 +207,9 @@ input[type="range"] {
   justify-content: center;
   align-items: center;
   transform-origin: center;
+  --x: 0px;
+  --y: 0px;
+  transform: translate3d(var(--x), var(--y), 0) scale(1);
 }
 .emoji.mole {
   overflow: hidden;
@@ -310,8 +313,8 @@ input[type="range"] {
 .game.emoji .pop   { animation: emojiPop 0.2s ease-out forwards; }
 
 @keyframes emojiSpawn {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
 }
 @keyframes emojiPop {
   to { transform: scale(0); opacity: 0; }
@@ -321,8 +324,8 @@ input[type="range"] {
 .game.balloon .pop   { animation: balloonPop 0.2s ease-out forwards; }
 
 @keyframes balloonSpawn {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
 }
 @keyframes balloonPop {
   to { transform: translateY(-20px) scale(0); opacity: 0; }
@@ -332,8 +335,8 @@ input[type="range"] {
 .game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
 
 @keyframes fishSpawn {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
 }
 @keyframes fishPop {
   to { transform: translateX(var(--flyX)) rotate(360deg); }
