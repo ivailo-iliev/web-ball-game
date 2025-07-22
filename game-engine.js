@@ -67,10 +67,6 @@ class Sprite {
     if (Sprite.layer) Sprite.layer.appendChild(this.el);
     this.el._sprite = this;
 
-    this._spawnTimer = setTimeout(() => {
-      this.el.classList.remove('spawn');
-      this._spawnTimer = null;
-    }, Sprite.SPAWN_TIME);
   }
 
   draw() {
@@ -126,6 +122,22 @@ class BaseGame {
     this.ripple = document.createElement('div');
     this.ripple.classList.add('ripple');
     this.container.appendChild(this.ripple);
+
+    this._onAnimEnd = e => {
+      const el = e.target;
+      const sp = el._sprite;
+      if (!sp) return;
+      if (el.classList.contains('spawn')) {
+        el.classList.remove('spawn');
+        if (this.running && sp.alive !== false) {
+          this.sprites.push(sp);
+          sp.draw();
+        }
+      } else if (el.classList.contains('pop')) {
+        sp.remove();
+      }
+    };
+    this.container.addEventListener('animationend', this._onAnimEnd);
 
     this.onPointerDown = e => {
       const rect = this.container.getBoundingClientRect();
@@ -228,11 +240,7 @@ class BaseGame {
     }
     if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
 
-    setTimeout(() => {
-      if (!this.running) return;
-      this.sprites.push(sprite);
-      sprite.draw();
-    }, Sprite.SPAWN_TIME);
+    // movement begins when spawn animation ends via animationend handler
 
     return sprite;
   }
@@ -311,14 +319,12 @@ class BaseGame {
 
   /* ---- 3.8 POP animation ---- */
   _popSprite(s) {                // visual + remove()
-    if (s._spawnTimer) { clearTimeout(s._spawnTimer); s._spawnTimer = null; }
     s.alive = false;
     s.el.classList.remove('spawn');
     s.el.style.setProperty('--x', `${s.x - s.r}px`);
     s.el.style.setProperty('--y', `${s.y - s.r}px`);
     s.el.classList.add('pop');
     this.burst(s.x, s.y);
-    setTimeout(() => s.remove(), Sprite.POP_TIME);
   }
 
   burst(x, y, emojiArr = this.cfg.burst) {
@@ -353,6 +359,7 @@ class BaseGame {
     this.sprites.forEach(sp => sp.remove());
     this.container.removeEventListener('pointerdown', this.onPointerDown);
     this.container.removeEventListener('contextmenu', this._contextHandler);
+    this.container.removeEventListener('animationend', this._onAnimEnd);
     window.removeEventListener('resize', this._resize);
     window.removeEventListener('orientationchange', this._resize);
     if (this.ripple) this.ripple.remove();
