@@ -53,7 +53,8 @@ class Sprite {
     this.el.classList.add('spawn');
     this.el.textContent = e;
     const size = this.r * 2;
-    Object.assign(this.el.style, {
+    this.style = this.el.style; // cache style object
+    Object.assign(this.style, {
       width: `${size}px`,
       height: `${size}px`,
       lineHeight: `${size}px`,
@@ -61,8 +62,8 @@ class Sprite {
       transform: 'translate3d(var(--x), var(--y), 0) scale(1)'
     });
 
-    this.el.style.setProperty('--x', `${this.x - this.r}px`);
-    this.el.style.setProperty('--y', `${this.y - this.r}px`);
+    this.style.setProperty('--x', `${this.x - this.r}px`);
+    this.style.setProperty('--y', `${this.y - this.r}px`);
 
     if (Sprite.layer) Sprite.layer.appendChild(this.el);
     this.el._sprite = this;
@@ -70,7 +71,7 @@ class Sprite {
   }
 
   draw() {
-    this.el.style.transform =
+    this.style.transform =
       `translate3d(${this.x - this.r}px, ${this.y - this.r}px, 0) rotate(${this.angle}rad) scale(${this.scaleX}, ${this.scaleY})`;
   }
 
@@ -234,9 +235,9 @@ class BaseGame {
     };
     const full = { hp: 1, ...otherDefaults, ...desc };
     const sprite = new Sprite(full);
-    if (desc.s) Object.assign(sprite.el.style, desc.s);
+    if (desc.s) Object.assign(sprite.style, desc.s);
     if (desc.p) {
-      for (const [k, v] of Object.entries(desc.p)) sprite.el.style.setProperty(k, v);
+      for (const [k, v] of Object.entries(desc.p)) sprite.style.setProperty(k, v);
     }
     if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
 
@@ -321,8 +322,8 @@ class BaseGame {
   _popSprite(s) {                // visual + remove()
     s.alive = false;
     s.el.classList.remove('spawn');
-    s.el.style.setProperty('--x', `${s.x - s.r}px`);
-    s.el.style.setProperty('--y', `${s.y - s.r}px`);
+    s.style.setProperty('--x', `${s.x - s.r}px`);
+    s.style.setProperty('--y', `${s.y - s.r}px`);
     s.el.classList.add('pop');
     this.burst(s.x, s.y);
   }
