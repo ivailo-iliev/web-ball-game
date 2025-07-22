@@ -21,7 +21,7 @@
       const e = rare ? g.R.pick(BALLOON_RARE) : BALLOON_SET[0];
       const x = g.R.between(r, this.W - r);
       const y = this.H + r;
-      const dx = g.R.between(-20, 20);
+      const dx = g.R.between(-10, 10);
       const dy = -g.R.between(...B_V_RANGE);
       const hue = Math.random() * 360;
       const bri = g.R.between(...BRIGHT_RANGE);
