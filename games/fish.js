@@ -36,11 +36,6 @@
     move(s, dt){
       s.x += s.dx * dt;
       s.y += s.dy * dt;
-      if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > this.H && s.dy > 0)) {
-        s.dy *= -1;
-      }
-      if (s.y - s.r < 0) s.y = s.r;
-      if (s.y + s.r > this.H) s.y = this.H - s.r;
     }
   }));
 })(window);
