@@ -19,13 +19,10 @@ win.R = R;
 const DEFAULT_BURST = ['✨', '💥', '💫'];
 
 const baseCfg = {
-  mode: 'emoji',
   max: 6,
   rRange: [25, 90],
   vRange: [10, 180],
-  spin: 25,
   burstN: 14,
-  particleLife: 1,
   burst: DEFAULT_BURST,
   winPoints     : 30,                  // first team to reach this wins
   spawnDelayRange : [0, 3],            // seconds [min,max]
@@ -225,17 +222,15 @@ class BaseGame {
   addSprite(desc) {
     const [rMin, rMax] = this.cfg.rRange;
     const [vMin, vMax] = this.cfg.vRange;
-    const r = desc.r ?? R.between(rMin, rMax);
+    desc.r ??= R.between(rMin, rMax);
     const speed = R.between(vMin, vMax);
     const ang = R.rand(Math.PI * 2);
-    const otherDefaults = {
-      r,
-      e: desc.e ?? R.pick(this.cfg.emojis || []),
-      dx: Math.cos(ang) * speed,
-      dy: Math.sin(ang) * speed
-    };
-    const full = { hp: 1, ...otherDefaults, ...desc };
-    const sprite = new Sprite(full);
+    desc.e ??= R.pick(this.cfg.emojis || []);
+    desc.dx = Math.cos(ang) * speed;
+    desc.dy = Math.sin(ang) * speed;
+
+    const sprite = new Sprite(desc);
+    sprite.hp = 1;
     if (desc.s) Object.assign(sprite.style, desc.s);
     if (desc.p) {
       for (const [k, v] of Object.entries(desc.p)) sprite.style.setProperty(k, v);
@@ -267,7 +262,6 @@ class BaseGame {
   }
 
   _resolveCollisions() {
-    if (!this.cfg.collisions) return;
     const len = this.sprites.length;
     for (let i = 0; i < len; i++) {
       const a = this.sprites[i];

@@ -37,8 +37,7 @@
         dx: vx,
         dy: vy,
         r,
-        e: g.R.pick(this.emojis),
-        hp: 1
+        e: g.R.pick(this.emojis)
       };
       return d;
     },

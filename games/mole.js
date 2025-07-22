@@ -59,8 +59,8 @@
         dy: 0,
         r: this.holeR,
         e: g.R.pick(this.emojis),
-        hp: 1,
         ttl: MOLE_LIFETIME_SECS,
+        holeIndex: idx,
         p: { '--mole-h': `${this.holeR * 2}px` }
       };
       return d;
@@ -68,8 +68,8 @@
 
 
     onHit(sp){
-      const idx = this.holes.findIndex(h => h.x === sp.x && h.y === sp.y);
-      if(idx >= 0) this.holes[idx].occupied = false;
+      const idx = sp.holeIndex;
+      if(idx !== undefined) this.holes[idx].occupied = false;
     }
 
   }));
