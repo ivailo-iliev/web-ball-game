@@ -19,7 +19,7 @@
       const dx = swimRight ? speed : -speed;
       const x = swimRight ? -r : this.W + r;
       const y = g.R.between(r, this.H - r);
-      const dy = g.R.between(-20, 20);
+      const dy = g.R.between(-10, 10);
       const d = {
         x,
         y,

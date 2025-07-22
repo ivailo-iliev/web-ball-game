@@ -205,8 +205,8 @@ class BaseGame {
     const speed = R.between(vMin, vMax);
     const ang = R.rand(Math.PI * 2);
     desc.e ??= R.pick(this.cfg.emojis || []);
-    desc.dx = Math.cos(ang) * speed;
-    desc.dy = Math.sin(ang) * speed;
+    desc.dx ??= Math.cos(ang) * speed;
+    desc.dy ??= Math.sin(ang) * speed;
 
     const sprite = new Sprite(desc);
     if (desc.s) Object.assign(sprite.style, desc.s);
