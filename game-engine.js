@@ -159,13 +159,7 @@ class BaseGame {
   }
 
   /* ---- 3.2.1 spawn initial sprite(s) ---- */
-  start() {
-    const desc = this.spawn();
-    if (desc) this.addSprite(desc);
-    this._last = performance.now();
-    this.running = true;
-    this._raf = requestAnimationFrame(this._loop);
-  }
+  // Removed start() method; spawning handled in Game.run
 
   /* ---- 3.3 main loop : called from rAF ---- */
   loop(ts) {
@@ -415,8 +409,11 @@ Game.run = target => {
   }
   inst.init(layer);
   if (typeof inst.onStart === 'function') inst.onStart();
-  if (typeof inst.start === 'function') inst.start();
-  // BaseGame.start() handles requestAnimationFrame
+  const desc = inst.spawn();
+  if (desc) inst.addSprite(desc);
+  inst._last = performance.now();
+  inst.running = true;
+  inst._raf = requestAnimationFrame(inst._loop);
 };
 
 // Restart the current game when the window is resized
