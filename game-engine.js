@@ -53,7 +53,7 @@ class Sprite {
     this.el.textContent = e;
     const size = this.r * 2;
     this.style = this.el.style; // cache style object
-    this.style.setProperty('--size'), `${size}px`);
+    this.style.setProperty('--size', `${size}px`);
     this.style.setProperty('--x', `${this.x - this.r}px`);
     this.style.setProperty('--y', `${this.y - this.r}px`);
 
