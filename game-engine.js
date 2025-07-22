@@ -216,7 +216,11 @@ class BaseGame {
       s.draw();
     }
 
-    this.sprites = this.sprites.filter(sp => sp.alive);
+    for (let i = this.sprites.length - 1; i >= 0; i--) {
+      if (!this.sprites[i].alive) {
+        this.sprites.splice(i, 1);
+      }
+    }
     if (this.running) this._raf = requestAnimationFrame(this._loop);
   }
 
