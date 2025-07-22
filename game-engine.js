@@ -161,7 +161,7 @@ class BaseGame {
         if (desc) this.addSprite(desc);
       }
     }
-    for (let i = len--; i >= 0; i--) {
+    for (let i = len - 1; i >= 0; i--) {
       const s = this.sprites[i];
       this.move ? this.move(s, dt) : BaseGame._moveDefault(s, dt);
       this._wallBounce(s);
