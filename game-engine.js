@@ -94,6 +94,7 @@ class BaseGame {
     this.score = [0, 0];
     this.running = true;
     this._raf = null;
+    this._loop = this.loop.bind(this);
     this._spawnElapsed = 0;
     this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
   }
@@ -165,7 +166,6 @@ class BaseGame {
     const desc = this.spawn();
     if (desc) this.addSprite(desc);
     this._last = performance.now();
-    this._loop = this.loop.bind(this);
     this.running = true;
     this._raf = requestAnimationFrame(this._loop);
   }
@@ -184,7 +184,9 @@ class BaseGame {
         if (desc) this.addSprite(desc);
       }
     }
-    for (const s of this.sprites) {
+    const len = this.sprites.length;
+    for (let i = len - 1; i >= 0; i--) {
+      const s = this.sprites[i];
       this.move ? this.move(s, dt) : BaseGame._moveDefault(s, dt);
       this._wallBounce(s);
 
@@ -204,23 +206,16 @@ class BaseGame {
       ) {
         s.remove();
       }
+
+      if (s.ttl !== undefined && (s.ttl -= dt) <= 0) {
+        this._popSprite(s);
+      }
+
+      if (s.alive) s.draw();
+      if (!s.alive) this.sprites.splice(i, 1);
     }
 
     if (this.cfg.collisions) this._resolveCollisions();
-
-    for (const s of this.sprites) {
-      if (s.ttl !== undefined && (s.ttl -= dt) <= 0) {
-        this._popSprite(s);
-        continue;            // skip draw for a popped sprite
-      }
-      s.draw();
-    }
-
-    for (let i = this.sprites.length - 1; i >= 0; i--) {
-      if (!this.sprites[i].alive) {
-        this.sprites.splice(i, 1);
-      }
-    }
     if (this.running) this._raf = requestAnimationFrame(this._loop);
   }
 
@@ -228,8 +223,10 @@ class BaseGame {
   // desc.s → object of style properties (camelCase or kebab)
   // desc.p → object of CSS custom properties (keys starting with --)
   addSprite(desc) {
-    const r = desc.r ?? R.between(...this.cfg.rRange);
-    const speed = R.between(...this.cfg.vRange);
+    const [rMin, rMax] = this.cfg.rRange;
+    const [vMin, vMax] = this.cfg.vRange;
+    const r = desc.r ?? R.between(rMin, rMax);
+    const speed = R.between(vMin, vMax);
     const ang = R.rand(Math.PI * 2);
     const otherDefaults = {
       r,
@@ -270,17 +267,21 @@ class BaseGame {
   }
 
   _resolveCollisions() {
-    for (let i = 0; i < this.sprites.length; i++) {
+    if (!this.cfg.collisions) return;
+    const len = this.sprites.length;
+    for (let i = 0; i < len; i++) {
       const a = this.sprites[i];
       if (!a.alive) continue;
-      for (let j = i + 1; j < this.sprites.length; j++) {
+      for (let j = i + 1; j < len; j++) {
         const b = this.sprites[j];
         if (!b.alive) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy);
+        const dist2 = dx * dx + dy * dy;
         const min = a.r + b.r;
-        if (dist === 0 || dist >= min) continue;
+        const min2 = min * min;
+        if (dist2 === 0 || dist2 >= min2) continue;
+        const dist = Math.sqrt(dist2);
         const nx = dx / dist;
         const ny = dy / dist;
         const overlap = min - dist;
@@ -305,9 +306,11 @@ class BaseGame {
   }
 
   calculatePoints(s) {
+    const [ , rMax] = this.cfg.rRange;
+    const [ , vMax] = this.cfg.vRange;
     const speed = Math.hypot(s.dx, s.dy);
-    const sizeRatio = this.cfg.rRange[1] / s.r;
-    const speedRatio = speed / this.cfg.vRange[1];
+    const sizeRatio = rMax / s.r;
+    const speedRatio = speed / vMax;
     return Math.max(10, Math.round(sizeRatio * speedRatio * 400));
   }
 
