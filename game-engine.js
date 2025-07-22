@@ -37,10 +37,13 @@ const baseCfg = {
 
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
-  constructor({ x, y, dx, dy, r, e }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
+  constructor({ x, y, dx, dy, r, e, angle = 0, scaleX = 1, scaleY = 1 }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
     this.x = x; this.y = y;
     this.dx = dx; this.dy = dy;
     this.r = r; this.e = e;
+    this.angle = angle;
+    this.scaleX = scaleX;
+    this.scaleY = scaleY;
     this.mass = r * r;
     this.alive = true;
     this.entered = false;
@@ -71,7 +74,8 @@ class Sprite {
   }
 
   draw() {
-    this.el.style.transform = `translate3d(${this.x - this.r}px, ${this.y - this.r}px, 0)`;
+    this.el.style.transform =
+      `translate3d(${this.x - this.r}px, ${this.y - this.r}px, 0) rotate(${this.angle}rad) scale(${this.scaleX}, ${this.scaleY})`;
   }
 
   remove() {
