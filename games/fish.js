@@ -27,7 +27,6 @@
         dy,
         r,
         e: g.R.pick(this.emojis),
-        hp: 1,
         scaleX: swimRight ? -1 : 1,
         p: { '--flyX': swimRight ? '120vw' : '-120vw' }
       };
