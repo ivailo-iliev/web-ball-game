@@ -12,8 +12,8 @@
   const R_RANGE = [25, 90];
   const V_RANGE = [10, 180];
   const SPAWN_DELAY_RANGE = [0, 3];
-  const WOBBLE_AMPL = 0.10;
-  const WOBBLE_FREQ = 0.03;
+  const ROT_AMPL = 0.10;
+  const ROT_FREQ = 0.03;
 
   g.Game.register('emoji', g.BaseGame.make({
     max        : EMOJI_MAX,
@@ -38,17 +38,15 @@
         dy: vy,
         r,
         e: g.R.pick(this.emojis),
-        hp: 1,
-        phase: g.R.rand(Math.PI * 2)
+        hp: 1
       };
       return d;
     },
 
     move(s, dt) {
-      s.phase = (s.phase || 0) + dt * WOBBLE_FREQ;
-      s.y += Math.sin(s.phase) * WOBBLE_AMPL;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
+      s.angle = Math.sin((s.x + s.y) * ROT_FREQ) * ROT_AMPL;
     }
   }));
 })(window);

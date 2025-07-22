@@ -4,8 +4,8 @@
   const BALLOON_MAX  = 6;
   const R_RANGE      = [25, 90];
   const B_V_RANGE    = [25, 60];
-  const WOBBLE_FREQ  = 0.03;
-  const WOBBLE_AMPL  = 0.10;
+  const ROT_FREQ  = 0.03;
+  const ROT_AMPL  = 0.10;
   const SPAWN_DELAY_RANGE = [0, 3];
   const BRIGHT_RANGE = [0.9, 2];
   const SAT_RANGE    = [0.9, 1.0];
@@ -33,17 +33,15 @@
         dy,
         r,
         e,
-        phase: g.R.rand(Math.PI * 2),
         s: { filter: `hue-rotate(${hue}deg) brightness(${bri}) saturate(${sat})` }
       };
       return d;
     },
 
     move(s, dt){
-      s.phase = (s.phase || 0) + dt * WOBBLE_FREQ;
       s.x += s.dx * dt;
-      s.x += Math.sin(s.phase) * WOBBLE_AMPL;
       s.y += s.dy * dt;
+      s.angle = Math.sin((s.x + s.y) * ROT_FREQ) * ROT_AMPL;
     }
   }));
 })(window);

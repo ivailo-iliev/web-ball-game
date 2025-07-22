@@ -4,8 +4,6 @@
   const SPAWN_DELAY_RANGE = [0, 3];
   const R_RANGE = [25, 90];
   const V_RANGE = [10, 180];
-const WOBBLE_AMPL = 0.10;
-const WOBBLE_FREQ = 0.03;
 
   g.Game.register('fish', g.BaseGame.make({
     max: FISH_MAX,
@@ -30,16 +28,13 @@ const WOBBLE_FREQ = 0.03;
         r,
         e: g.R.pick(this.emojis),
         hp: 1,
-        phase: g.R.rand(Math.PI * 2),
+        scaleX: swimRight ? -1 : 1,
         p: { '--flyX': swimRight ? '120vw' : '-120vw' }
       };
-      if (swimRight) d.s = { scale: '-1 1' };
       return d;
     },
 
     move(s, dt){
-      s.phase = (s.phase || 0) + dt * WOBBLE_FREQ;
-      s.y += Math.sin(s.phase) * WOBBLE_AMPL;
       s.x += s.dx * dt;
       s.y += s.dy * dt;
       if ((s.y - s.r < 0 && s.dy < 0) || (s.y + s.r > this.H && s.dy > 0)) {
