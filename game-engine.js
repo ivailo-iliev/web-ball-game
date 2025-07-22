@@ -4,8 +4,11 @@
 (function (win) {
   'use strict';
 
-  const scoreAEl = document.getElementById('teamAScore');
-  const scoreBEl = document.getElementById('teamBScore');
+  /* DOM helper with simple caching */
+  const domCache = {};
+  const $ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
+
+  const scoreEl = [$('#teamAScore'),$('#teamBScore')];
 
 /* ══════════ 1.  Pure helpers – kept tiny & global ══════════ */
 const R = {
@@ -34,7 +37,7 @@ const baseCfg = {
 
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
-  constructor({ x, y, dx, dy, r, e, angle = 0, scaleX = 1, scaleY = 1 }) {        /* data: {x,y,vx,vy,r,html,hp,…} */
+  constructor({ x, y, dx, dy, r, e, angle = 0, scaleX = 1, scaleY = 1 }) {        /* data: {x,y,vx,vy,r,html…} */
     this.x = x; this.y = y;
     this.dx = dx; this.dy = dy;
     this.r = r; this.e = e;
@@ -46,25 +49,16 @@ class Sprite {
     this.entered = false;
 
     this.el = document.createElement('div');
-    this.el.className = 'emoji';
-    this.el.classList.add('spawn');
+    this.el.classList.add('sprite','spawn');
     this.el.textContent = e;
     const size = this.r * 2;
     this.style = this.el.style; // cache style object
-    Object.assign(this.style, {
-      width: `${size}px`,
-      height: `${size}px`,
-      lineHeight: `${size}px`,
-      fontSize: `${size}px`,
-      transform: 'translate3d(var(--x), var(--y), 0) scale(1)'
-    });
-
+    this.style.setProperty('--size'), `${size}px`);
     this.style.setProperty('--x', `${this.x - this.r}px`);
     this.style.setProperty('--y', `${this.y - this.r}px`);
 
     if (Sprite.layer) Sprite.layer.appendChild(this.el);
     this.el._sprite = this;
-
   }
 
   draw() {
@@ -100,15 +94,11 @@ class BaseGame {
   init(layer) {
     Sprite.layer = layer;                 // drawing parent
     this.container = layer;
-    this.winW = window.visualViewport.width || window.innerWidth;
-    this.winH = window.visualViewport.height || window.innerHeight;
-    this.W = this.winW;
-    this.H = this.winH;
+    this.W = window.visualViewport.width || window.innerWidth;
+    this.H = window.visualViewport.height || window.innerHeight;
     this._resize = () => {
-      this.winW = window.visualViewport.width || window.innerWidth;
-      this.winH = window.visualViewport.height || window.innerHeight;
-      this.W = this.winW;
-      this.H = this.winH;
+      this.W = window.visualViewport.width || window.innerWidth;
+      this.H = window.visualViewport.height || window.innerHeight;
     };
     window.addEventListener('resize', this._resize);
     window.addEventListener('orientationchange', this._resize);
@@ -119,7 +109,7 @@ class BaseGame {
     this.container.appendChild(this.burstTemplate);
 
     this.ripple = document.createElement('div');
-    this.ripple.classList.add('ripple');
+    this.ripple.className = 'ripple';
     this.container.appendChild(this.ripple);
 
     this._onAnimEnd = e => {
@@ -142,7 +132,6 @@ class BaseGame {
       const rect = this.container.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-
       this._showRipple(x, y);
 
       for (const s of this.sprites) {
@@ -153,20 +142,18 @@ class BaseGame {
       }
     };
     this.container.addEventListener('pointerdown', this.onPointerDown);
-    this._contextHandler = e => e.preventDefault();
-    this.container.addEventListener('contextmenu', this._contextHandler);
+    this.container.addEventListener("contextmenu", (e) => {e.preventDefault();});
     this.container.className = 'game' + (this.gameName ? ' ' + this.gameName : '');
   }
-
-  /* ---- 3.2.1 spawn initial sprite(s) ---- */
-  // Removed start() method; spawning handled in Game.run
 
   /* ---- 3.3 main loop : called from rAF ---- */
   loop(ts) {
     if (!this.running) return;
     const dt = (ts - this._last) / 1000;
     this._last = ts;
-    if (this.sprites.length < this.cfg.max) {
+    const len = this.sprites.length;
+
+    if (len < this.cfg.max) {
       this._spawnElapsed += dt;
       if (this._spawnElapsed >= this._nextSpawn) {
         this._spawnElapsed = 0;
@@ -175,8 +162,7 @@ class BaseGame {
         if (desc) this.addSprite(desc);
       }
     }
-    const len = this.sprites.length;
-    for (let i = len - 1; i >= 0; i--) {
+    for (let i = len--; i >= 0; i--) {
       const s = this.sprites[i];
       this.move ? this.move(s, dt) : BaseGame._moveDefault(s, dt);
       this._wallBounce(s);
@@ -224,7 +210,6 @@ class BaseGame {
     desc.dy = Math.sin(ang) * speed;
 
     const sprite = new Sprite(desc);
-    sprite.hp = 1;
     if (desc.s) Object.assign(sprite.style, desc.s);
     if (desc.p) {
       for (const [k, v] of Object.entries(desc.p)) sprite.style.setProperty(k, v);
@@ -305,10 +290,8 @@ class BaseGame {
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team = 0) {
     if (this.onHit && this.onHit(s, team) === false) return;  // optional veto
-    if (--s.hp > 0) return;
     this.score[team] += this.calculatePoints(s);
-    scoreAEl.textContent = `${this.score[0]}`;
-    scoreBEl.textContent = `${this.score[1]}`;
+    scoreEl[team].textContent = `${this.score[team]}`;
     this._popSprite(s);
     if (this.score[team] >= this.cfg.winPoints) this.end(team);
   }
@@ -387,8 +370,8 @@ Object.defineProperty(Game, 'current', { get: () => idx });
 Object.defineProperty(Game, 'list',    { get: () => REG.map(e => e.id) });
 
 Game.setTeams = (a, b) => {
-  scoreAEl.className = a;
-  scoreBEl.className = b;
+  scoreEl[0].className = a;
+  scoreEl[1].className = b;
 };
 
 Game.run = target => {
@@ -399,11 +382,11 @@ Game.run = target => {
   if (inst) inst.end();
   idx = i;
   inst = new REG[i].cls();
-  scoreAEl.textContent = '0';
-  scoreBEl.textContent = '0';
-  const layer = document.getElementById('gameLayer');
+  scoreEl[0].textContent = '0';
+  scoreEl[1].textContent = '0';
+  const layer = $('#game');
   if (!layer) {
-    const msg = 'Game.run: missing element with id "gameLayer"';
+    const msg = 'Game.run: missing element with id "game"';
     console.error(msg);
     throw new Error(msg);
   }

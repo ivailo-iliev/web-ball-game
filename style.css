@@ -46,13 +46,6 @@ body {
   overflow: hidden;
 }
 
-#gameLayer {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
 /* Config screen grid */
 #configScreen {
   display: grid;
@@ -135,7 +128,7 @@ input[type="range"] {
   content: var(--dot);
   margin-right: var(--spacing-1);
 }
-/* palette mapping */
+/* team mapping */
 #scoreboard > .red    { --dot: "🔴"; color: var(--clr-red); }
 #scoreboard > .orange { --dot: "🟠"; color: var(--clr-orange); }
 #scoreboard > .yellow { --dot: "🟡"; color: var(--clr-yellow); }
@@ -155,7 +148,7 @@ input[type="range"] {
 }
 
 /* Mole mode background */
-#game.mole-bg {
+#game.mole {
   --hole-size: 40px;
   --hole1-x: -100vw; --hole1-y: -100vh;
   --hole2-x: -100vw; --hole2-y: -100vh;
@@ -195,7 +188,7 @@ input[type="range"] {
     var(--hole8-x) var(--hole8-y);
 }
 
-.emoji {
+.sprite {
   position: absolute;
   font-family: sans-serif;
   text-align: center;
@@ -210,10 +203,13 @@ input[type="range"] {
   --x: 0px;
   --y: 0px;
   transform: translate3d(var(--x), var(--y), 0) scale(1);
+  width: var(--size);
+  height: var(--size);
+  font-size: var(--size);
 }
-.emoji.mole {
+.mole .sprite {
   overflow: hidden;
-  align-items: flex-end;
+  align-items: flex-start;
   transform-origin: bottom;
   will-change: height;
 }
@@ -237,16 +233,6 @@ input[type="range"] {
 }
 
 
-@keyframes moleRise {
-  from { height: 0; }
-  to   { height: var(--mole-h); }
-}
-
-@keyframes moleFall {
-  from { height: var(--mole-h); }
-  to   { height: 0; }
-}
-
 .burst {
   position: absolute;
   font-family: sans-serif;
@@ -257,11 +243,6 @@ input[type="range"] {
   user-select: none;
   will-change: transform, opacity;
   animation: pop 1s ease-out forwards;
-}
-
-@keyframes pop {
-  from { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
-  to   { transform: translate3d(var(--dx), var(--dy), 0) scale(.1); opacity: 0; }
 }
 
 /* ripple */
@@ -344,3 +325,13 @@ input[type="range"] {
 
 .game.mole .spawn { animation: moleRise 0.3s forwards; }
 .game.mole .pop   { animation: moleFall 0.3s forwards; }
+
+@keyframes moleRise {
+  from { height: 0; }
+  to   { height: var(--mole-h); }
+}
+
+@keyframes moleFall {
+  from { height: var(--mole-h); }
+  to   { height: 0; }
+}
