@@ -85,7 +85,6 @@ class BaseGame {
     this.score = [0, 0];
     this.running = true;
     this._raf = null;
-    this._loop = this.loop.bind(this);
     this._spawnElapsed = 0;
     this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
   }
@@ -147,7 +146,7 @@ class BaseGame {
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
-  loop(ts) {
+  loop = (ts) => {
     if (!this.running) return;
     const dt = (ts - this._last) / 1000;
     this._last = ts;
@@ -193,7 +192,7 @@ class BaseGame {
     }
 
     if (this.cfg.collisions) this._resolveCollisions();
-    if (this.running) this._raf = requestAnimationFrame(this._loop);
+    if (this.running) this._raf = requestAnimationFrame(this.loop);
   }
 
   /* ---- 3.4 factory : create + register a sprite ---- */
@@ -396,7 +395,7 @@ Game.run = target => {
   if (desc) inst.addSprite(desc);
   inst._last = performance.now();
   inst.running = true;
-  inst._raf = requestAnimationFrame(inst._loop);
+  inst._raf = requestAnimationFrame(inst.loop);
 };
 
 // Restart the current game when the window is resized
