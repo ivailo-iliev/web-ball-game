@@ -52,9 +52,10 @@
       if(idx === -1) return null;
       const hole = this.holes[idx];
       hole.occupied = true;
+
       const d = {
         x: hole.x,
-        y: hole.y,
+        y: hole.y - this.holeR,
         dx: 0,
         dy: 0,
         r: this.holeR,
