@@ -122,6 +122,7 @@ class BaseGame {
           sp.draw();
         }
       } else if (el.classList.contains('pop')) {
+        if (typeof this.onPop === 'function') this.onPop(sp);
         sp.remove();
       }
     };
@@ -288,9 +289,9 @@ class BaseGame {
 
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team = 0) {
-    if (this.onHit && this.onHit(s, team) === false) return;  // optional veto
     this.score[team] += this.calculatePoints(s);
     scoreEl[team].textContent = `${this.score[team]}`;
+    this.emitBurst(s.x, s.y);
     this._popSprite(s);
     if (this.score[team] >= this.cfg.winPoints) this.end(team);
   }
@@ -302,7 +303,6 @@ class BaseGame {
     s.style.setProperty('--x', `${s.x - s.r}px`);
     s.style.setProperty('--y', `${s.y - s.r}px`);
     s.el.classList.add('pop');
-    this.emitBurst(s.x, s.y);
   }
 
   emitBurst(x, y, emojiArr = this.cfg.burst) {
