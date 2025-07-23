@@ -53,16 +53,28 @@
       const hole = this.holes[idx];
       hole.occupied = true;
 
+      const x = hole.x;
+      const y = hole.y - this.holeR;
+      const bottom = this.H - hole.y;
+
       const d = {
-        x: hole.x,
-        y: hole.y - this.holeR,
+        x,
+        y,
         dx: 0,
         dy: 0,
         r: this.holeR,
         e: g.R.pick(this.emojis),
         ttl: MOLE_LIFETIME_SECS,
         holeIndex: idx,
-        p: { '--mole-h': `${this.holeR * 2}px` }
+        p: {
+          '--mole-h': `${this.holeR * 2}px`,
+          '--x': `${x - this.holeR}px`,
+          '--y': `${bottom}px`
+        },
+        s: {
+          top: 'auto',
+          height: '0px'
+        }
       };
       return d;
     },
