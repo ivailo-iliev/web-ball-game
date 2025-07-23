@@ -27,7 +27,7 @@ const baseCfg = {
   vRange: [10, 180],
   burstN: 14,
   burst: DEFAULT_BURST,
-  winPoints     : 30,                  // first team to reach this wins
+  winPoints     : Infinity,                  // first team to reach this wins
   spawnDelayRange : [0, 3],            // seconds [min,max]
   emojis     : ['😀','😎','🤖','👻'], // fallback artwork
   collisions : false,              // enable physics collisions

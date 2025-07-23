@@ -149,6 +149,7 @@ input[type="range"] {
 
 /* Mole mode background */
 #game.mole {
+    background-color: #4f8a34;
   --hole-size: 40px;
   --hole1-x: -100vw; --hole1-y: -100vh;
   --hole2-x: -100vw; --hole2-y: -100vh;
@@ -159,14 +160,14 @@ input[type="range"] {
   --hole7-x: -100vw; --hole7-y: -100vh;
   --hole8-x: -100vw; --hole8-y: -100vh;
   background-image:
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%),
-    radial-gradient(circle, rgba(0,0,0,.6) 60%, rgba(0,0,0,0) 61%);
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>");
   background-repeat: no-repeat;
   background-size:
     var(--hole-size) var(--hole-size),
@@ -210,7 +211,11 @@ input[type="range"] {
 .mole .sprite {
   overflow: hidden;
   align-items: flex-start;
+  transform: none;
   transform-origin: bottom;
+  left: var(--x);
+  bottom: var(--y);
+  top: auto;
   will-change: height;
 }
 

@@ -20,14 +20,14 @@ const obs1 = createSectionObserver(
 obs1.observe(sec1);
 
 // Section 2
-const sec2 = document.getElementById('configScreen');
+/*const sec2 = document.getElementById('configScreen');
 Game.setTeams(App.Config.get().teamA, App.Config.get().teamB);
 const obs2 = createSectionObserver(
     () => { console.log('Enter configScreen'); App.Controller.setPreview(true); },
     () => { console.log('Leave configScreen'); App.Controller.setPreview(false); }
 );
 obs2.observe(sec2);
-
+*/
 // === horizontal swipe on #gameScreen only ===
 const game = document.getElementById('gameScreen');
 let startX = 0, startY = 0;
