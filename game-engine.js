@@ -255,6 +255,7 @@ class BaseGame {
     s.el.classList.remove('spawn');
     s.style.setProperty('--x', `${s.x - s.r}px`);
     s.style.setProperty('--y', `${s.y - s.r}px`);
+    if (typeof inst.onPop === 'function') inst.onPop();
     s.el.classList.add('pop');
   }
 
