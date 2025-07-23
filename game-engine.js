@@ -6,7 +6,7 @@
 
   /* DOM helper with simple caching */
   const domCache = {};
-  const $ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
+  const $ = sel => (domCache[sel] ??= document.querySelector(sel));
 
   const scoreEl = [$('#teamAScore'),$('#teamBScore')];
 
@@ -35,12 +35,7 @@ const baseCfg = {
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
   constructor({ x, y, dx, dy, r, e, angle = 0, scaleX = 1, scaleY = 1 }) {        /* data: {x,y,vx,vy,r,html…} */
-    this.x = x; this.y = y;
-    this.dx = dx; this.dy = dy;
-    this.r = r; this.e = e;
-    this.angle = angle;
-    this.scaleX = scaleX;
-    this.scaleY = scaleY;
+    Object.assign(this, { x, y, dx, dy, r, e, angle, scaleX, scaleY });
     this.mass = r * r;
     this.alive = true;
     this.entered = false;
@@ -65,8 +60,10 @@ class Sprite {
 
   remove() {
     this.alive = false;
-    this.el.remove();
-  }
+    if (this.el) {
+      this.el._sprite = null;
+      this.el.remove();
+    }
 }
 Sprite.layer = null;                  // set once in Game.init()
 
@@ -180,7 +177,7 @@ class BaseGame {
 
   /* ---- 3.6 COLLISION helpers ---- */
   _wallBounce(s) {
-    const W = this.W, H = this.H;
+    const { W, H } = this;
     if (this.cfg.bounceX && ((s.x - s.r < 0 && s.dx < 0) || (s.x + s.r > W && s.dx > 0))) {
       s.dx *= -1;
     }
@@ -287,7 +284,7 @@ class BaseGame {
   onPointer = (x, y, btn = 0) => {
     this._showRipple(x, y);
     for (const s of this.sprites) {
-      if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
+      if (Math.hypot(x - s.x, y - s.y) <= s.r) {
         this.hit(s, btn === 2 ? 1 : 0);
         break;
       }
@@ -299,16 +296,15 @@ class BaseGame {
     const el = e.target;
     const sp = el._sprite;
     if (!sp) return;
-    if (el.classList.contains('spawn')) {
-      el.classList.remove('spawn');
+    if (el.classList.contains("pop")) {
+      sp.remove();
+    } else if (el.classList.contains("spawn")) {
+      el.classList.remove("spawn");
       if (this.running && sp.alive !== false) {
         this.sprites.push(sp);
         sp.draw();
       }
-    } else if (el.classList.contains('pop')) {
-      sp.remove();
     }
-  };
 
   /* ---- 3.9 END game ---- */
   end(winner) {
