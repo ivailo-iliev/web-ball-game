@@ -68,7 +68,7 @@
     },
 
 
-    onHit(sp){
+    onPop(sp){
       const idx = sp.holeIndex;
       if(idx !== undefined) this.holes[idx].occupied = false;
     }
