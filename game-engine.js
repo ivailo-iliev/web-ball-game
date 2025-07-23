@@ -18,15 +18,12 @@ const R = {
 };
 win.R = R;
 
-
-const DEFAULT_BURST = ['✨', '💥', '💫'];
-
 const baseCfg = {
   max: 6,
   rRange: [25, 90],
   vRange: [10, 180],
   burstN: 14,
-  burst: DEFAULT_BURST,
+  burst: ['✨', '💥', '💫'],
   winPoints     : Infinity,                  // first team to reach this wins
   spawnDelayRange : [0, 3],            // seconds [min,max]
   emojis     : ['😀','😎','🤖','👻'], // fallback artwork
@@ -72,8 +69,6 @@ class Sprite {
   }
 }
 Sprite.layer = null;                  // set once in Game.init()
-Sprite.SPAWN_TIME = 300;             // ms - must match CSS animation duration
-Sprite.POP_TIME   = 200;             // ms - pop animation duration
 
 /* ══════════ 3.  BaseGame  – orchestrates many sprites ══════════ */
 class BaseGame {
@@ -90,60 +85,18 @@ class BaseGame {
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
-  init(layer) {
-    Sprite.layer = layer;                 // drawing parent
-    this.container = layer;
-    this.W = window.visualViewport.width || window.innerWidth;
-    this.H = window.visualViewport.height || window.innerHeight;
-    this._resize = () => {
-      this.W = window.visualViewport.width || window.innerWidth;
-      this.H = window.visualViewport.height || window.innerHeight;
-    };
-    window.addEventListener('resize', this._resize);
-    window.addEventListener('orientationchange', this._resize);
+  init() {
+    /* per‑game only — global boot already handled listeners & helpers */
+    Sprite.layer   = Game.layer;
+    this.container = Game.layer;
+    this.W         = Game.W;
+    this.H         = Game.H;
 
-    this.burstTemplate = document.createElement('div');
-    this.burstTemplate.className = 'burst';
-    this.burstTemplate.style.display = 'none';
-    this.container.appendChild(this.burstTemplate);
+    this.burstTemplate = Game.burstT;
+    this.ripple        = Game.ripple;
 
-    this.ripple = document.createElement('div');
-    this.ripple.className = 'ripple';
-    this.container.appendChild(this.ripple);
-
-    this._onAnimEnd = e => {
-      const el = e.target;
-      const sp = el._sprite;
-      if (!sp) return;
-      if (el.classList.contains('spawn')) {
-        el.classList.remove('spawn');
-        if (this.running && sp.alive !== false) {
-          this.sprites.push(sp);
-          sp.draw();
-        }
-      } else if (el.classList.contains('pop')) {
-        if (typeof this.onPop === 'function') this.onPop(sp);
-        sp.remove();
-      }
-    };
-    this.container.addEventListener('animationend', this._onAnimEnd);
-
-    this.onPointerDown = e => {
-      const rect = this.container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      this._showRipple(x, y);
-
-      for (const s of this.sprites) {
-        if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
-          this.hit(s, e.button === 2 ? 1 : 0);
-          break;
-        }
-      }
-    };
-    this.container.addEventListener('pointerdown', this.onPointerDown);
-    this.container.addEventListener("contextmenu", (e) => {e.preventDefault();});
-    this.container.className = 'game' + (this.gameName ? ' ' + this.gameName : '');
+    this.container.className =
+      'game' + (this.gameName ? ' ' + this.gameName : '');
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
@@ -329,19 +282,41 @@ class BaseGame {
     this.ripple.classList.add('animate');
   }
 
+  /* ---- click dispatcher (called from the global pointer listener) ---- */
+  onPointer = (x, y, btn = 0) => {
+    this._showRipple(x, y);
+    for (const s of this.sprites) {
+      if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
+        this.hit(s, btn === 2 ? 1 : 0);
+        break;
+      }
+    }
+  };
+
+  /* ---- animation‑end dispatcher (called from the global listener) ---- */
+  _onAnimEnd = (e) => {
+    const el = e.target;
+    const sp = el._sprite;
+    if (!sp) return;
+    if (el.classList.contains('spawn')) {
+      el.classList.remove('spawn');
+      if (this.running && sp.alive !== false) {
+        this.sprites.push(sp);
+        sp.draw();
+      }
+    } else if (el.classList.contains('pop')) {
+      sp.remove();
+    }
+  };
+
   /* ---- 3.9 END game ---- */
   end(winner) {
     if (!this.running) return;
     this.running = false;
     cancelAnimationFrame(this._raf);
     this.sprites.forEach(sp => sp.remove());
-    this.container.removeEventListener('pointerdown', this.onPointerDown);
-    this.container.removeEventListener('contextmenu', this._contextHandler);
-    this.container.removeEventListener('animationend', this._onAnimEnd);
-    window.removeEventListener('resize', this._resize);
-    window.removeEventListener('orientationchange', this._resize);
-    if (this.ripple) this.ripple.remove();
-    this.container.querySelectorAll('.burst').forEach(b => b.remove());
+    this.container.querySelectorAll('.burst').forEach(b => b !== Game.burstT && b.remove());
+
     window.dispatchEvent(new CustomEvent('gameover', { detail: {
       winner,
       score: [...this.score]
@@ -355,7 +330,53 @@ BaseGame.make = cfg => class Game extends BaseGame {
 };
 
 /* ══════════ 5. registry + public runner ══════════ */
-const Game = {};
+
+/* ---- one-time engine boot ---- */
+function boot() {
+  if (Game._booted) return;
+  Game._booted = true;
+
+  const layer = $('#game');
+  if (!layer) throw new Error('Game.run: missing #game element');
+  Game.layer = layer;
+
+  const updateViewport = () => {
+    Game.W =
+      (window.visualViewport && window.visualViewport.width) ||
+      window.innerWidth;
+    Game.H =
+      (window.visualViewport && window.visualViewport.height) ||
+      window.innerHeight;
+  };
+  updateViewport();
+  window.addEventListener('resize', updateViewport, { passive: true });
+  window.addEventListener('orientationchange', updateViewport, { passive: true });
+
+  Game.ripple = document.createElement('div');
+  Game.ripple.className = 'ripple';
+  Game.burstT = document.createElement('div');
+  Game.burstT.className = 'burst';
+  Game.burstT.style.display = 'none';
+  layer.append(Game.ripple, Game.burstT);
+
+  layer.addEventListener('pointerdown', e => {
+    const g = inst;
+    if (!g) return;
+    const r = layer.getBoundingClientRect();
+    g.onPointer(e.clientX - r.left, e.clientY - r.top, e.button);
+  });
+  layer.addEventListener('contextmenu',  e => e.preventDefault());
+  layer.addEventListener('animationend', e => inst?._onAnimEnd?.(e));
+}
+
+/* internal engine state */
+const Game = {
+  _booted : false,
+  layer   : null,
+  W: 0, H: 0,
+  ripple  : null,
+  burstT  : null
+};
 const REG = [];
 let idx = -1;
 let inst = null;
@@ -374,41 +395,26 @@ Game.setTeams = (a, b) => {
 };
 
 Game.run = target => {
-  const i = typeof target === 'number'
-           ? (target % REG.length + REG.length) % REG.length
-           : REG.findIndex(e => e.id === target);
+  boot(); /* make sure global engine bits exist */
+
+  const i =
+    typeof target === 'number'
+      ? (target % REG.length + REG.length) % REG.length
+      : REG.findIndex(e => e.id === target);
   if (i < 0) return;
   if (inst) inst.end();
   idx = i;
   inst = new REG[i].cls();
+
   scoreEl[0].textContent = '0';
   scoreEl[1].textContent = '0';
-  const layer = $('#game');
-  if (!layer) {
-    const msg = 'Game.run: missing element with id "game"';
-    console.error(msg);
-    throw new Error(msg);
-  }
-  inst.init(layer);
+
+  inst.init(); /* per-game init only */
   if (typeof inst.onStart === 'function') inst.onStart();
-  const desc = inst.spawn();
-  if (desc) inst.addSprite(desc);
   inst._last = performance.now();
   inst.running = true;
   inst._raf = requestAnimationFrame(inst.loop);
 };
-
-// Restart the current game when the window is resized
-let resizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {
-    if (inst) {
-      inst.end();
-      Game.run(idx);
-    }
-  }, 200);
-}, { passive: true });
 
 Object.freeze(Game);
 
