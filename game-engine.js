@@ -302,10 +302,10 @@ class BaseGame {
     s.style.setProperty('--x', `${s.x - s.r}px`);
     s.style.setProperty('--y', `${s.y - s.r}px`);
     s.el.classList.add('pop');
-    this.burst(s.x, s.y);
+    this.emitBurst(s.x, s.y);
   }
 
-  burst(x, y, emojiArr = this.cfg.burst) {
+  emitBurst(x, y, emojiArr = this.cfg.burst) {
     for (let i = 0; i < this.cfg.burstN; i++) {
       const sp = 150 + R.rand(150);
       const ang = R.rand(Math.PI * 2);
