@@ -48,7 +48,14 @@
 
 
     spawn(){
-      const idx = this.holes.findIndex(h => !h.occupied);
+      let idx = -1;
+      let n = 0;
+      for(let i=0; i<this.holes.length; i++){
+        if(!this.holes[i].occupied){
+          n++;
+          if(g.R.rand(n) < 1) idx = i;
+        }
+      }
       if(idx === -1) return null;
       const hole = this.holes[idx];
       hole.occupied = true;
