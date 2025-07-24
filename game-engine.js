@@ -32,6 +32,11 @@ const baseCfg = {
   bounceY    : false
 };
 
+const BURST_VECTORS = Array.from({ length: 32 }, (_, i) => {
+  const ang = (i / 32) * Math.PI * 2;
+  return { x: Math.cos(ang), y: Math.sin(ang) };
+});
+
 /* ══════════ 2.  Sprite  – one emoji on screen ══════════ */
 class Sprite {
   constructor({ x, y, dx, dy, r, e, angle = 0, scaleX = 1, scaleY = 1 }) {        /* data: {x,y,vx,vy,r,html…} */
@@ -265,22 +270,21 @@ class BaseGame {
   }
 
   emitBurst(x, y, emojiArr = this.cfg.burst) {
-    this.burstEl.style.left = `${x}px`;
-    this.burstEl.style.top = `${y}px`;
+    this.burstEl.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     const children = this.burstEl.children;
     for (let i = 0; i < children.length; i++) {
       const p = children[i];
       p.textContent = emojiArr[Math.floor(R.rand(emojiArr.length))];
       const sp = 150 + R.rand(150);
-      const ang = R.rand(Math.PI * 2);
-      const dx = Math.cos(ang) * sp;
-      const dy = Math.sin(ang) * sp;
+      const vec = BURST_VECTORS[Math.floor(R.rand(BURST_VECTORS.length))];
+      const dx = vec.x * sp;
+      const dy = vec.y * sp;
       p.style.setProperty('--dx', `${dx}px`);
       p.style.setProperty('--dy', `${dy}px`);
-      p.style.animation = 'none';
-      void p.offsetWidth;
-      p.style.animation = 'particleMove var(--life,1s) linear forwards';
     }
+    this.burstEl.classList.remove('animate');
+    void this.burstEl.offsetWidth;
+    this.burstEl.classList.add('animate');
   }
 
   _showRipple(x, y) {
