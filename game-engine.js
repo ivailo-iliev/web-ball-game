@@ -274,9 +274,9 @@ class BaseGame {
     const children = this.burstEl.children;
     for (let i = 0; i < children.length; i++) {
       const p = children[i];
-      p.textContent = emojiArr[Math.floor(R.rand(emojiArr.length))];
+      p.textContent = R.pick(emojiArr);
       const sp = 150 + R.rand(150);
-      const vec = BURST_VECTORS[Math.floor(R.rand(BURST_VECTORS.length))];
+      const vec = R.pick(BURST_VECTORS);
       const dx = vec.x * sp;
       const dy = vec.y * sp;
       p.style.setProperty('--dx', `${dx}px`);
