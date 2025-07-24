@@ -84,6 +84,7 @@ class BaseGame {
     this.sprites = [];
     this.score = [0, 0];
     this.running = true;
+    this.deadline = 0;
     this._raf = null;
     this._spawnElapsed = 0;
     this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
@@ -158,14 +159,9 @@ class BaseGame {
 
     if (this.cfg.collisions) this._resolveCollisions();
 
-    if (this.timeLeft !== undefined && this.timeLeft !== Infinity) {
-      this.timeLeft -= dt;
-      if (this.timeLeft <= 0) {
-        const [a, b] = this.score;
-        const winner = a === b ? -1 : a > b ? 0 : 1;
-        this.end(winner);
-        return;
-      }
+    if (this.deadline && ts >= this.deadline) {
+      const winner = this.score[0] > this.score[1] ? 0 : 1;
+      return this.end(winner);
     }
 
     if (this.running) this._raf = requestAnimationFrame(this.loop);
@@ -412,7 +408,7 @@ Game.setTeams = (a, b) => {
   scoreEl[1].className = b;
 };
 
-Game.run = (target, minutes) => {
+Game.run = (target, opts = {}) => {
   boot(); /* make sure global engine bits exist */
 
   const i =
@@ -424,14 +420,23 @@ Game.run = (target, minutes) => {
   idx = i;
   inst = new REG[i].cls();
 
+  // allow per-run configuration overrides
+  if (opts && typeof opts === 'object') {
+    Object.assign(inst.cfg, opts);
+  }
+
+  const now = performance.now();
+  inst.deadline =
+    typeof inst.cfg.gameMinutes === 'number' && inst.cfg.gameMinutes > 0
+      ? now + inst.cfg.gameMinutes * 60000
+      : 0;
+
   scoreEl[0].textContent = '0';
   scoreEl[1].textContent = '0';
 
   inst.init(); /* per-game init only */
-  inst.timeLeft =
-    typeof minutes === 'number' && minutes > 0 ? minutes * 60 : Infinity;
   if (typeof inst.onStart === 'function') inst.onStart();
-  inst._last = performance.now();
+  inst._last = now;
   inst.running = true;
   inst._raf = requestAnimationFrame(inst.loop);
 };
