@@ -211,11 +211,9 @@ input[type="range"] {
 .mole .sprite {
   overflow: hidden;
   align-items: flex-start;
-  transform: none;
-  transform-origin: bottom;
-  left: var(--x);
-  bottom: var(--y);
-  top: auto;
+  transform: none !important;
+  inset: auto auto var(--py) var(--px);
+/*  height: var(--mole-h);*/
   will-change: height;
 }
 
@@ -333,10 +331,10 @@ input[type="range"] {
 
 @keyframes moleRise {
   from { height: 0; }
-  to   { height: var(--mole-h); }
+  to   { height: var(--size); }
 }
 
 @keyframes moleFall {
-  from { height: var(--mole-h); }
+  from { height: var(--size); }
   to   { height: 0; }
 }

@@ -1,5 +1,5 @@
 (function(g){
-  const MOLE_LIFETIME_SECS = 2;
+  const MOLE_LIFETIME_SECS = 10;
   const MOLE_MAX = 12;
   const MOLE_EMOJIS = ['🐭','🐰'];
   const MOLE_ROWS = [3,2,3];
@@ -53,13 +53,9 @@
       const hole = this.holes[idx];
       hole.occupied = true;
 
-      const x = hole.x;
-      const y = hole.y - this.holeR;
-      const bottom = this.H - hole.y;
-
       const d = {
-        x,
-        y,
+        x: 0,
+        y: 0,
         dx: 0,
         dy: 0,
         r: this.holeR,
@@ -67,13 +63,8 @@
         ttl: MOLE_LIFETIME_SECS,
         holeIndex: idx,
         p: {
-          '--mole-h': `${this.holeR * 2}px`,
-          '--x': `${x - this.holeR}px`,
-          '--y': `${bottom}px`
-        },
-        s: {
-          top: 'auto',
-          height: '0px'
+          '--px':     `${hole.x - this.holeR}px`,
+          '--py':     `${this.H - hole.y}px`
         }
       };
       return d;

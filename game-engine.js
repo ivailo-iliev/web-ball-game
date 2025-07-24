@@ -168,8 +168,7 @@ class BaseGame {
       for (const [k, v] of Object.entries(desc.p)) sprite.style.setProperty(k, v);
     }
     if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
-
-    // movement begins when spawn animation ends via animationend handler
+    if (desc.holeIndex !== undefined) sprite.holeIndex = desc.holeIndex;
 
     return sprite;
   }
@@ -255,7 +254,7 @@ class BaseGame {
     s.el.classList.remove('spawn');
     s.style.setProperty('--x', `${s.x - s.r}px`);
     s.style.setProperty('--y', `${s.y - s.r}px`);
-    if (typeof inst.onPop === 'function') inst.onPop();
+    if (typeof inst.onPop === 'function') inst.onPop(s);
     s.el.classList.add('pop');
   }
 
@@ -417,7 +416,7 @@ Game.run = target => {
   inst._raf = requestAnimationFrame(inst.loop);
 };
 
-Object.freeze(Game);
+//Object.freeze(Game);
 
 /* ══════════ 6. export globals ══════════ */
 win.Game   = Game;
