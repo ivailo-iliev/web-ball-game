@@ -381,6 +381,7 @@ function boot() {
     g.onPointer(e.clientX - r.left, e.clientY - r.top, e.button);
   });
   layer.addEventListener('contextmenu',  e => e.preventDefault());
+  window.addEventListener('contextmenu', e => e.preventDefault());
   layer.addEventListener('animationend', e => inst?._onAnimEnd?.(e));
 }
 
