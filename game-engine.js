@@ -287,7 +287,7 @@ class BaseGame {
     this._showRipple(x, y);
     for (const s of this.sprites) {
       if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
-        this.hit(s, btn === 2 ? 1 : 0);
+        this.hit(s, btn === 2 ? 0 : 1);
         break;
       }
     }
