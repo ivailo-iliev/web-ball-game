@@ -157,6 +157,17 @@ class BaseGame {
     }
 
     if (this.cfg.collisions) this._resolveCollisions();
+
+    if (this.timeLeft !== undefined && this.timeLeft !== Infinity) {
+      this.timeLeft -= dt;
+      if (this.timeLeft <= 0) {
+        const [a, b] = this.score;
+        const winner = a === b ? -1 : a > b ? 0 : 1;
+        this.end(winner);
+        return;
+      }
+    }
+
     if (this.running) this._raf = requestAnimationFrame(this.loop);
   }
 
@@ -401,7 +412,7 @@ Game.setTeams = (a, b) => {
   scoreEl[1].className = b;
 };
 
-Game.run = target => {
+Game.run = (target, minutes) => {
   boot(); /* make sure global engine bits exist */
 
   const i =
@@ -417,6 +428,8 @@ Game.run = target => {
   scoreEl[1].textContent = '0';
 
   inst.init(); /* per-game init only */
+  inst.timeLeft =
+    typeof minutes === 'number' && minutes > 0 ? minutes * 60 : Infinity;
   if (typeof inst.onStart === 'function') inst.onStart();
   inst._last = performance.now();
   inst.running = true;
