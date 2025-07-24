@@ -82,6 +82,12 @@ class BaseGame {
     this._raf = null;
     this._spawnElapsed = 0;
     this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
+
+    this.burstEl = document.createElement('div');
+    this.burstEl.className = 'burst';
+    for (let i = 0; i < this.cfg.burstN; i++) {
+      this.burstEl.appendChild(document.createElement('p'));
+    }
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
@@ -92,8 +98,8 @@ class BaseGame {
     this.W         = Game.W;
     this.H         = Game.H;
 
-    this.burstTemplate = Game.burstT;
-    this.ripple        = Game.ripple;
+    this.ripple = Game.ripple;
+    this.container.appendChild(this.burstEl);
 
     this.container.className =
       'game' + (this.gameName ? ' ' + this.gameName : '');
@@ -259,19 +265,21 @@ class BaseGame {
   }
 
   emitBurst(x, y, emojiArr = this.cfg.burst) {
-    for (let i = 0; i < this.cfg.burstN; i++) {
+    this.burstEl.style.left = `${x}px`;
+    this.burstEl.style.top = `${y}px`;
+    const children = this.burstEl.children;
+    for (let i = 0; i < children.length; i++) {
+      const p = children[i];
+      p.textContent = emojiArr[Math.floor(R.rand(emojiArr.length))];
       const sp = 150 + R.rand(150);
       const ang = R.rand(Math.PI * 2);
-      const dxp = Math.cos(ang) * sp;
-      const dyp = Math.sin(ang) * sp;
-      const b = this.burstTemplate.cloneNode(true);
-      b.style.display = 'block';
-      b.textContent = emojiArr[Math.floor(R.rand(emojiArr.length))];
-      Object.assign(b.style, { left: `${x}px`, top: `${y}px` });
-      b.style.setProperty('--dx', `${dxp}px`);
-      b.style.setProperty('--dy', `${dyp}px`);
-      this.container.appendChild(b);
-      b.addEventListener('animationend', () => b.remove(), { once: true });
+      const dx = Math.cos(ang) * sp;
+      const dy = Math.sin(ang) * sp;
+      p.style.setProperty('--dx', `${dx}px`);
+      p.style.setProperty('--dy', `${dy}px`);
+      p.style.animation = 'none';
+      void p.offsetWidth;
+      p.style.animation = 'particleMove var(--life,1s) linear forwards';
     }
   }
 
@@ -315,7 +323,6 @@ class BaseGame {
     this.running = false;
     cancelAnimationFrame(this._raf);
     this.sprites.forEach(sp => sp.remove());
-    this.container.querySelectorAll('.burst').forEach(b => b !== Game.burstT && b.remove());
 
     window.dispatchEvent(new CustomEvent('gameover', { detail: {
       winner,
@@ -354,10 +361,7 @@ function boot() {
 
   Game.ripple = document.createElement('div');
   Game.ripple.className = 'ripple';
-  Game.burstT = document.createElement('div');
-  Game.burstT.className = 'burst';
-  Game.burstT.style.display = 'none';
-  layer.append(Game.ripple, Game.burstT);
+  layer.append(Game.ripple);
 
   layer.addEventListener('pointerdown', e => {
     const g = inst;
@@ -375,7 +379,6 @@ const Game = {
   layer   : null,
   W: 0, H: 0,
   ripple  : null,
-  burstT  : null
 };
 const REG = [];
 let idx = -1;
