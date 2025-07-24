@@ -54,8 +54,8 @@
       hole.occupied = true;
 
       const d = {
-        x: 0,
-        y: 0,
+        x: hole.x,
+        y: hole.y - this.holeR,
         dx: 0,
         dy: 0,
         r: this.holeR,
