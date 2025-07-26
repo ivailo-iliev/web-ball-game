@@ -328,6 +328,9 @@ input[type="range"] {
 .game.fish .spawn { animation: fishSpawn 0.3s ease-out; }
 .game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
 
+.game.fruits .spawn { animation: fruitSpawn 0.3s ease-out; }
+.game.fruits .pop   { animation: fruitPop 0.2s ease-out forwards; }
+
 @keyframes fishSpawn {
   from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
   to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
@@ -347,4 +350,12 @@ input[type="range"] {
 @keyframes moleFall {
   from { height: var(--size); }
   to   { height: 0; }
+}
+
+@keyframes fruitSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes fruitPop {
+  to { transform: scale(0); opacity: 0; }
 }
