@@ -362,7 +362,7 @@ input[type="range"] {
 
 @keyframes slideDown {
   from { transform: translate3d(var(--x), var(--y), 0) translateY(0); }
-  to   { transform: translate3d(var(--x), var(--y), 0) translateY(100%); }
+  to   { transform: translate3d(var(--x), var(--y), 0) translateY(var(--dist, 100%)); }
 }
 
 .shiftDown {
