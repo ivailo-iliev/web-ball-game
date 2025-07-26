@@ -16,85 +16,72 @@
   }
 
   g.Game.register('fruits', g.BaseGame.make({
-    max : 0,
+    max    : COLS * ROWS,
     emojis : FRUITS,
 
-    onStart() {
+    pending : [],                        /* cells waiting for a fruit */
+
+    onStart () {
       buildGrid(this);
       this.cfg.rRange = [this.cell.r, this.cell.r];
 
-      for (let c = 0; c < COLS; c++) {
-        for (let r = 0; r < ROWS; r++) {
-          const sp = this.addSprite({
-            x : this.cell.x(c),
-            y : this.cell.y(r),
-            dx: 0, dy: 0,
-            r : this.cell.r,
-            e : g.R.pick(this.emojis)
-          });
-          sp.col = c;
-          sp.row = r;
-          this.grid[r][c] = sp;
-
-          /* ⬇  No “fruitSpawn” scale-in — activate immediately */
-          sp.el.classList.remove('spawn');
-          this.sprites.push(sp);
-        }
-      }
+      /* queue initial board fill */
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          this.pending.push({ r, c });
     },
 
-    spawn() { return null; },
-
-    onHit(sp, team) {
-      sp.hitTeam = team;
-      this._afterPop(sp, team);
-    },
-
-    _afterPop(sp, team = 0) {
-      const { col, row } = sp;
-      if (col == null || row == null) return;
-
-      this.grid[row][col] = null;
-
-      for (let r = row - 1; r >= 0; r--) {
-        const mover = this.grid[r][col];
-        if (!mover) continue;
-        let dest = r;
-        while (dest + 1 < ROWS && this.grid[dest + 1][col] === null) dest++;
-        if (dest === r) continue;
-        this.grid[dest][col] = mover;
-        this.grid[r][col]    = null;
-        mover.row = dest;
-        mover.y   = this.cell.y(dest);
-        mover.draw();              /* engine will keep it updated */
-      }
-
-      /* ---- straight-in spawn, no extra CSS effects ---- */
-      let target = 0;
-      while (target + 1 < ROWS && this.grid[target + 1][col] === null) target++;
-
-      const fresh = this.addSprite({
-        x : this.cell.x(col),
-        y : this.cell.y(target),
+    /* descriptor-only: the engine will turn it into a Sprite */
+    spawn () {
+      const cell = this.pending.shift();
+      if (!cell) return null;
+      const { r, c } = cell;
+      return {
+        x : this.cell.x(c),
+        y : this.cell.y(r),
         dx: 0, dy: 0,
         r : this.cell.r,
-        e : g.R.pick(this.emojis)
-      });
-      fresh.col = col;
-      fresh.row = target;
-      this.grid[target][col] = fresh;
+        e : g.R.pick(this.emojis),
+        _row : r, _col : c              /* piggy-back coords */
+      };
+    },
 
-      fresh.el.classList.remove('spawn');   /* no “fruitSpawn” */
-      this.sprites.push(fresh);             /* active right away */
+    /* new engine hook from _onAnimEnd */
+    onSpriteAlive (sp) {
+      sp.row = sp._row;
+      sp.col = sp._col;
+      delete sp._row; delete sp._col;
+      this.grid[sp.row][sp.col] = sp;
+    },
 
-      fresh.draw();
-
+    onHit (sp, team) {
+      this._collapseColumn(sp.col, sp.row);
       this._checkMatches(team);
     },
 
-    _checkMatches(team = 0) {
+    _collapseColumn (col, fromRow) {
+      if (col == null || fromRow == null) return;
+      this.grid[fromRow][col] = null;          /* remove popped fruit */
+
+      /* pull everything above down by one row */
+      for (let r = fromRow - 1; r >= 0; r--) {
+        const mover = this.grid[r][col];
+        if (!mover) continue;
+        this.grid[r + 1][col] = mover;
+        this.grid[r][col]     = null;
+        mover.row = r + 1;
+        mover.y   = this.cell.y(mover.row);
+        mover.draw();
+      }
+
+      /* top cell now empty → ask engine for a fresh fruit */
+      this.pending.push({ r: 0, c: col });
+    },
+
+    _checkMatches (team = 0) {
       const matches = new Set();
 
+      /* horizontal scans */
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; ) {
           const start = this.grid[r][c];
@@ -106,6 +93,7 @@
         }
       }
 
+      /* vertical scans */
       for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS; ) {
           const start = this.grid[r][c];
@@ -117,13 +105,9 @@
         }
       }
 
+      /* trigger hits */
       if (matches.size) {
-        matches.forEach(sp => {
-          if (sp.alive) {
-            sp.hitTeam = team;
-            this.hit(sp, team);
-          }
-        });
+        matches.forEach(sp => sp.alive && this.hit(sp, team));
       }
     }
   }));
