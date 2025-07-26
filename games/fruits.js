@@ -39,33 +39,13 @@
 
     spawn() { return null; },
 
-    onPointer(x, y, btn = 0) {
-      this._showRipple(x, y);
-      const team = btn === 2 ? 0 : 1;
-      for (const s of this.sprites) {
-        if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
-          s.hitTeam = team;
-          this.hit(s, team);
-          break;
+    onHit(sp, team) {
+      sp.hitTeam = team;
+      sp.el.addEventListener('animationend', e => {
+        if (e.target.classList.contains('pop')) {
+          this._afterPop(sp, team);
         }
-      }
-    },
-
-    _onAnimEnd(e) {
-      const el = e.target;
-      const sp = el._sprite;
-      if (!sp) return;
-      const wasPop = el.classList.contains('pop');
-      if (el.classList.contains('spawn')) {
-        el.classList.remove('spawn');
-        if (this.running && sp.alive !== false) {
-          this.sprites.push(sp);
-          sp.draw();
-        }
-      } else if (wasPop) {
-        sp.remove();
-      }
-      if (wasPop) this._afterPop(sp, sp.hitTeam);
+      }, { once: true });
     },
 
     _afterPop(sp, team = 0) {
