@@ -58,12 +58,19 @@
         if (dest === r) continue;
         this.grid[dest][col] = mover;
         this.grid[r][col]    = null;
+        /*  ✱  Smooth fall handled purely by CSS  ✱
+            1.  Give this sprite a one–off transform transition.
+            2.  Update its logical position.
+            3.  Let the browser tween the transform from the old
+                translate3d() to the new one. No timers, no listeners. */
+        mover.style.transition = 'transform 0.25s ease-out';
         mover.row = dest;
         mover.y   = this.cell.y(dest);
-        mover.style.setProperty('--dist', `${(dest - r) * 100}%`);
-        mover.el.classList.remove('shiftDown');
-        void mover.el.offsetWidth;
-        mover.el.classList.add('shiftDown');
+
+        /* Trigger one immediate redraw so the first frame of the
+           transition starts right now; subsequent draws are still
+           driven by the engine’s main loop. */
+        mover.draw();
       }
 
       const fresh = this.addSprite({
