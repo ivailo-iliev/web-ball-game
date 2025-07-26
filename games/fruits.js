@@ -73,15 +73,39 @@
         mover.draw();
       }
 
+      /* ───────────────────────────────────────────────────────────
+         Spawn ONE new fruit and let CSS slide it all the way down
+         -----------------------------------------------------------
+         1. Find the lowest empty slot in this column.
+         2. If that slot = row 0 → keep the old “drop-in” effect.
+            Otherwise skip .dropIn and give the sprite the same
+            transform-transition we just used for the movers above.
+      ─────────────────────────────────────────────────────────── */
+
+      let target = 0;
+      while (target + 1 < ROWS && this.grid[target + 1][col] === null) target++;
+
       const fresh = this.addSprite({
-        x:this.cell.x(col), y:this.cell.y(0),
+        x:this.cell.x(col), y:this.cell.y(0),   // visual start position
         dx:0, dy:0, r:this.cell.r,
         e:g.R.pick(this.emojis)
       });
       fresh.col = col;
-      fresh.row = 0;
-      fresh.el.classList.add('dropIn');
-      this.grid[0][col] = fresh;
+
+      if (target === 0) {
+        /* only the very top cell was empty → classic drop-in */
+        fresh.row = 0;
+        this.grid[0][col] = fresh;
+        fresh.el.classList.add('dropIn');
+      } else {
+        /* more space underneath → glide down with a transform tween */
+        fresh.row = target;
+        fresh.y   = this.cell.y(target);
+        this.grid[target][col] = fresh;          // final logical slot
+
+        fresh.style.transition = 'transform 0.25s ease-out';
+        fresh.draw();                            // kicks off the slide
+      }
 
       this._checkMatches(team);
     },
