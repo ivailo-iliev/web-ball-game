@@ -53,10 +53,16 @@
       for (let r = row - 1; r >= 0; r--) {
         const mover = this.grid[r][col];
         if (!mover) continue;
-        this.grid[r + 1][col] = mover;
-        this.grid[r][col]     = null;
-        mover.row  = r + 1;
-        mover.y    = this.cell.y(r + 1);
+        let dest = r;
+        while (dest + 1 < ROWS && this.grid[dest + 1][col] === null) dest++;
+        if (dest === r) continue;
+        this.grid[dest][col] = mover;
+        this.grid[r][col]    = null;
+        mover.row = dest;
+        mover.y   = this.cell.y(dest);
+        mover.style.setProperty('--dist', `${(dest - r) * 100}%`);
+        mover.el.classList.remove('shiftDown');
+        void mover.el.offsetWidth;
         mover.el.classList.add('shiftDown');
       }
 
