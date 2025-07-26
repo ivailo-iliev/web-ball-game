@@ -41,11 +41,7 @@
 
     onHit(sp, team) {
       sp.hitTeam = team;
-      sp.el.addEventListener('animationend', e => {
-        if (e.target.classList.contains('pop')) {
-          this._afterPop(sp, team);
-        }
-      }, { once: true });
+      this._afterPop(sp, team);
     },
 
     _afterPop(sp, team = 0) {
@@ -61,7 +57,7 @@
         this.grid[r][col]     = null;
         mover.row  = r + 1;
         mover.y    = this.cell.y(r + 1);
-        mover.draw();
+        mover.el.classList.add('shiftDown');
       }
 
       const fresh = this.addSprite({
@@ -71,6 +67,7 @@
       });
       fresh.col = col;
       fresh.row = 0;
+      fresh.el.classList.add('dropIn');
       this.grid[0][col] = fresh;
 
       this._checkMatches(team);

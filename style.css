@@ -359,3 +359,21 @@ input[type="range"] {
 @keyframes fruitPop {
   to { transform: scale(0); opacity: 0; }
 }
+
+@keyframes slideDown {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+.shiftDown {
+  animation: slideDown 0.2s ease-out 0.2s forwards;
+}
+
+@keyframes dropIn {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+.dropIn {
+  animation: dropIn 0.2s ease-out 0.2s forwards;
+}
