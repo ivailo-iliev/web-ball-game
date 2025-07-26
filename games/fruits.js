@@ -98,13 +98,18 @@
         this.grid[0][col] = fresh;
         fresh.el.classList.add('dropIn');
       } else {
-        /* more space underneath → glide down with a transform tween */
+        /* space underneath → skip the default scale-in spawn and
+           slide the fruit down under a plain transform transition */
+
+        fresh.el.classList.remove('spawn');   /* turn off fruitSpawn */
+        this.sprites.push(fresh);             /* make it live now   */
+
         fresh.row = target;
         fresh.y   = this.cell.y(target);
-        this.grid[target][col] = fresh;          // final logical slot
+        this.grid[target][col] = fresh;       /* final logical slot */
 
         fresh.style.transition = 'transform 0.25s ease-out';
-        fresh.draw();                            // kicks off the slide
+        fresh.draw();                         /* triggers the glide */
       }
 
       this._checkMatches(team);
