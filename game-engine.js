@@ -185,8 +185,9 @@ class BaseGame {
     if (desc.p) {
       for (const [k, v] of Object.entries(desc.p)) sprite.style.setProperty(k, v);
     }
-    if (desc.ttl !== undefined) sprite.ttl = desc.ttl;
-    if (desc.holeIndex !== undefined) sprite.holeIndex = desc.holeIndex;
+
+    /* preserve all descriptor properties */
+    Object.assign(sprite, desc);
 
     return sprite;
   }
