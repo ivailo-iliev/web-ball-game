@@ -361,8 +361,8 @@ input[type="range"] {
 }
 
 @keyframes slideDown {
-  from { transform: translateY(0); }
-  to   { transform: translateY(100%); }
+  from { transform: translate3d(var(--x), var(--y), 0) translateY(0); }
+  to   { transform: translate3d(var(--x), var(--y), 0) translateY(100%); }
 }
 
 .shiftDown {
@@ -370,8 +370,8 @@ input[type="range"] {
 }
 
 @keyframes dropIn {
-  from { transform: translateY(-100%); }
-  to   { transform: translateY(0); }
+  from { transform: translate3d(var(--x), var(--y), 0) translateY(-100%); }
+  to   { transform: translate3d(var(--x), var(--y), 0) translateY(0); }
 }
 
 .dropIn {
