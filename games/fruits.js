@@ -42,19 +42,20 @@
       return {
         x : this.cell.x(c),
         y : this.cell.y(r),
-        dx: 0, dy: 0,                 /* will stay 0 until a collapse */
+        dx: 0,
+        dy: 0,                 /* will stay 0 until a collapse */
         r : this.cell.r,
         e : g.R.pick(this.emojis),
-        _row : r, _col : c              /* piggy-back coords */
+        holeIndex : r * COLS + c        /* engine keeps this field */
       };
     },
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
       alert(`GRID-INSERT ${sp.e} ${sp.row},${sp.col}`);
-      sp.row = sp._row;
-      sp.col = sp._col;
-      delete sp._row; delete sp._col;
+      /* translate holeIndex → grid coords */
+      sp.row = Math.floor(sp.holeIndex / COLS);
+      sp.col = sp.holeIndex % COLS;
       this.grid[sp.row][sp.col] = sp;
     },
 
