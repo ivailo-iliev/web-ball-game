@@ -73,44 +73,36 @@
         mover.draw();
       }
 
-      /* ───────────────────────────────────────────────────────────
-         Spawn ONE new fruit and let CSS slide it all the way down
-         -----------------------------------------------------------
-         1. Find the lowest empty slot in this column.
-         2. If that slot = row 0 → keep the old “drop-in” effect.
-            Otherwise skip .dropIn and give the sprite the same
-            transform-transition we just used for the movers above.
-      ─────────────────────────────────────────────────────────── */
-
+      /* ──────────────────────────────────────────────────────
+         1.  How far down does the *new* piece have to travel?
+      ────────────────────────────────────────────────────── */
       let target = 0;
       while (target + 1 < ROWS && this.grid[target + 1][col] === null) target++;
 
+      /* ──────────────────────────────────────────────────────
+         2.  Create it in ROW-0 *as usual* (keeps the engine’s
+             normal  “spawn → animationend → add to pool” flow)
+      ────────────────────────────────────────────────────── */
       const fresh = this.addSprite({
-        x:this.cell.x(col), y:this.cell.y(0),   // visual start position
-        dx:0, dy:0, r:this.cell.r,
-        e:g.R.pick(this.emojis)
+        x : this.cell.x(col),
+        y : this.cell.y(0),        // visual start at the very top
+        dx: 0, dy: 0,
+        r : this.cell.r,
+        e : g.R.pick(this.emojis)
       });
       fresh.col = col;
 
-      if (target === 0) {
-        /* only the very top cell was empty → classic drop-in */
-        fresh.row = 0;
-        this.grid[0][col] = fresh;
-        fresh.el.classList.add('dropIn');
-      } else {
-        /* space underneath → skip the default scale-in spawn and
-           slide the fruit down under a plain transform transition */
+      /* book-keep its logical slot right away */
+      fresh.row          = target;
+      this.grid[target][col] = fresh;
 
-        fresh.el.classList.remove('spawn');   /* turn off fruitSpawn */
-        this.sprites.push(fresh);             /* make it live now   */
-
-        fresh.row = target;
-        fresh.y   = this.cell.y(target);
-        this.grid[target][col] = fresh;       /* final logical slot */
-
-        fresh.style.transition = 'transform 0.25s ease-out';
-        fresh.draw();                         /* triggers the glide */
-      }
+      /* ──────────────────────────────────────────────────────
+         3.  Purely cosmetic drop handled in CSS:
+             translateY( target × 100% ) using the already
+             defined  @keyframes slideDown  animation.
+      ────────────────────────────────────────────────────── */
+      fresh.style.setProperty('--dist', `${target * 100}%`);
+      fresh.el.classList.add('shiftDown');
 
       this._checkMatches(team);
     },
