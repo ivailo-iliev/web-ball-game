@@ -26,13 +26,19 @@
       for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS; r++) {
           const sp = this.addSprite({
-            x:this.cell.x(c), y:this.cell.y(r),
-            dx:0, dy:0, r:this.cell.r,
-            e:g.R.pick(this.emojis)
+            x : this.cell.x(c),
+            y : this.cell.y(r),
+            dx: 0, dy: 0,
+            r : this.cell.r,
+            e : g.R.pick(this.emojis)
           });
           sp.col = c;
           sp.row = r;
           this.grid[r][c] = sp;
+
+          /* ⬇  No “fruitSpawn” scale-in — activate immediately */
+          sp.el.classList.remove('spawn');
+          this.sprites.push(sp);
         }
       }
     },
@@ -58,51 +64,30 @@
         if (dest === r) continue;
         this.grid[dest][col] = mover;
         this.grid[r][col]    = null;
-        /*  ✱  Smooth fall handled purely by CSS  ✱
-            1.  Give this sprite a one–off transform transition.
-            2.  Update its logical position.
-            3.  Let the browser tween the transform from the old
-                translate3d() to the new one. No timers, no listeners. */
-        mover.style.transition = 'transform 0.25s ease-out';
         mover.row = dest;
         mover.y   = this.cell.y(dest);
-
-        /* Trigger one immediate redraw so the first frame of the
-           transition starts right now; subsequent draws are still
-           driven by the engine’s main loop. */
-        mover.draw();
+        mover.draw();              /* engine will keep it updated */
       }
 
-      /* ──────────────────────────────────────────────────────
-         1.  How far down does the *new* piece have to travel?
-      ────────────────────────────────────────────────────── */
+      /* ---- straight-in spawn, no extra CSS effects ---- */
       let target = 0;
       while (target + 1 < ROWS && this.grid[target + 1][col] === null) target++;
 
-      /* ──────────────────────────────────────────────────────
-         2.  Create it in ROW-0 *as usual* (keeps the engine’s
-             normal  “spawn → animationend → add to pool” flow)
-      ────────────────────────────────────────────────────── */
       const fresh = this.addSprite({
         x : this.cell.x(col),
-        y : this.cell.y(0),        // visual start at the very top
+        y : this.cell.y(target),
         dx: 0, dy: 0,
         r : this.cell.r,
         e : g.R.pick(this.emojis)
       });
       fresh.col = col;
-
-      /* book-keep its logical slot right away */
-      fresh.row          = target;
+      fresh.row = target;
       this.grid[target][col] = fresh;
 
-      /* ──────────────────────────────────────────────────────
-         3.  Purely cosmetic drop handled in CSS:
-             translateY( target × 100% ) using the already
-             defined  @keyframes slideDown  animation.
-      ────────────────────────────────────────────────────── */
-      fresh.style.setProperty('--dist', `${target * 100}%`);
-      fresh.el.classList.add('shiftDown');
+      fresh.el.classList.remove('spawn');   /* no “fruitSpawn” */
+      this.sprites.push(fresh);             /* active right away */
+
+      fresh.draw();
 
       this._checkMatches(team);
     },
