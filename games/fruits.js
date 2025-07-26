@@ -19,7 +19,10 @@
     max    : COLS * ROWS,
     emojis : FRUITS,
 
-    pending : [],                        /* cells waiting for a fruit */
+    pending : [],                        /* empty grid cells that still need a fruit */
+
+    /* pixels-per-second for the falling animation */
+    dropSpeed : 600,
 
     onStart () {
       buildGrid(this);
@@ -39,7 +42,7 @@
       return {
         x : this.cell.x(c),
         y : this.cell.y(r),
-        dx: 0, dy: 0,
+        dx: 0, dy: 0,                 /* will stay 0 until a collapse */
         r : this.cell.r,
         e : g.R.pick(this.emojis),
         _row : r, _col : c              /* piggy-back coords */
@@ -61,21 +64,35 @@
 
     _collapseColumn (col, fromRow) {
       if (col == null || fromRow == null) return;
-      this.grid[fromRow][col] = null;          /* remove popped fruit */
+      this.grid[fromRow][col] = null;          /* remove the popped fruit */
 
-      /* pull everything above down by one row */
+      /* mark every fruit above as “falling” and let move() animate it */
       for (let r = fromRow - 1; r >= 0; r--) {
-        const mover = this.grid[r][col];
-        if (!mover) continue;
-        this.grid[r + 1][col] = mover;
+        const sp = this.grid[r][col];
+        if (!sp) continue;
+        this.grid[r + 1][col] = sp;
         this.grid[r][col]     = null;
-        mover.row = r + 1;
-        mover.y   = this.cell.y(mover.row);
-        mover.draw();
+        sp.row = r + 1;
+        sp.targetY = this.cell.y(sp.row);   /* where it must stop */
+        sp.falling = true;
+        sp.dy = this.dropSpeed;             /* engine’s move() will use this */
       }
 
       /* top cell now empty → ask engine for a fresh fruit */
       this.pending.push({ r: 0, c: col });
+    },
+
+    /* make falling fruits glide until they reach .targetY */
+    move (sp, dt) {
+      if (sp.falling) {
+        sp.y += sp.dy * dt;
+        if (sp.y >= sp.targetY) {
+          sp.y = sp.targetY;
+          sp.dy = 0;
+          sp.falling = false;
+          delete sp.targetY;
+        }
+      }
     },
 
     _checkMatches (team = 0) {
