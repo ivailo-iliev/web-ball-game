@@ -78,7 +78,12 @@
     },
 
 
-    onPop(sp){
+    onHit(sp, team){
+      const idx = sp.holeIndex;
+      if(idx !== undefined) this.holes[idx].occupied = false;
+    },
+
+    onMiss(sp){
       const idx = sp.holeIndex;
       if(idx !== undefined) this.holes[idx].occupied = false;
     }
