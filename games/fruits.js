@@ -42,18 +42,17 @@
       return {
         x : this.cell.x(c),
         y : this.cell.y(r),
-        dx: 0,
-        dy: 0,                 /* will stay 0 until a collapse */
-        r : this.cell.r,
-        e : g.R.pick(this.emojis),
-        holeIndex : r * COLS + c        /* engine keeps this field */
+        dx : 0, dy : 0,
+        r  : this.cell.r,
+        e  : g.R.pick(this.emojis),
+        holeIndex : r * COLS + c           /* kept by addSprite → Sprite */
       };
     },
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
       alert(`GRID-INSERT ${sp.e} ${sp.row},${sp.col}`);
-      /* translate holeIndex → grid coords */
+      /* translate the preserved holeIndex back to grid coords */
       sp.row = Math.floor(sp.holeIndex / COLS);
       sp.col = sp.holeIndex % COLS;
       this.grid[sp.row][sp.col] = sp;
@@ -76,6 +75,7 @@
         this.grid[r + 1][col] = sp;
         this.grid[r][col]     = null;
         sp.row = r + 1;
+        sp.holeIndex += COLS;      /* keep index in sync */
         sp.targetY = this.cell.y(sp.row);   /* where it must stop */
         sp.falling = true;
         alert(`FALL-TAG ${sp.e} newRow=${sp.row} dy=${sp.dy}`);
