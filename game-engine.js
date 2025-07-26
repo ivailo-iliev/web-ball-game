@@ -328,7 +328,7 @@ class BaseGame {
       if (this.running && sp.alive !== false) {
         this.sprites.push(sp);
         sp.draw();
-        alert(`hook → onSpriteAlive: ${sp.e || sp.id}`);
+        alert(`ALIVE ${sp.e} grid?=${!!sp.row}`);
         /* public hook — lets a game know the sprite is ready */
         if (typeof this.onSpriteAlive === 'function') {
           this.onSpriteAlive(sp);
