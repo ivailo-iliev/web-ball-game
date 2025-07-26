@@ -146,11 +146,11 @@ class BaseGame {
         bottom < -s.r ||
         top > this.H + s.r
       ) {
-        s.remove();
+        this.miss(s);
       }
 
       if (s.ttl !== undefined && (s.ttl -= dt) <= 0) {
-        this._popSprite(s);
+        this.miss(s);
       }
 
       if (s.alive) s.draw();
@@ -259,11 +259,18 @@ class BaseGame {
 
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team = 0) {
+    if (typeof this.onHit === 'function') this.onHit(s, team);
     this.score[team] += this.calculatePoints(s);
     scoreEl[team].textContent = `${this.score[team]}`;
     this.emitBurst(s.x, s.y);
     this._popSprite(s);
     if (this.score[team] >= this.cfg.winPoints) this.end(team);
+  }
+
+  /* ---- 3.7b MISS entry point ---- */
+  miss(s) {
+    if (typeof this.onMiss === 'function') this.onMiss(s);
+    this._popSprite(s);
   }
 
   /* ---- 3.8 POP animation ---- */
@@ -272,7 +279,6 @@ class BaseGame {
     s.el.classList.remove('spawn');
     s.style.setProperty('--x', `${s.x - s.r}px`);
     s.style.setProperty('--y', `${s.y - s.r}px`);
-    if (typeof inst.onPop === 'function') inst.onPop(s);
     s.el.classList.add('pop');
   }
 
