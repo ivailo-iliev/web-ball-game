@@ -51,6 +51,7 @@
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
+      alert(`alive ${sp.e} at ${sp.row},${sp.col}`);
       sp.row = sp._row;
       sp.col = sp._col;
       delete sp._row; delete sp._col;
@@ -63,6 +64,7 @@
     },
 
     _collapseColumn (col, fromRow) {
+      alert(`collapse column=${col} fromRow=${fromRow}`);
       if (col == null || fromRow == null) return;
       this.grid[fromRow][col] = null;          /* remove the popped fruit */
 
@@ -70,6 +72,7 @@
       for (let r = fromRow - 1; r >= 0; r--) {
         const sp = this.grid[r][col];
         if (!sp) continue;
+        alert(`falling ${sp.e} to row ${sp.row}`);
         this.grid[r + 1][col] = sp;
         this.grid[r][col]     = null;
         sp.row = r + 1;
@@ -84,6 +87,7 @@
 
     /* make falling fruits glide until they reach .targetY */
     move (sp, dt) {
+      alert(`move ${sp.e} y=${sp.y.toFixed(1)} dy=${sp.dy}`);
       if (sp.falling) {
         sp.y += sp.dy * dt;
         if (sp.y >= sp.targetY) {
