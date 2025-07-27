@@ -259,13 +259,17 @@ class BaseGame {
   }
 
   /* ---- 3.7 HIT entry point ---- */
-  hit(s, team = 0) {
+  hit(s, team) {
     if (typeof this.onHit === 'function') this.onHit(s, team);
-    this.score[team] += this.calculatePoints(s);
-    scoreEl[team].textContent = `${this.score[team]}`;
+    if (team === 0 || team === 1) {
+      this.score[team] += this.calculatePoints(s);
+      scoreEl[team].textContent = `${this.score[team]}`;
+    }
     this.emitBurst(s.x, s.y);
     this._popSprite(s);
-    if (this.score[team] >= this.cfg.winPoints) this.end(team);
+    if ((team === 0 || team === 1) && this.score[team] >= this.cfg.winPoints) {
+      this.end(team);
+    }
   }
 
   /* ---- 3.7b MISS entry point ---- */

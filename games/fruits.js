@@ -70,6 +70,9 @@
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
       this.grid[sp.holeIndex] = sp;
+      if (!this.pending.length && !this.sprites.some(s => s.falling)) {
+        this._checkMatches(this.lastTeam);
+      }
     },
 
     onHit (sp, team) {
@@ -136,13 +139,13 @@
 
           /* when the LAST fruit settles, check for cascades */
           if (!this.sprites.some(s => s.falling)) {
-            this._checkMatches(this.lastTeam || 0);
+            this._checkMatches(this.lastTeam);
           }
         }
       }
     },
 
-    _checkMatches (team = 0) {
+    _checkMatches (team) {
       let matches;
       do {
         matches = new Set();
