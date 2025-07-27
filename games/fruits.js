@@ -2,6 +2,10 @@
   const COLS = 8, ROWS = 8;
   const FRUITS = ['🍎','🍐','🍊','🍋','🍌','🍇','🍉'];
 
+  const rowFromIndex = i => Math.floor(i / COLS);
+  const colFromIndex = i => i % COLS;
+  const idxFromRC = (r, c) => r * COLS + c;
+
   function buildGrid(game) {
     const sz = Math.min(game.W / COLS, game.H / ROWS);
     const offX = (game.W - COLS * sz) / 2;
@@ -18,7 +22,7 @@
       x : c => xPos[c],
       y : r => yPos[r]
     };
-    game.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    game.grid = Array(COLS * ROWS).fill(null);
   }
 
   g.Game.register('fruits', g.BaseGame.make({
@@ -40,35 +44,32 @@
       this.pendingSet = new Set();
 
       /* queue initial board fill */
-      for (let r = 0; r < ROWS; r++)
-        for (let c = 0; c < COLS; c++) {
-          this.pending.push({ r, c });
-          this.pendingSet.add(r * COLS + c);
-        }
+      for (let idx = 0; idx < COLS * ROWS; idx++) {
+        this.pending.push(idx);
+        this.pendingSet.add(idx);
+      }
     },
 
     /* descriptor-only: the engine will turn it into a Sprite */
     spawn () {
-      const cell = this.pending.pop();
-      if (!cell) return null;
-      const { r, c } = cell;
-      this.pendingSet.delete(r * COLS + c);
+      const idx = this.pending.pop();
+      if (idx === undefined) return null;
+      this.pendingSet.delete(idx);
+      const r = rowFromIndex(idx);
+      const c = colFromIndex(idx);
       return {
         x : this.cell.x(c),
         y : this.cell.y(r),
         dx : 0, dy : 0,
         r  : this.cell.r,
         e  : g.R.pick(this.emojis),
-        holeIndex : r * COLS + c           /* kept by addSprite → Sprite */
+        holeIndex : idx                   /* kept by addSprite → Sprite */
       };
     },
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
-      /* translate the preserved holeIndex back to grid coords */
-      sp.row = Math.floor(sp.holeIndex / COLS);
-      sp.col = sp.holeIndex % COLS;
-      this.grid[sp.row][sp.col] = sp;
+      this.grid[sp.holeIndex] = sp;
     },
 
     onHit (sp, team) {
@@ -76,13 +77,14 @@
       this.lastTeam = team;
 
       /* always remove the sprite from the board */
-      if (this.grid[sp.row] && this.grid[sp.row][sp.col] === sp) {
-        this.grid[sp.row][sp.col] = null;
+      const idx = sp.holeIndex;
+      if (idx !== undefined && this.grid[idx] === sp) {
+        this.grid[idx] = null;
       }
 
       /* During a batch we only pop — collapsing waits until the batch ends */
       if (!this.batchMode) {
-        this._collapseColumn(sp.col);
+        this._collapseColumn(colFromIndex(idx));
         this._checkMatches(team);
       }
     },
@@ -95,14 +97,16 @@
       let write = ROWS - 1;                     // lowest slot we can fill
 
       for (let read = ROWS - 1; read >= 0; read--) {
-        const sp = this.grid[read][col];
+        const readIdx = idxFromRC(read, col);
+        const sp = this.grid[readIdx];
         if (!sp) continue;                      // hole → skip
 
         if (read !== write) {                   // needs to fall
-          this.grid[write][col] = sp;
-          this.grid[read ][col] = null;
+          const writeIdx = idxFromRC(write, col);
+          this.grid[writeIdx] = sp;
+          this.grid[readIdx] = null;
 
-          sp.row      = write;
+          sp.holeIndex = writeIdx;
           sp.targetY  = this.cell.y(write);     // where move() must glide to
           sp.falling  = true;
           sp.dy       = this.dropSpeed;         // let the engine animate it
@@ -112,9 +116,9 @@
 
       /* 2. every cell above “write” is empty → spawn newcomers */
       for (let r = write; r >= 0; r--) {
-        const idx = r * COLS + col;
+        const idx = idxFromRC(r, col);
         if (!this.pendingSet.has(idx)) {
-          this.pending.push({ r, c: col });
+          this.pending.push(idx);
           this.pendingSet.add(idx);
         }
       }
@@ -146,11 +150,12 @@
         /* horizontal scans */
         for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; ) {
-            const start = this.grid[r][c];
+            const startIdx = idxFromRC(r, c);
+            const start = this.grid[startIdx];
             if (!start) { c++; continue; }
             let end = c + 1;
-            while (end < COLS && this.grid[r][end]?.e === start.e) end++;
-            if (end - c >= 3) for (let k = c; k < end; k++) matches.add(this.grid[r][k]);
+            while (end < COLS && this.grid[idxFromRC(r, end)]?.e === start.e) end++;
+            if (end - c >= 3) for (let k = c; k < end; k++) matches.add(this.grid[idxFromRC(r, k)]);
             c = end;
           }
         }
@@ -158,11 +163,12 @@
         /* vertical scans */
         for (let c = 0; c < COLS; c++) {
           for (let r = 0; r < ROWS; ) {
-            const start = this.grid[r][c];
+            const startIdx = idxFromRC(r, c);
+            const start = this.grid[startIdx];
             if (!start) { r++; continue; }
             let end = r + 1;
-            while (end < ROWS && this.grid[end][c]?.e === start.e) end++;
-            if (end - r >= 3) for (let k = r; k < end; k++) matches.add(this.grid[k][c]);
+            while (end < ROWS && this.grid[idxFromRC(end, c)]?.e === start.e) end++;
+            if (end - r >= 3) for (let k = r; k < end; k++) matches.add(this.grid[idxFromRC(k, c)]);
             r = end;
           }
         }
@@ -175,7 +181,7 @@
 
           /* ── 2. collapse each affected column exactly once ─── */
           const cols = new Set();
-          matches.forEach(sp => cols.add(sp.col));
+          matches.forEach(sp => cols.add(colFromIndex(sp.holeIndex)));
           cols.forEach(col => this._collapseColumn(col));
         }
       } while (matches.size);
