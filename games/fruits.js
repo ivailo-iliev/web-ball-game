@@ -54,7 +54,6 @@
     spawn () {
       const idx = this.pending.pop();
       if (idx === undefined) return null;
-      this.pendingSet.delete(idx);
       const r = rowFromIndex(idx);
       const c = colFromIndex(idx);
       const desc = {
@@ -71,6 +70,7 @@
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
+      this.pendingSet.delete(sp.holeIndex);
       this.grid[sp.holeIndex] = sp;
     },
 
