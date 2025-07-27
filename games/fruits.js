@@ -59,6 +59,9 @@
     },
 
     onHit (sp, team) {
+      if (this.grid[sp.row] && this.grid[sp.row][sp.col] === sp) {
+        this.grid[sp.row][sp.col] = null;
+      }
       this._collapseColumn(sp.col, sp.row);
       this._checkMatches(team);
     },
