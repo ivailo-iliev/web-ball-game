@@ -58,11 +58,19 @@
         row : r,
         col : c
       };
-      this.grid[r][c] = sp;        /* board knows the fruit immediately */
       return sp;
     },
 
-    onSpriteAlive () {},          /* already registered in spawn() */
+    onSpriteAlive (sp) {
+      /* NOW register the *actual* Sprite instance */
+      this.grid[sp.row][sp.col] = sp;
+
+      /* If the board is stable (no falling pieces, no queued spawns),
+         look for cascades that the new fruit may complete. */
+      if (!this.pending.length && !this.sprites.some(s => s.falling)) {
+        this._checkMatches(this.lastTeam || 0);
+      }
+    },
 
     onHit (sp, team) {
       /* remember the team so cascades score correctly */
