@@ -70,9 +70,6 @@
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
       this.grid[sp.holeIndex] = sp;
-      if (!this.pending.length && !this.sprites.some(s => s.falling)) {
-        this._checkMatches(this.lastTeam);
-      }
     },
 
     onHit (sp, team) {
