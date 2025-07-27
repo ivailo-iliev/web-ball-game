@@ -18,6 +18,7 @@
   g.Game.register('fruits', g.BaseGame.make({
     max    : COLS * ROWS,
     emojis : FRUITS,
+    spawnDelayRange : [0, 0],
 
     pending : [],                        /* empty grid cells that still need a fruit */
 
@@ -51,7 +52,6 @@
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
-      alert(`GRID-INSERT ${sp.e} ${sp.row},${sp.col}`);
       /* translate the preserved holeIndex back to grid coords */
       sp.row = Math.floor(sp.holeIndex / COLS);
       sp.col = sp.holeIndex % COLS;
@@ -63,41 +63,47 @@
       this._checkMatches(team);
     },
 
-    _collapseColumn (col, fromRow) {
-      alert(`COLLAPSE col=${col} fromRow=${fromRow}`);
-      if (col == null || fromRow == null) return;
-      this.grid[fromRow][col] = null;          /* remove the popped fruit */
+    /* slide every fruit in the column as far down as possible
+       and enqueue exactly the right number of new fruits        */
+    _collapseColumn (col /*, fromRow is now ignored */) {
 
-      /* mark every fruit above as “falling” and let move() animate it */
-      for (let r = fromRow - 1; r >= 0; r--) {
-        const sp = this.grid[r][col];
-        if (!sp) continue;
-        this.grid[r + 1][col] = sp;
-        this.grid[r][col]     = null;
-        sp.row = r + 1;
-        sp.holeIndex += COLS;      /* keep index in sync */
-        sp.targetY = this.cell.y(sp.row);   /* where it must stop */
-        sp.falling = true;
-        alert(`FALL-TAG ${sp.e} newRow=${sp.row} dy=${sp.dy}`);
-        sp.dy = this.dropSpeed;             /* engine’s move() will use this */
+      /* 1. compact the column in one pass --------------------- */
+      let write = ROWS - 1;                     // lowest slot we can fill
 
+      for (let read = ROWS - 1; read >= 0; read--) {
+        const sp = this.grid[read][col];
+        if (!sp) continue;                      // hole → skip
+
+        if (read !== write) {                   // needs to fall
+          this.grid[write][col] = sp;
+          this.grid[read ][col] = null;
+
+          sp.row      = write;
+          sp.targetY  = this.cell.y(write);     // where move() must glide to
+          sp.falling  = true;
+          sp.dy       = this.dropSpeed;         // let the engine animate it
+        }
+        write--;                                // next free cell above
       }
 
-      /* top cell now empty → ask engine for a fresh fruit */
-      this.pending.push({ r: 0, c: col });
+      /* 2. every cell above “write” is empty → spawn newcomers */
+      for (let r = write; r >= 0; r--) {
+        /* avoid duplicates when this function is called again in the same frame */
+        if (!this.pending.some(p => p.r === r && p.c === col)) {
+          this.pending.push({ r, c: col });
+        }
+      }
     },
 
     /* make falling fruits glide until they reach .targetY */
     move (sp, dt) {
       if (sp.falling) {
-        alert(`MOVE ${sp.e} y=${sp.y.toFixed(1)} dy=${sp.dy}`);
         sp.y += sp.dy * dt;
         if (sp.y >= sp.targetY) {
           sp.y = sp.targetY;
           sp.dy = 0;
           sp.falling = false;
           delete sp.targetY;
-          alert(`LANDED ${sp.e} at ${sp.row},${sp.col}`);
         }
       }
     },
