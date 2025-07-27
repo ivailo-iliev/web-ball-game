@@ -54,10 +54,9 @@
     spawn () {
       const idx = this.pending.pop();
       if (idx === undefined) return null;
-      this.pendingSet.delete(idx);
       const r = rowFromIndex(idx);
       const c = colFromIndex(idx);
-      return {
+      const desc = {
         x : this.cell.x(c),
         y : this.cell.y(r),
         dx : 0, dy : 0,
@@ -65,10 +64,12 @@
         e  : g.R.pick(this.emojis),
         holeIndex : idx                   /* kept by addSprite → Sprite */
       };
+      return desc;
     },
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
+      this.pendingSet.delete(sp.holeIndex);
       this.grid[sp.holeIndex] = sp;
     },
 
