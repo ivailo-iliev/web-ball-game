@@ -27,8 +27,8 @@
     spawnDelayRange : [0, 0],
 
     pending    : [],                     /* empty grid cells that still need a fruit */
-    batchMode  : false,                  /* true while a whole batch is clearing */
-    lastTeam   : 0,                      /* attacker that started the current cascade */
+    pendingSet : null,
+    batchMode : false,                   /* ← NEW: “clear-everything-first” flag */
 
     /* pixels-per-second for the falling animation */
     dropSpeed : 600,
@@ -37,10 +37,13 @@
       buildGrid(this);
       this.cfg.rRange = [this.cell.r, this.cell.r];
 
+      this.pendingSet = new Set();
+
       /* queue initial board fill */
       for (let r = 0; r < ROWS; r++)
         for (let c = 0; c < COLS; c++) {
           this.pending.push({ r, c });
+          this.pendingSet.add(r * COLS + c);
         }
     },
 
@@ -49,27 +52,23 @@
       const cell = this.pending.pop();
       if (!cell) return null;
       const { r, c } = cell;
-      const sp = {
+      this.pendingSet.delete(r * COLS + c);
+      return {
         x : this.cell.x(c),
         y : this.cell.y(r),
         dx : 0, dy : 0,
         r  : this.cell.r,
         e  : g.R.pick(this.emojis),
-        row : r,
-        col : c
+        holeIndex : r * COLS + c           /* kept by addSprite → Sprite */
       };
-      return sp;
     },
 
+    /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
-      /* NOW register the *actual* Sprite instance */
+      /* translate the preserved holeIndex back to grid coords */
+      sp.row = Math.floor(sp.holeIndex / COLS);
+      sp.col = sp.holeIndex % COLS;
       this.grid[sp.row][sp.col] = sp;
-
-      /* If the board is stable (no falling pieces, no queued spawns),
-         look for cascades that the new fruit may complete. */
-      if (!this.pending.length && !this.sprites.some(s => s.falling)) {
-        this._checkMatches(this.lastTeam || 0);
-      }
     },
 
     onHit (sp, team) {
@@ -113,9 +112,10 @@
 
       /* 2. every cell above “write” is empty → spawn newcomers */
       for (let r = write; r >= 0; r--) {
-        /* avoid duplicates with a quick linear check (≤ 64 elements) */
-        if (!this.pending.some(p => p.r === r && p.c === col)) {
+        const idx = r * COLS + col;
+        if (!this.pendingSet.has(idx)) {
           this.pending.push({ r, c: col });
+          this.pendingSet.add(idx);
         }
       }
     },
@@ -128,9 +128,9 @@
           sp.y = sp.targetY;
           sp.dy = 0;
           sp.falling = false;
-          delete sp.targetY;
+          sp.targetY = null;
 
-          /* when the LAST falling fruit lands, resume the cascade loop */
+          /* when the LAST fruit settles, check for cascades */
           if (!this.sprites.some(s => s.falling)) {
             this._checkMatches(this.lastTeam || 0);
           }
@@ -139,7 +139,9 @@
     },
 
     _checkMatches (team = 0) {
-      const matches = new Set();
+      let matches;
+      do {
+        matches = new Set();
 
         /* horizontal scans */
         for (let r = 0; r < ROWS; r++) {
@@ -165,20 +167,18 @@
           }
         }
 
-      if (matches.size) {
-        /* 1️⃣ POP everything at once */
-        this.batchMode = true;
-        matches.forEach(sp => sp.alive && this.hit(sp, team));
-        this.batchMode = false;
+        if (matches.size) {
+          /* ── 1. pop everything at once ─────────────────────── */
+          this.batchMode = true;
+          matches.forEach(sp => sp.alive && this.hit(sp, team));
+          this.batchMode = false;
 
-        /* 2️⃣ COLLAPSE each affected column exactly once */
-        const cols = new Set();
-        matches.forEach(sp => cols.add(sp.col));
-        cols.forEach(col => this._collapseColumn(col));
-
-        /* 3️⃣ SCAN again for cascades */
-        this._checkMatches(team);
-      }
+          /* ── 2. collapse each affected column exactly once ─── */
+          const cols = new Set();
+          matches.forEach(sp => cols.add(sp.col));
+          cols.forEach(col => this._collapseColumn(col));
+        }
+      } while (matches.size);
     }
   }));
 })(window);
