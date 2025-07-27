@@ -6,11 +6,17 @@
     const sz = Math.min(game.W / COLS, game.H / ROWS);
     const offX = (game.W - COLS * sz) / 2;
     const offY = (game.H - ROWS * sz) / 2;
+
+    const xPos = Array.from({ length: COLS }, (_, c) => offX + c * sz + sz / 2);
+    const yPos = Array.from({ length: ROWS }, (_, r) => offY + r * sz + sz / 2);
+
     game.cell = {
-      size : sz,
-      r    : sz * 0.4,
-      x    : c => offX + c * sz + sz / 2,
-      y    : r => offY + r * sz + sz / 2
+      size  : sz,
+      r     : sz * 0.4,
+      xPos,
+      yPos,
+      x : c => xPos[c],
+      y : r => yPos[r]
     };
     game.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
   }
@@ -20,7 +26,8 @@
     emojis : FRUITS,
     spawnDelayRange : [0, 0],
 
-    pending : [],                        /* empty grid cells that still need a fruit */
+    pending    : [],                     /* empty grid cells that still need a fruit */
+    pendingSet : null,
     batchMode : false,                   /* ← NEW: “clear-everything-first” flag */
 
     /* pixels-per-second for the falling animation */
@@ -30,17 +37,22 @@
       buildGrid(this);
       this.cfg.rRange = [this.cell.r, this.cell.r];
 
+      this.pendingSet = new Set();
+
       /* queue initial board fill */
       for (let r = 0; r < ROWS; r++)
-        for (let c = 0; c < COLS; c++)
+        for (let c = 0; c < COLS; c++) {
           this.pending.push({ r, c });
+          this.pendingSet.add(r * COLS + c);
+        }
     },
 
     /* descriptor-only: the engine will turn it into a Sprite */
     spawn () {
-      const cell = this.pending.shift();
+      const cell = this.pending.pop();
       if (!cell) return null;
       const { r, c } = cell;
+      this.pendingSet.delete(r * COLS + c);
       return {
         x : this.cell.x(c),
         y : this.cell.y(r),
@@ -100,9 +112,10 @@
 
       /* 2. every cell above “write” is empty → spawn newcomers */
       for (let r = write; r >= 0; r--) {
-        /* avoid duplicates when this function is called again in the same frame */
-        if (!this.pending.some(p => p.r === r && p.c === col)) {
+        const idx = r * COLS + col;
+        if (!this.pendingSet.has(idx)) {
           this.pending.push({ r, c: col });
+          this.pendingSet.add(idx);
         }
       }
     },
@@ -115,7 +128,7 @@
           sp.y = sp.targetY;
           sp.dy = 0;
           sp.falling = false;
-          delete sp.targetY;
+          sp.targetY = null;
 
           /* when the LAST fruit settles, check for cascades */
           if (!this.sprites.some(s => s.falling)) {
@@ -126,47 +139,46 @@
     },
 
     _checkMatches (team = 0) {
-      const matches = new Set();
+      let matches;
+      do {
+        matches = new Set();
 
-      /* horizontal scans */
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; ) {
-          const start = this.grid[r][c];
-          if (!start) { c++; continue; }
-          let end = c + 1;
-          while (end < COLS && this.grid[r][end]?.e === start.e) end++;
-          if (end - c >= 3) for (let k = c; k < end; k++) matches.add(this.grid[r][k]);
-          c = end;
+        /* horizontal scans */
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; ) {
+            const start = this.grid[r][c];
+            if (!start) { c++; continue; }
+            let end = c + 1;
+            while (end < COLS && this.grid[r][end]?.e === start.e) end++;
+            if (end - c >= 3) for (let k = c; k < end; k++) matches.add(this.grid[r][k]);
+            c = end;
+          }
         }
-      }
 
-      /* vertical scans */
-      for (let c = 0; c < COLS; c++) {
-        for (let r = 0; r < ROWS; ) {
-          const start = this.grid[r][c];
-          if (!start) { r++; continue; }
-          let end = r + 1;
-          while (end < ROWS && this.grid[end][c]?.e === start.e) end++;
-          if (end - r >= 3) for (let k = r; k < end; k++) matches.add(this.grid[k][c]);
-          r = end;
+        /* vertical scans */
+        for (let c = 0; c < COLS; c++) {
+          for (let r = 0; r < ROWS; ) {
+            const start = this.grid[r][c];
+            if (!start) { r++; continue; }
+            let end = r + 1;
+            while (end < ROWS && this.grid[end][c]?.e === start.e) end++;
+            if (end - r >= 3) for (let k = r; k < end; k++) matches.add(this.grid[k][c]);
+            r = end;
+          }
         }
-      }
 
-      /* resolve the batch in three phases */
-      if (matches.size) {
-        /* ── 1. pop everything at once ─────────────────────── */
-        this.batchMode = true;
-        matches.forEach(sp => sp.alive && this.hit(sp, team));
-        this.batchMode = false;
+        if (matches.size) {
+          /* ── 1. pop everything at once ─────────────────────── */
+          this.batchMode = true;
+          matches.forEach(sp => sp.alive && this.hit(sp, team));
+          this.batchMode = false;
 
-        /* ── 2. collapse each affected column exactly once ─── */
-        const cols = new Set();
-        matches.forEach(sp => cols.add(sp.col));
-        cols.forEach(col => this._collapseColumn(col));
-
-        /* ── 3. look for chain reactions after the board settled ── */
-        this._checkMatches(team);
-      }
+          /* ── 2. collapse each affected column exactly once ─── */
+          const cols = new Set();
+          matches.forEach(sp => cols.add(sp.col));
+          cols.forEach(col => this._collapseColumn(col));
+        }
+      } while (matches.size);
     }
   }));
 })(window);
