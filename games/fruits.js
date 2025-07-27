@@ -21,6 +21,7 @@
     spawnDelayRange : [0, 0],
 
     pending : [],                        /* empty grid cells that still need a fruit */
+    batchMode : false,                   /* ← NEW: “clear-everything-first” flag */
 
     /* pixels-per-second for the falling animation */
     dropSpeed : 600,
@@ -59,11 +60,19 @@
     },
 
     onHit (sp, team) {
+      /* remember the team so cascades score correctly */
+      this.lastTeam = team;
+
+      /* always remove the sprite from the board */
       if (this.grid[sp.row] && this.grid[sp.row][sp.col] === sp) {
         this.grid[sp.row][sp.col] = null;
       }
-      this._collapseColumn(sp.col, sp.row);
-      this._checkMatches(team);
+
+      /* During a batch we only pop — collapsing waits until the batch ends */
+      if (!this.batchMode) {
+        this._collapseColumn(sp.col);
+        this._checkMatches(team);
+      }
     },
 
     /* slide every fruit in the column as far down as possible
@@ -107,6 +116,11 @@
           sp.dy = 0;
           sp.falling = false;
           delete sp.targetY;
+
+          /* when the LAST fruit settles, check for cascades */
+          if (!this.sprites.some(s => s.falling)) {
+            this._checkMatches(this.lastTeam || 0);
+          }
         }
       }
     },
@@ -138,9 +152,20 @@
         }
       }
 
-      /* trigger hits */
+      /* resolve the batch in three phases */
       if (matches.size) {
+        /* ── 1. pop everything at once ─────────────────────── */
+        this.batchMode = true;
         matches.forEach(sp => sp.alive && this.hit(sp, team));
+        this.batchMode = false;
+
+        /* ── 2. collapse each affected column exactly once ─── */
+        const cols = new Set();
+        matches.forEach(sp => cols.add(sp.col));
+        cols.forEach(col => this._collapseColumn(col));
+
+        /* ── 3. look for chain reactions after the board settled ── */
+        this._checkMatches(team);
       }
     }
   }));
