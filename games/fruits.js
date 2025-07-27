@@ -57,7 +57,7 @@
       this.pendingSet.delete(idx);
       const r = rowFromIndex(idx);
       const c = colFromIndex(idx);
-      return {
+      const desc = {
         x : this.cell.x(c),
         y : this.cell.y(r),
         dx : 0, dy : 0,
@@ -65,6 +65,8 @@
         e  : g.R.pick(this.emojis),
         holeIndex : idx                   /* kept by addSprite → Sprite */
       };
+      this.grid[idx] = desc;             /* reserve the slot immediately */
+      return desc;
     },
 
     /* new engine hook from _onAnimEnd */
