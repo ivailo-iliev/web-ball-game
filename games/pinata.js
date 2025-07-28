@@ -1,116 +1,99 @@
-(function(g){
-  /* ────────────────────────────────────────────────────────────
-     PIÑATA - PARTY  🎉🍬
-     ──────────────────────────────────────────────────────────── */
-  const PinataGame = g.BaseGame.make({
+/**
+ * Piñata party mini game.
+ * The piñata stays on screen and drops candies after a few hits.
+ */
+(function (g) {
+  const SCORE_EL = [
+    document.getElementById('teamAScore'),
+    document.getElementById('teamBScore')
+  ];
 
-    /* 0. engine cfg tweaks – disable auto-spawns */
-    max        : 0,               // engine never spawns automatically
-    collisions : false,
+  const BASE_AMP = 0.2;
+  const BASE_FREQ = 2.0;
+  const DECAY_AMP = 0.1;
+  const DECAY_FREQ = 0.5;
+  const SWING_R = 140;
+  const CANDY_GRAVITY = 900;
+  const HIT_TO_RAIN = 5;
 
-    emojis         : ['🍬','🍭','🍡','🍫','🍪','🧁'],  // candy artwork
+  g.Game.register('pinata', g.BaseGame.make({
+    max: 0, // disable auto spawn
+    collisions: false,
+    emojis: ['🍬', '🍭', '🍡', '🍫', '🍪', '🧁'],
 
-    /* 1.  game-start : build the piñata sprite */
     onStart() {
-      /* remember basics for decay maths */
-      this._baseAmp   = 0.20;               // rad
-      this._baseFreq  = 2.0;                // rad · s⁻¹
-      this._decayAmp  = 0.10;               // rad · s⁻¹
-      this._decayFreq = 0.50;               // rad · s⁻²
-      this._hits      = 0;
-
-      /* make one “swaying” sprite */
-      const pinata = this.addSprite({
-        x : this.W * 0.5,
-        y : this.H * 0.30,
-        r : 70,
-        e : '🪅',
-
-        /* pendulum bookkeeping */
-        type        : 'pinata',
-        baseX       : this.W * 0.5,
-        baseY       : this.H * 0.30,
-        swingR      : 140,                  // horizontal swing radius (px)
-        swingAmp    : this._baseAmp,
-        swingFreq   : this._baseFreq,
-        swingT      : 0
+      this._hits = 0;
+      this.addSprite({
+        x: this.W / 2,
+        y: this.H * 0.3,
+        r: 70,
+        e: '🪅',
+        type: 'pinata',
+        baseX: this.W / 2,
+        baseY: this.H * 0.3,
+        swingR: SWING_R,
+        swingAmp: BASE_AMP,
+        swingFreq: BASE_FREQ,
+        swingT: 0
       });
-      /* note: addSprite() leaves it in “spawn” state; it’ll be pushed into
-         this.sprites automatically by the engine’s _onAnimEnd hook. */
     },
 
-    /* 2.  sprite hit */
-    onHit(s, team) {
-      if (s.type === 'pinata') {
-        /* ---- PIÑATA HIT ---- */
-        this._hits++;
+    onHit(sp, team) {
+      if (sp.type !== 'pinata') return;
 
-        /* award normal points, but keep piñata alive */
-        const pts = this.calculatePoints(s);
-        this.score[team] += pts;
-        scoreEl[team].textContent = `${this.score[team]}`;
-        this.emitBurst(s.x, s.y, ['✨','💥','💫']);
-
-        /* pump up swing ↓ */
-        s.swingAmp  = Math.min(s.swingAmp + 0.20, 1.30);
-        s.swingFreq = Math.min(s.swingFreq + 0.70, 5.00);
-
-        /* from the 5th hit onward rain candy */
-        if (this._hits >= 5) this._spawnCandies(s);
-        return true;
+      this._hits++;
+      this.score[team] += this.calculatePoints(sp);
+      if (SCORE_EL[team]) {
+        SCORE_EL[team].textContent = `${this.score[team]}`;
       }
+      this.emitBurst(sp.x, sp.y, ['✨', '💥', '💫']);
 
-      if (s.type === 'candy') {
-        /* ---- CANDY HIT (use regular engine logic) ---- */
-        return;
-      }
+      sp.swingAmp = Math.min(sp.swingAmp + 0.2, 1.3);
+      sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
+
+      if (this._hits >= HIT_TO_RAIN) this._spawnCandies(sp);
+
+      return true; // keep the piñata alive
     },
 
-    /* 3.  frame-by-frame motion */
-    move(s, dt) {
-      if (s.type === 'pinata') {
-        s.swingT += dt;
+    move(sp, dt) {
+      if (sp.type === 'pinata') {
+        sp.swingT += dt;
 
-        /* ease swing amp & speed back to base */
-        if (s.swingAmp  > this._baseAmp)  s.swingAmp  = Math.max(this._baseAmp,  s.swingAmp  - this._decayAmp  * dt);
-        if (s.swingFreq > this._baseFreq) s.swingFreq = Math.max(this._baseFreq, s.swingFreq - this._decayFreq * dt);
+        if (sp.swingAmp > BASE_AMP) {
+          sp.swingAmp = Math.max(BASE_AMP, sp.swingAmp - DECAY_AMP * dt);
+        }
+        if (sp.swingFreq > BASE_FREQ) {
+          sp.swingFreq = Math.max(BASE_FREQ, sp.swingFreq - DECAY_FREQ * dt);
+        }
 
-        const ϕ = s.swingAmp * Math.sin(s.swingFreq * s.swingT);
-
-        s.angle = ϕ;
-        s.x     = s.baseX + Math.sin(ϕ) * s.swingR;
-        s.y     = s.baseY + Math.abs(Math.sin(ϕ)) * (s.swingR * 0.10); // small vertical bob
-      }
-      else if (s.type === 'candy') {
-        s.dy += s.g * dt;                   // gravity
-        s.x  += s.dx * dt;
-        s.y  += s.dy * dt;
+        const phi = sp.swingAmp * Math.sin(sp.swingFreq * sp.swingT);
+        sp.angle = phi;
+        sp.x = sp.baseX + Math.sin(phi) * SWING_R;
+        sp.y = sp.baseY + Math.abs(Math.sin(phi)) * (SWING_R * 0.1);
+      } else if (sp.type === 'candy') {
+        sp.dy += sp.g * dt;
+        sp.x += sp.dx * dt;
+        sp.y += sp.dy * dt;
       }
     },
 
-    /* 4. helper – burst of candies */
     _spawnCandies(p) {
-      const N   = 5 + Math.floor(R.rand(5));   // 5-9 candies
-      const g   = 900;                         // px · s⁻²
-      for (let i = 0; i < N; i++) {
-        const ang   = R.between(-Math.PI / 3, Math.PI / 3); // fan outward
-        const speed = R.between(200, 350);
-        const dx    = Math.cos(ang) * speed;
-        const dy    = Math.sin(ang) * speed - 200;          // upward kick
-
+      const n = 5 + Math.floor(g.R.rand(5));
+      for (let i = 0; i < n; i++) {
+        const ang = g.R.between(-Math.PI / 3, Math.PI / 3);
+        const speed = g.R.between(200, 350);
         this.addSprite({
-          x   : p.x,
-          y   : p.y,
-          r   : R.between(20, 32),
-          e   : R.pick(this.cfg.emojis),
-          dx, dy,
-          g,                          // custom gravity flag
+          x: p.x,
+          y: p.y,
+          r: g.R.between(20, 32),
+          e: g.R.pick(this.cfg.emojis),
+          dx: Math.cos(ang) * speed,
+          dy: Math.sin(ang) * speed - 200,
+          g: CANDY_GRAVITY,
           type: 'candy'
         });
       }
     }
-  });
-
-  /* 5.  register with the engine */
-  g.Game.register('pinata', PinataGame);
+  }));
 })(window);
