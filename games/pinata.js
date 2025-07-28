@@ -4,10 +4,9 @@
      ──────────────────────────────────────────────────────────── */
   const PinataGame = g.BaseGame.make({
 
-    /* 0. engine cfg tweaks – disable auto-spawns, allow plenty of sprites */
-    max            : 999,                   // we’ll manage spawns by hand
-    spawnDelayRange: [999, 999],            // engine never calls spawn()
-    collisions     : false,
+    /* 0. engine cfg tweaks – disable auto-spawns */
+    max        : 0,               // engine never spawns automatically
+    collisions : false,
 
     emojis         : ['🍬','🍭','🍡','🍫','🍪','🧁'],  // candy artwork
 
@@ -40,35 +39,30 @@
          this.sprites automatically by the engine’s _onAnimEnd hook. */
     },
 
-    /* 2.  player clicks */
-    onPointer(x, y, btn = 0) {
-      this._showRipple(x, y);
-      for (const s of this.sprites) {
-        if ((x - s.x) ** 2 + (y - s.y) ** 2 > s.r ** 2) continue;
+    /* 2.  sprite hit */
+    onHit(s, team) {
+      if (s.type === 'pinata') {
+        /* ---- PIÑATA HIT ---- */
+        this._hits++;
 
-        const team = btn === 2 ? 0 : 1;     // mirror engine convention
+        /* award normal points, but keep piñata alive */
+        const pts = this.calculatePoints(s);
+        this.score[team] += pts;
+        scoreEl[team].textContent = `${this.score[team]}`;
+        this.emitBurst(s.x, s.y, ['✨','💥','💫']);
 
-        if (s.type === 'pinata') {
-          /* ---- PIÑATA HIT ---- */
-          this._hits++;
+        /* pump up swing ↓ */
+        s.swingAmp  = Math.min(s.swingAmp + 0.20, 1.30);
+        s.swingFreq = Math.min(s.swingFreq + 0.70, 5.00);
 
-          /* award normal points, but keep piñata alive */
-          const pts = this.calculatePoints(s);
-          this.score[team] += pts;
-          scoreEl[team].textContent = `${this.score[team]}`;
-          this.emitBurst(s.x, s.y, ['✨','💥','💫']);
+        /* from the 5th hit onward rain candy */
+        if (this._hits >= 5) this._spawnCandies(s);
+        return true;
+      }
 
-          /* pump up swing ↓ */
-          s.swingAmp  = Math.min(s.swingAmp + 0.20, 1.30);
-          s.swingFreq = Math.min(s.swingFreq + 0.70, 5.00);
-
-          /* from the 5th hit onward rain candy */
-          if (this._hits >= 5) this._spawnCandies(s);
-        } else {
-          /* ---- CANDY HIT (use regular engine logic) ---- */
-          g.BaseGame.prototype.hit.call(this, s, team);
-        }
-        break;                              // only the first intersecting sprite
+      if (s.type === 'candy') {
+        /* ---- CANDY HIT (use regular engine logic) ---- */
+        return;
       }
     },
 
