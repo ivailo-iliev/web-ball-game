@@ -22,6 +22,7 @@
         dy: 0,
         e : g.R.pick(this.emojis),
         hits: 0,
+        angle: g.R.between(-Math.PI * 2, Math.PI * 2),
         p : { '--mr': '0%' }
       };
     },
