@@ -3,11 +3,12 @@
   const BURST  = ['💭'];
   const MAX_HITS = 5;
   const R_RANGE = [25, 90];
+  const EMOJI_MAX = 6;
 
   g.Game.register('gem', g.BaseGame.make({
-    max            : 6,
+    max            : EMOJI_MAX,
     emojis         : EMOJIS,
-    spawnDelayRange: [0, 0],
+    spawnDelayRange: [0, 1],
     collisions     : false,
     bounceX        : false,
     bounceY        : false,
