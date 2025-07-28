@@ -9,9 +9,6 @@
     max            : EMOJI_MAX,
     emojis         : EMOJIS,
     spawnDelayRange: [0, 1],
-    collisions     : false,
-    bounceX        : false,
-    bounceY        : false,
     burst          : BURST,
     burstN         : 14,
 

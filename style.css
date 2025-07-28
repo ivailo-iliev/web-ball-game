@@ -159,15 +159,16 @@ input[type="range"] {
   --hole6-x: -100vw; --hole6-y: -100vh;
   --hole7-x: -100vw; --hole7-y: -100vh;
   --hole8-x: -100vw; --hole8-y: -100vh;
+  --hole-img: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>");
   background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>"),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>");
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img);
   background-repeat: no-repeat;
   background-size:
     var(--hole-size) var(--hole-size),
@@ -217,9 +218,19 @@ input[type="range"] {
   will-change: height;
 }
 
+@property --mr {
+  syntax: '<percentage>';
+  initial-value: 0%;
+  inherits: false;
+}
+
 .gem .sprite {
-  mask-image: radial-gradient(circle at 50% 50%, white 0%, white var(--mr), black var(--mr), black 50%);
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, white 0%, white var(--mr), black var(--mr), black 50%);
+  mask-image: radial-gradient(
+    rgba(0,0,0,1)   0%,
+    rgba(0,0,0,0.5) var(--mr),
+    rgba(0,0,0,0)   calc(var(--mr) + 10%)
+  );
+  transition: --mr 1s ease-in-out !important;
 }
 
 .particle {
@@ -305,6 +316,15 @@ input[type="range"] {
       0 0 0 12vh rgba(0, 162, 255, 0),
       0 0 0 16vh rgba(0, 162, 255, 0);
   }
+}
+
+.game.gem {
+      background: 
+        radial-gradient(circle at 30% 30%, rgba(255, 230, 180, 0.35) 0%, transparent 40%),
+        radial-gradient(circle at 70% 70%, rgba(255, 220, 160, 0.3) 0%, transparent 50%),
+        linear-gradient(#fceabb, #f8d098);
+      background-repeat: no-repeat;
+      background-size: cover;
 }
 
 /* ----- Spawn and Pop effects ----- */
