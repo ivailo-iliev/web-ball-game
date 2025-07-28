@@ -1,5 +1,5 @@
 (function (g) {
-  const COLS = 8, ROWS = 8;
+  const COLS = 10, ROWS = 5;
   const indexToRow = i => Math.floor(i / COLS);
   const indexToCol = i => i % COLS;
   const FRUITS = ['🫐','🍐','🍊','🥥','🍌','🍇','🍉'];

@@ -217,6 +217,10 @@ input[type="range"] {
   will-change: height;
 }
 
+.gem .sprite {
+  mask-image: radial-gradient(circle at 50% 50%, white 0%, white var(--mr), black var(--mr), black 50%);
+}
+
 .particle {
   position: absolute;
   will-change: transform, opacity;
