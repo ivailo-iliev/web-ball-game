@@ -1,5 +1,7 @@
 (function (g) {
   const COLS = 8, ROWS = 8;
+  const indexToRow = i => Math.floor(i / COLS);
+  const indexToCol = i => i % COLS;
   const FRUITS = ['🫐','🍐','🍊','🥥','🍌','🍇','🍉'];
 
   function buildGrid(game) {
@@ -9,10 +11,10 @@
     game.cell = {
       size : sz,
       r    : sz * 0.4,
-      x    : c => offX + c * sz + sz / 2,
-      y    : r => offY + r * sz + sz / 2
+      x    : col => offX + col * sz + sz / 2,
+      y    : row => offY + row * sz + sz / 2
     };
-    game.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    game.grid = Array(COLS * ROWS).fill(null);
   }
 
   g.Game.register('fruits', g.BaseGame.make({
@@ -31,32 +33,29 @@
       this.cfg.rRange = [this.cell.r, this.cell.r];
 
       /* queue initial board fill */
-      for (let r = 0; r < ROWS; r++)
-        for (let c = 0; c < COLS; c++)
-          this.pending.push({ r, c });
+      for (let i = 0; i < COLS * ROWS; i++)
+        this.pending.push(i);
     },
 
     /* descriptor-only: the engine will turn it into a Sprite */
     spawn () {
-      const cell = this.pending.shift();
-      if (!cell) return null;
-      const { r, c } = cell;
+      const idx = this.pending.shift();
+      if (idx === undefined) return null;
+      const row = indexToRow(idx);
+      const col = indexToCol(idx);
       return {
-        x : this.cell.x(c),
-        y : this.cell.y(r),
+        x : this.cell.x(col),
+        y : this.cell.y(row),
         dx : 0, dy : 0,
         r  : this.cell.r,
         e  : g.R.pick(this.emojis),
-        holeIndex : r * COLS + c           /* kept by addSprite → Sprite */
+        holeIndex : idx                 /* kept by addSprite → Sprite */
       };
     },
 
     /* new engine hook from _onAnimEnd */
     onSpriteAlive (sp) {
-      /* translate the preserved holeIndex back to grid coords */
-      sp.row = Math.floor(sp.holeIndex / COLS);
-      sp.col = sp.holeIndex % COLS;
-      this.grid[sp.row][sp.col] = sp;
+      this.grid[sp.holeIndex] = sp;
     },
 
     onHit (sp, team) {
@@ -64,13 +63,13 @@
       this.lastTeam = team;
 
       /* always remove the sprite from the board */
-      if (this.grid[sp.row] && this.grid[sp.row][sp.col] === sp) {
-        this.grid[sp.row][sp.col] = null;
+      if (this.grid[sp.holeIndex] === sp) {
+        this.grid[sp.holeIndex] = null;
       }
 
       /* During a batch we only pop — collapsing waits until the batch ends */
       if (!this.batchMode) {
-        this._collapseColumn(sp.col);
+        this._collapseColumn(indexToCol(sp.holeIndex));
         this._checkMatches(team);
       }
     },
@@ -83,14 +82,16 @@
       let write = ROWS - 1;                     // lowest slot we can fill
 
       for (let read = ROWS - 1; read >= 0; read--) {
-        const sp = this.grid[read][col];
+        const readIdx = read * COLS + col;
+        const sp = this.grid[readIdx];
         if (!sp) continue;                      // hole → skip
 
         if (read !== write) {                   // needs to fall
-          this.grid[write][col] = sp;
-          this.grid[read ][col] = null;
+          const writeIdx = write * COLS + col;
+          this.grid[writeIdx] = sp;
+          this.grid[readIdx]  = null;
 
-          sp.row      = write;
+          sp.holeIndex = writeIdx;
           sp.targetY  = this.cell.y(write);     // where move() must glide to
           sp.falling  = true;
           sp.dy       = this.dropSpeed;         // let the engine animate it
@@ -99,10 +100,11 @@
       }
 
       /* 2. every cell above “write” is empty → spawn newcomers */
-      for (let r = write; r >= 0; r--) {
+      for (let row = write; row >= 0; row--) {
+        const idx = row * COLS + col;
         /* avoid duplicates when this function is called again in the same frame */
-        if (!this.pending.some(p => p.r === r && p.c === col)) {
-          this.pending.push({ r, c: col });
+        if (!this.pending.includes(idx)) {
+          this.pending.push(idx);
         }
       }
     },
@@ -129,26 +131,30 @@
       const matches = new Set();
 
       /* horizontal scans */
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; ) {
-          const start = this.grid[r][c];
-          if (!start) { c++; continue; }
-          let end = c + 1;
-          while (end < COLS && this.grid[r][end]?.e === start.e) end++;
-          if (end - c >= 3) for (let k = c; k < end; k++) matches.add(this.grid[r][k]);
-          c = end;
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; ) {
+          const start = this.grid[row * COLS + col];
+          if (!start) { col++; continue; }
+          let end = col + 1;
+          while (end < COLS && this.grid[row * COLS + end]?.e === start.e) end++;
+          if (end - col >= 3) {
+            for (let k = col; k < end; k++) matches.add(this.grid[row * COLS + k]);
+          }
+          col = end;
         }
       }
 
       /* vertical scans */
-      for (let c = 0; c < COLS; c++) {
-        for (let r = 0; r < ROWS; ) {
-          const start = this.grid[r][c];
-          if (!start) { r++; continue; }
-          let end = r + 1;
-          while (end < ROWS && this.grid[end][c]?.e === start.e) end++;
-          if (end - r >= 3) for (let k = r; k < end; k++) matches.add(this.grid[k][c]);
-          r = end;
+      for (let col = 0; col < COLS; col++) {
+        for (let row = 0; row < ROWS; ) {
+          const start = this.grid[row * COLS + col];
+          if (!start) { row++; continue; }
+          let end = row + 1;
+          while (end < ROWS && this.grid[end * COLS + col]?.e === start.e) end++;
+          if (end - row >= 3) {
+            for (let k = row; k < end; k++) matches.add(this.grid[k * COLS + col]);
+          }
+          row = end;
         }
       }
 
@@ -161,7 +167,7 @@
 
         /* ── 2. collapse each affected column exactly once ─── */
         const cols = new Set();
-        matches.forEach(sp => cols.add(sp.col));
+        matches.forEach(sp => cols.add(indexToCol(sp.holeIndex)));
         cols.forEach(col => this._collapseColumn(col));
 
         /* ── 3. look for chain reactions after the board settled ── */
