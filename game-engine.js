@@ -388,9 +388,6 @@ function boot() {
   window.addEventListener('resize', updateViewport, { passive: true });
   window.addEventListener('orientationchange', updateViewport, { passive: true });
 
-  Game.ripple = document.createElement('div');
-  Game.ripple.className = 'ripple';
-  layer.append(Game.ripple);
 
   layer.addEventListener('pointerdown', e => {
     const g = inst;
@@ -414,6 +411,15 @@ const REG = [];
 let idx = -1;
 let inst = null;
 
+function cleanupLayer() {
+  const layer = Game.layer;
+  if (!layer) return;
+  while (layer.firstChild) layer.firstChild.remove();
+  layer.className = '';
+  layer.removeAttribute('style');
+  Game.ripple = null;
+}
+
 Game.register = (id, cls) => {
   cls.prototype.gameName = id;
   REG.push({ id, cls });
@@ -436,6 +442,10 @@ Game.run = (target, opts = {}) => {
       : REG.findIndex(e => e.id === target);
   if (i < 0) return;
   if (inst) inst.end();
+  cleanupLayer();
+  Game.ripple = document.createElement('div');
+  Game.ripple.className = 'ripple';
+  Game.layer.append(Game.ripple);
   idx = i;
   inst = new REG[i].cls();
 
