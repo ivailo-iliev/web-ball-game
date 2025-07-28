@@ -414,3 +414,17 @@ input[type="range"] {
 .dropIn {
   animation: dropIn 0.2s ease-out 0.2s forwards;
 }
+
+/* ---- Gem collections ---- */
+.gem-collection {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  font-size: 32px;
+  line-height: 1;
+  pointer-events: none;
+}
+.gem-collection.left  { left: 8px; }
+.gem-collection.right { right: 8px; align-items: flex-end; }

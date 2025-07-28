@@ -12,6 +12,16 @@
     burst          : BURST,
     burstN         : 14,
 
+    onStart() {
+      const left = document.createElement('div');
+      left.className = 'gem-collection left';
+      const right = document.createElement('div');
+      right.className = 'gem-collection right';
+      this.container.appendChild(left);
+      this.container.appendChild(right);
+      this.collections = [left, right];
+    },
+
     /* create a masked, stationary sprite */
     spawn() {
       return {
@@ -35,6 +45,11 @@
         s.style.setProperty('--mr', pct);
         this.emitBurst(s.x, s.y, BURST);
         return true;                  // tell engine we handled the hit
+      }
+      if (team === 0 || team === 1) {
+        const span = document.createElement('span');
+        span.textContent = s.e;
+        this.collections[team].prepend(span);
       }
       // let the engine proceed with normal scoring & pop
     }
