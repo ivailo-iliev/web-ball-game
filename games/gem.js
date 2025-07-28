@@ -2,6 +2,7 @@
   const EMOJIS = ['💎','🏺','🦴','🪙','💰','🗿','🧭','⏳','🗝️','🥣','👞','💍','📿','🔔','📯','🍶','🎖️'];
   const BURST  = ['💭'];
   const MAX_HITS = 5;
+  const R_RANGE = [25, 90];
 
   g.Game.register('gem', g.BaseGame.make({
     max            : 6,
