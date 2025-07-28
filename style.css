@@ -214,7 +214,6 @@ input[type="range"] {
   align-items: flex-start;
   transform: none !important;
   inset: auto auto var(--py) var(--px);
-/*  height: var(--mole-h);*/
   will-change: height;
 }
 
@@ -418,13 +417,14 @@ input[type="range"] {
 /* ---- Gem collections ---- */
 .gem-collection {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   font-size: 32px;
   line-height: 1;
   pointer-events: none;
+  gap: 0.5em;
+  padding: 0.5em;
+  text-shadow: #00000066 0 0 10px;
 }
-.gem-collection.left  { left: 8px; }
-.gem-collection.right { right: 8px; align-items: flex-end; }
+.gem-collection.left  { inset: 0 auto 0 0; }
+.gem-collection.right { inset: 0 0 0 auto; }
