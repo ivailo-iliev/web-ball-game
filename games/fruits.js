@@ -3,7 +3,7 @@
   const CELL_COUNT = COLS * ROWS;
   const indexToRow = i => Math.floor(i / COLS);
   const indexToCol = i => i % COLS;
-  const FRUITS = ['🫐','🍐','🍊','🥥','🍌','🍇','🍉'];
+  const FRUITS = ['🍓','🍐','🍊','🥥','🍌','🍇','🍉'];
 
   function buildGrid(game) {
     const sz = Math.min(game.W / COLS, game.H / ROWS);
