@@ -29,16 +29,16 @@
       };
     },
 
-    /* reveal logic – skip base scoring / popping until fully revealed */
+    /* reveal logic – skip default scoring until fully revealed */
     onHit(s /* sprite */, team) {
       s.hits = (s.hits || 0) + 1;
       if (s.hits < MAX_HITS) {
         const pct = (s.hits / MAX_HITS * 100).toFixed(1) + '%';
         s.style.setProperty('--mr', pct);
-        /* <<< returning true tells the engine we handled the hit; no pop */
-        return true;
+        this.emitBurst(s.x, s.y, BURST);
+        return true;                  // tell engine we handled the hit
       }
-      /* once hits === MAX_HITS we fall through → engine scores & pops */
+      // let the engine proceed with normal scoring & pop
     }
   }));
 })(window);
