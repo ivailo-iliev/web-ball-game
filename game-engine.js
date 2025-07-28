@@ -414,7 +414,9 @@ let inst = null;
 function cleanupLayer() {
   const layer = Game.layer;
   if (!layer) return;
-  while (layer.firstChild) layer.firstChild.remove();
+  // Using replaceChildren clears all nodes in a single operation
+  // which is faster than repeatedly removing firstChild
+  layer.replaceChildren();
   layer.className = '';
   layer.removeAttribute('style');
   Game.ripple = null;
