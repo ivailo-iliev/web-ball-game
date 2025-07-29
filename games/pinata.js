@@ -10,8 +10,8 @@
 
   const BASE_AMP = 0.2; // radians
   const BASE_FREQ = 2.0; // radians per second
-  const DECAY_AMP = 0.1;
-  const DECAY_FREQ = 0.5;
+  const DECAY_AMP = 0.5; // approach speed to default amplitude
+  const DECAY_FREQ = 0.5; // approach speed to default frequency
   const CANDY_GRAVITY = 900;
   const HIT_TO_RAIN = 5;
 
@@ -61,16 +61,14 @@
 
     move(sp, dt) {
       if (sp.type === 'pinata') {
-        if (sp.swingAmp > BASE_AMP) {
-          sp.swingAmp = Math.max(BASE_AMP, sp.swingAmp - DECAY_AMP * dt);
-          const deg = sp.swingAmp * 180 / Math.PI;
-          sp.el.style.setProperty('--angle', `${deg}deg`);
-        }
-        if (sp.swingFreq > BASE_FREQ) {
-          sp.swingFreq = Math.max(BASE_FREQ, sp.swingFreq - DECAY_FREQ * dt);
-          const per = 2 * Math.PI / sp.swingFreq;
-          sp.el.style.setProperty('--period', `${per}s`);
-        }
+        // gradually approach default motion rather than an immediate reset
+        sp.swingAmp += (BASE_AMP - sp.swingAmp) * DECAY_AMP * dt;
+        const deg = sp.swingAmp * 180 / Math.PI;
+        sp.el.style.setProperty('--angle', `${deg}deg`);
+
+        sp.swingFreq += (BASE_FREQ - sp.swingFreq) * DECAY_FREQ * dt;
+        const per = 2 * Math.PI / sp.swingFreq;
+        sp.el.style.setProperty('--period', `${per}s`);
       } else if (sp.type === 'candy') {
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
