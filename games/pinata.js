@@ -2,7 +2,10 @@
  * Piñata party mini game.
  * The piñata stays on screen and drops candies after a few hits.
  */
+
 (function (g) {
+  'use strict';
+
   const SCORE_EL = [
     document.getElementById('teamAScore'),
     document.getElementById('teamBScore')
@@ -23,17 +26,19 @@
 
     onStart() {
       this._hits = 0;
+      const pivotX = this.W / 2;
+      const pivotY = this.H / 2;
       const sp = this.addSprite({
-        x: this.W / 2,
-        y: this.H / 2,
+        x: pivotX,
+        y: pivotY,
         r: 70,
         e: '🪅',
         type: 'pinata',
         swingAmp: BASE_AMP,
         swingFreq: BASE_FREQ,
         phase: 0,                 // oscillator phase (rad)
-        pivotX: this.W / 2,       // cached screen centre
-        pivotY: this.H / 2
+        pivotX,
+        pivotY
       });
       sp.el.classList.add('pinata');
       /* No inline style writes – engine’s draw() will use x, y, angle */
@@ -43,9 +48,9 @@
       if (sp.type !== 'pinata') return;
 
       this._hits++;
-      this.score[team] += this.calculatePoints(sp);
+      const score = (this.score[team] += this.calculatePoints(sp));
       if (SCORE_EL[team]) {
-        SCORE_EL[team].textContent = `${this.score[team]}`;
+        SCORE_EL[team].textContent = `${score}`;
       }
       this.emitBurst(sp.x, sp.y, ['✨', '💥', '💫']);
 
@@ -83,15 +88,16 @@
     },
 
     _spawnCandies(p) {
-      const n = 5 + Math.floor(g.R.rand(5));
+      const { rand, between, pick } = g.R;
+      const n = 5 + Math.floor(rand(5));
       for (let i = 0; i < n; i++) {
-        const ang = g.R.between(-Math.PI / 3, Math.PI / 3);
-        const speed = g.R.between(200, 350);
+        const ang = between(-Math.PI / 3, Math.PI / 3);
+        const speed = between(200, 350);
         this.addSprite({
           x: p.x,
           y: p.y,
-          r: g.R.between(20, 32),
-          e: g.R.pick(this.cfg.emojis),
+          r: between(20, 32),
+          e: pick(this.cfg.emojis),
           dx: Math.cos(ang) * speed,
           dy: Math.sin(ang) * speed - 200,
           g: CANDY_GRAVITY,
