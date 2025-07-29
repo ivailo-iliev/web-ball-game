@@ -12,6 +12,9 @@
 
   --spacing-1: .25rem;
   --spacing-2: .5rem;
+  --string: 200px;
+  --angle: 12deg;
+  --period: 2.4s;
 }
 
 /* A simple universal box‑sizing reset */
@@ -440,3 +443,34 @@ input[type="range"] {
 }
 .gem-collection.left  { inset: 0 auto 0 0; }
 .gem-collection.right { inset: 0 0 0 auto; }
+
+/* === Piñata animation === */
+.sprite.pinata {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: var(--size);
+  height: var(--size);
+  font-size: var(--size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% calc(-1*var(--string));
+  animation: swing var(--period) ease-in-out infinite alternate;
+}
+
+.sprite.pinata::before {
+  content: "";
+  position: absolute;
+  top: calc(-1*var(--string));
+  left: 50%;
+  width: 2px;
+  height: var(--string);
+  background: #333;
+  z-index: -1;
+}
+
+@keyframes swing {
+  0%   { transform: translate(-50%, -50%) rotate(calc(var(--angle) * -1)); }
+  100% { transform: translate(-50%, -50%) rotate(var(--angle)); }
+}
