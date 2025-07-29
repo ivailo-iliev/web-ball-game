@@ -10,8 +10,9 @@
 
   const BASE_AMP = 0.2; // radians
   const BASE_FREQ = 2.0; // radians per second
-  const DECAY_AMP = 0.5; // approach speed to default amplitude
-  const DECAY_FREQ = 0.5; // approach speed to default frequency
+  const DECAY_AMP = 0.15; // slower decay → smoother ease-out
+  const DECAY_FREQ = 0.15;
+  const STRING = 200;     // px – matches :root{ --string } in CSS
   const CANDY_GRAVITY = 900;
   const HIT_TO_RAIN = 5;
 
@@ -29,14 +30,13 @@
         e: '🪅',
         type: 'pinata',
         swingAmp: BASE_AMP,
-        swingFreq: BASE_FREQ
+        swingFreq: BASE_FREQ,
+        phase: 0,                 // oscillator phase (rad)
+        pivotX: this.W / 2,       // cached screen centre
+        pivotY: this.H / 2
       });
       sp.el.classList.add('pinata');
-      sp.draw = () => {};
-      const deg = BASE_AMP * 180 / Math.PI;
-      sp.el.style.setProperty('--angle', `${deg}deg`);
-      const per = 2 * Math.PI / BASE_FREQ;
-      sp.el.style.setProperty('--period', `${per}s`);
+      /* No inline style writes – engine’s draw() will use x, y, angle */
     },
 
     onHit(sp, team) {
@@ -49,10 +49,9 @@
       }
       this.emitBurst(sp.x, sp.y, ['✨', '💥', '💫']);
 
-      sp.swingAmp = Math.min(sp.swingAmp + 0.2, 1.3);
+      sp.swingAmp  = Math.min(sp.swingAmp  + 0.2, 1.3);
       sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
-      sp.el.style.setProperty('--angle', `${sp.swingAmp * 180 / Math.PI}deg`);
-      sp.el.style.setProperty('--period', `${2 * Math.PI / sp.swingFreq}s`);
+      /* transform will update next frame */
 
       if (this._hits >= HIT_TO_RAIN) this._spawnCandies(sp);
 
@@ -61,14 +60,21 @@
 
     move(sp, dt) {
       if (sp.type === 'pinata') {
-        // gradually approach default motion rather than an immediate reset
-        sp.swingAmp += (BASE_AMP - sp.swingAmp) * DECAY_AMP * dt;
-        const deg = sp.swingAmp * 180 / Math.PI;
-        sp.el.style.setProperty('--angle', `${deg}deg`);
-
+        /* 1 . ease back toward idle values */
+        sp.swingAmp  += (BASE_AMP  - sp.swingAmp)  * DECAY_AMP  * dt;
         sp.swingFreq += (BASE_FREQ - sp.swingFreq) * DECAY_FREQ * dt;
-        const per = 2 * Math.PI / sp.swingFreq;
-        sp.el.style.setProperty('--period', `${per}s`);
+
+        /* 2 . integrate the oscillator */
+        sp.phase += sp.swingFreq * dt;
+        const sinP = Math.sin(sp.phase);
+        const cosP = Math.cos(sp.phase);
+
+        /* 3 . expose angle for Sprite.draw() */
+        sp.angle = sp.swingAmp * sinP;
+
+        /* 4 . logical centre for hit-tests (no DOM reads each frame) */
+        sp.x = sp.pivotX + sinP * STRING;
+        sp.y = sp.pivotY + (1 - cosP) * STRING;
       } else if (sp.type === 'candy') {
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
