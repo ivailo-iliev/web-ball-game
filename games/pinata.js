@@ -8,11 +8,10 @@
     document.getElementById('teamBScore')
   ];
 
-  const BASE_AMP = 0.2;
-  const BASE_FREQ = 2.0;
+  const BASE_AMP = 0.2; // radians
+  const BASE_FREQ = 2.0; // radians per second
   const DECAY_AMP = 0.1;
   const DECAY_FREQ = 0.5;
-  const SWING_R = 140;
   const CANDY_GRAVITY = 900;
   const HIT_TO_RAIN = 5;
 
@@ -23,19 +22,21 @@
 
     onStart() {
       this._hits = 0;
-      this.addSprite({
+      const sp = this.addSprite({
         x: this.W / 2,
-        y: this.H * 0.3,
+        y: this.H / 2,
         r: 70,
         e: '🪅',
         type: 'pinata',
-        baseX: this.W / 2,
-        baseY: this.H * 0.3,
-        swingR: SWING_R,
         swingAmp: BASE_AMP,
-        swingFreq: BASE_FREQ,
-        swingT: 0
+        swingFreq: BASE_FREQ
       });
+      sp.el.classList.add('pinata');
+      sp.draw = () => {};
+      const deg = BASE_AMP * 180 / Math.PI;
+      sp.el.style.setProperty('--angle', `${deg}deg`);
+      const per = 2 * Math.PI / BASE_FREQ;
+      sp.el.style.setProperty('--period', `${per}s`);
     },
 
     onHit(sp, team) {
@@ -50,6 +51,8 @@
 
       sp.swingAmp = Math.min(sp.swingAmp + 0.2, 1.3);
       sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
+      sp.el.style.setProperty('--angle', `${sp.swingAmp * 180 / Math.PI}deg`);
+      sp.el.style.setProperty('--period', `${2 * Math.PI / sp.swingFreq}s`);
 
       if (this._hits >= HIT_TO_RAIN) this._spawnCandies(sp);
 
@@ -58,19 +61,16 @@
 
     move(sp, dt) {
       if (sp.type === 'pinata') {
-        sp.swingT += dt;
-
         if (sp.swingAmp > BASE_AMP) {
           sp.swingAmp = Math.max(BASE_AMP, sp.swingAmp - DECAY_AMP * dt);
+          const deg = sp.swingAmp * 180 / Math.PI;
+          sp.el.style.setProperty('--angle', `${deg}deg`);
         }
         if (sp.swingFreq > BASE_FREQ) {
           sp.swingFreq = Math.max(BASE_FREQ, sp.swingFreq - DECAY_FREQ * dt);
+          const per = 2 * Math.PI / sp.swingFreq;
+          sp.el.style.setProperty('--period', `${per}s`);
         }
-
-        const phi = sp.swingAmp * Math.sin(sp.swingFreq * sp.swingT);
-        sp.angle = phi;
-        sp.x = sp.baseX + Math.sin(phi) * SWING_R;
-        sp.y = sp.baseY + Math.abs(Math.sin(phi)) * (SWING_R * 0.1);
       } else if (sp.type === 'candy') {
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
