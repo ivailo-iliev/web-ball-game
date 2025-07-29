@@ -1,4 +1,6 @@
 (function (g) {
+  const { between, rand, pick } = g.R;
+  const TAU = Math.PI * 2;
   const EMOJI_SET = [
     '🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉','⭐','🥳','💎',
     '🍀','🌸','🍕','🍔','🍟','🍦','🍩','🍪','🍉','🍓','🍒','🍇','🧸','🎁','🎀','🪁',
@@ -24,20 +26,21 @@
     bounceY    : true,
 
     spawn() {
-      const r = g.R.between(...R_RANGE);
-      const x = g.R.rand(this.W);
-      const y = g.R.rand(this.H);
-      const speed = g.R.between(...V_RANGE);
-      const ang = g.R.rand(Math.PI * 2);
-      const vx = Math.cos(ang) * speed;
-      const vy = Math.sin(ang) * speed;
+      const r = between(...R_RANGE);
+      const x = rand(this.W);
+      const y = rand(this.H);
+      const speed = between(...V_RANGE);
+      const angle = rand(TAU);
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed;
       const d = {
         x,
         y,
         dx: vx,
         dy: vy,
         r,
-        e: g.R.pick(this.emojis)
+        angle,
+        e: pick(this.emojis)
       };
       return d;
     },

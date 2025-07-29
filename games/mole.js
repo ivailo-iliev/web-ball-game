@@ -1,4 +1,6 @@
 (function(g){
+  const { rand, pick } = g.R;
+  const TAU = Math.PI * 2;
   const MOLE_LIFETIME_SECS = 10;
   const MOLE_MAX = 12;
   const MOLE_EMOJIS = ['🐭','🐰'];
@@ -53,7 +55,7 @@
       for(let i=0; i<this.holes.length; i++){
         if(!this.holes[i].occupied){
           n++;
-          if(g.R.rand(n) < 1) idx = i;
+          if(rand(n) < 1) idx = i;
         }
       }
       if(idx === -1) return null;
@@ -66,7 +68,7 @@
         dx: 0,
         dy: 0,
         r: this.holeR,
-        e: g.R.pick(this.emojis),
+        e: pick(this.emojis),
         ttl: MOLE_LIFETIME_SECS,
         holeIndex: idx,
         p: {

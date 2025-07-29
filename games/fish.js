@@ -1,4 +1,6 @@
 (function(g){
+  const { rand, between, pick } = g.R;
+  const TAU = Math.PI * 2;
   const FISH_SET = ['🐳','🐋','🐬','🦭','🐟','🐠','🦈','🐙','🪼','🦀','🦞','🦐'];
   const FISH_MAX = 6;
   const SPAWN_DELAY_RANGE = [0, 3];
@@ -13,20 +15,20 @@
     bounceY: true,
 
     spawn(){
-      const r = g.R.between(...R_RANGE);
-      const swimRight = Math.random() < 0.5;
-      const speed = g.R.between(...V_RANGE);
+      const r = between(...R_RANGE);
+      const swimRight = rand(1) < 0.5;
+      const speed = between(...V_RANGE);
       const dx = swimRight ? speed : -speed;
       const x = swimRight ? -r : this.W + r;
-      const y = g.R.between(r, this.H - r);
-      const dy = g.R.between(-10, 10);
+      const y = between(r, this.H - r);
+      const dy = between(-10, 10);
       const d = {
         x,
         y,
         dx,
         dy,
         r,
-        e: g.R.pick(this.emojis),
+        e: pick(this.emojis),
         scaleX: swimRight ? -1 : 1,
         p: { '--flyX': swimRight ? '120vw' : '-120vw' }
       };

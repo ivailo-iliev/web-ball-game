@@ -1,4 +1,7 @@
 (function(g){
+  const { between, pick, rand } = g.R;
+  const TAU = Math.PI * 2;
+
   const BALLOON_SET  = ['🎈'];
   const BALLOON_RARE = ['☁️','🪁','🦋','⚡','🪙','⭐','🍂'];
   const BALLOON_MAX  = 6;
@@ -16,16 +19,16 @@
     spawnDelayRange: SPAWN_DELAY_RANGE,
 
     spawn(){
-      const r = g.R.between(...R_RANGE);
-      const rare = Math.random() < 0.05;
-      const e = rare ? g.R.pick(BALLOON_RARE) : BALLOON_SET[0];
-      const x = g.R.between(r, this.W - r);
+      const r = between(...R_RANGE);
+      const rare = rand(1) < 0.05;
+      const e = rare ? pick(BALLOON_RARE) : BALLOON_SET[0];
+      const x = between(r, this.W - r);
       const y = this.H + r;
-      const dx = g.R.between(-10, 10);
-      const dy = -g.R.between(...B_V_RANGE);
-      const hue = Math.random() * 360;
-      const bri = g.R.between(...BRIGHT_RANGE);
-      const sat = g.R.between(...SAT_RANGE);
+      const dx = between(-10, 10);
+      const dy = -between(...B_V_RANGE);
+      const hue = rand(360);
+      const bri = between(...BRIGHT_RANGE);
+      const sat = between(...SAT_RANGE);
       const d = {
         x,
         y,
