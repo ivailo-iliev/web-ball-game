@@ -1,4 +1,6 @@
 (function(g){
+  const { rand, between, pick } = g.R;
+  const TAU = Math.PI * 2;
   const EMOJIS = ['💎','🏺','🦴','🪙','💰','🗿','🧭','⏳','🔑','🥣','👞','💍','📿','🔔','📯','🍶','🎖️','🩴','👑','🪉'];
   const BURST  = ['💭'];
   const MAX_HITS = 5;
@@ -25,14 +27,14 @@
     /* create a masked, stationary sprite */
     spawn() {
       return {
-        x : g.R.rand(this.W),
-        y : g.R.rand(this.H),
-        r: g.R.between(...R_RANGE),
+        x : rand(this.W),
+        y : rand(this.H),
+        r: between(...R_RANGE),
         dx: 0,
         dy: 0,
-        e : g.R.pick(this.emojis),
+        e : pick(this.emojis),
         hits: 0,
-        angle: g.R.between(-Math.PI * 2, Math.PI * 2),
+        angle: between(-TAU, TAU),
         p : { '--mr': '0%' }
       };
     },

@@ -5,6 +5,8 @@
 
 (function (g) {
   'use strict';
+  const { rand, between, pick } = g.R;
+  const TAU = Math.PI * 2;
 
   const SCORE_EL = [
     document.getElementById('teamAScore'),
@@ -88,10 +90,9 @@
     },
 
     _spawnCandies(p) {
-      const { rand, between, pick } = g.R;
       const n = 5 + Math.floor(rand(5));
       for (let i = 0; i < n; i++) {
-        const ang = between(-Math.PI / 3, Math.PI / 3);
+        const ang = between(-TAU / 6, TAU / 6);
         const speed = between(200, 350);
         this.addSprite({
           x: p.x,

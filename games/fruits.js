@@ -1,4 +1,5 @@
 (function (g) {
+  const { pick } = g.R;
   const COLS = 10, ROWS = 5;
   const CELL_COUNT = COLS * ROWS;
   const indexToRow = i => Math.floor(i / COLS);
@@ -49,7 +50,7 @@
         y : cell.y(row),
         dx : 0, dy : 0,
         r  : cell.r,
-        e  : g.R.pick(emojis),
+        e  : pick(emojis),
         holeIndex : idx                 /* kept by addSprite → Sprite */
       };
     },
