@@ -29,7 +29,7 @@
     onStart() {
       this._hits = 0;
       const pivotX = this.W / 2;
-      const pivotY = this.H / 2;
+      const pivotY = 0;                   // ceiling – rope hangs down
       const sp = this.addSprite({
         x: pivotX,
         y: pivotY,
@@ -85,13 +85,14 @@
         /* 3 . expose angle for Sprite.draw() */
         sp.angle = sp.swingAmp * sinP;
 
-        /* 4 . logical centre for hit-tests (no DOM reads each frame) */
-        /* Centre of rotation is now the knot, so its world-coords are
-           exactly a circle of radius STRING round the ceiling pivot. */
+        /* 4 . logical centre follows a true pendulum arc.
+               With transform-origin at 50% −STRING px the knot is kept
+               fixed at (pivotX, pivotY), while the piñata’s centre
+               moves on a circle of radius STRING.                       */
         const sinA = Math.sin(sp.angle);
         const cosA = Math.cos(sp.angle);
-        sp.x = sp.pivotX + sinA * STRING;   // horizontal offset
-        sp.y = sp.pivotY + cosA * STRING;   // vertical offset
+        sp.x = sp.pivotX + sinA * STRING;
+        sp.y = sp.pivotY + cosA * STRING;
       } else if (sp.type === 'candy') {
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
