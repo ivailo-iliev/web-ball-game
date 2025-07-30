@@ -456,7 +456,6 @@ input[type="range"] {
   align-items: center;
   justify-content: center;
   transform-origin: 50% calc(-1*var(--string));
-  animation: swing var(--period) ease-in-out infinite alternate;
 }
 
 .sprite.pinata::before {
@@ -470,7 +469,3 @@ input[type="range"] {
   z-index: -1;
 }
 
-@keyframes swing {
-  0%   { transform: translate(-50%, -50%) rotate(calc(var(--angle) * -1)); }
-  100% { transform: translate(-50%, -50%) rotate(var(--angle)); }
-}
