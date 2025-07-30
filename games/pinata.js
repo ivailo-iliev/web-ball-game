@@ -80,8 +80,10 @@
         sp.angle = sp.swingAmp * sinP;
 
         /* 4 . logical centre for hit-tests (no DOM reads each frame) */
-        sp.x = sp.pivotX + sinP * STRING;
-        sp.y = sp.pivotY + (1 - cosP) * STRING;
+        const sinA = Math.sin(sp.angle);
+        const cosA = Math.cos(sp.angle);
+        sp.x = sp.pivotX + sinA * STRING;
+        sp.y = sp.pivotY + (1 - cosA) * STRING;
       } else if (sp.type === 'candy') {
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
