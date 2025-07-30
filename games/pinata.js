@@ -43,7 +43,17 @@
         pivotY
       });
       sp.el.classList.add('pinata');
-      /* No inline style writes – engine’s draw() will use x, y, angle */
+
+      /* ------------------------------------------------------------
+         Pin the rotation to the *top* of the string (pendulum pivot)
+         rather than the emoji’s centre. We do it once here with an
+         inline style so the engine’s per-frame transform updates
+         don’t overwrite it. STRING is the length of the rope in px.
+      ------------------------------------------------------------- */
+      sp.el.style.transformOrigin = `50% ${-STRING}px`;
+
+      /* No inline transform here – the engine’s draw() method keeps
+         the element’s “transform” property up-to-date every frame. */
     },
 
     onHit(sp, team) {
