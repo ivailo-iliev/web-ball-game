@@ -86,6 +86,21 @@
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
         sp.y += sp.dy * dt;
+
+        const ground = this.H - sp.r;
+        if (sp.y > ground) {
+          sp.y = ground;
+          if (!sp.settled) {
+            sp.dy *= -0.4;
+            sp.dx *= 0.5;
+            if (Math.abs(sp.dy) < 50) {
+              sp.dy = 0;
+              sp.dx = 0;
+              sp.g = 0;
+              sp.settled = true;
+            }
+          }
+        }
       }
     },
 
@@ -94,12 +109,13 @@
       for (let i = 0; i < n; i++) {
         const ang = between(-TAU / 6, TAU / 6);
         const speed = between(200, 350);
+        const dir = rand(1) < 0.5 ? -1 : 1;
         this.addSprite({
           x: p.x,
           y: p.y,
           r: between(20, 32),
           e: pick(this.cfg.emojis),
-          dx: Math.cos(ang) * speed,
+          dx: Math.cos(ang) * speed * dir,
           dy: Math.sin(ang) * speed - 200,
           g: CANDY_GRAVITY,
           type: 'candy'
