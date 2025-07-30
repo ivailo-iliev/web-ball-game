@@ -446,15 +446,6 @@ input[type="range"] {
 
 /* === Piñata animation === */
 .sprite.pinata {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: var(--size);
-  height: var(--size);
-  font-size: var(--size);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transform-origin: 50% calc(-1*var(--string));
 }
 
