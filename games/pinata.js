@@ -44,13 +44,9 @@
       });
       sp.el.classList.add('pinata');
 
-      /* ------------------------------------------------------------
-         Pin the rotation to the *top* of the string (pendulum pivot)
-         rather than the emoji’s centre. We do it once here with an
-         inline style so the engine’s per-frame transform updates
-         don’t overwrite it. STRING is the length of the rope in px.
-      ------------------------------------------------------------- */
-      sp.el.style.transformOrigin = `50% ${-STRING}px`;
+      /* Rotate around the knot where the rope meets the piñata
+         (horizontal centre, very top of the <div>).                  */
+      sp.el.style.transformOrigin = '50% 0%';
 
       /* No inline transform here – the engine’s draw() method keeps
          the element’s “transform” property up-to-date every frame. */
@@ -90,10 +86,12 @@
         sp.angle = sp.swingAmp * sinP;
 
         /* 4 . logical centre for hit-tests (no DOM reads each frame) */
+        /* Centre of rotation is now the knot, so its world-coords are
+           exactly a circle of radius STRING round the ceiling pivot. */
         const sinA = Math.sin(sp.angle);
         const cosA = Math.cos(sp.angle);
-        sp.x = sp.pivotX + sinA * STRING;
-        sp.y = sp.pivotY + (1 - cosA) * STRING;
+        sp.x = sp.pivotX + sinA * STRING;   // horizontal offset
+        sp.y = sp.pivotY + cosA * STRING;   // vertical offset
       } else if (sp.type === 'candy') {
         sp.dy += sp.g * dt;
         sp.x += sp.dx * dt;
