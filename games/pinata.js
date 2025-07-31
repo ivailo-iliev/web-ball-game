@@ -122,7 +122,7 @@
     /* ---------------- Pinata physics & feedback ------------ */
     _updatePinata(sp, dt) {
       /* 1. Ease swing amplitude/frequency back toward idle */
-      sp.swingAmp += (BASE_AMP  - sp.swingAmp)  * DECAY * dt;
+      sp.swingAmp += (BASE_AMP - sp.swingAmp) * DECAY * dt;
       sp.swingFreq += (BASE_FREQ - sp.swingFreq) * DECAY * dt;
 
       /* 2. Integrate phase */
@@ -147,8 +147,8 @@
     /* ---------------- Candy physics ------------------------ */
     _updateCandy(sp, dt) {
       sp.dy += sp.g * dt;
-      sp.x  += sp.dx * dt;
-      sp.y  += sp.dy * dt;
+      sp.x += sp.dx * dt;
+      sp.y += sp.dy * dt;
 
       const ground = this.H - sp.r;
       if (sp.y > ground) {
@@ -167,27 +167,17 @@
     onHit(sp, team) {
       if (sp.type !== 'pinata') return;
 
-      // 1. Tally score & visual burst
-      this.hits++;
-      const score = (this.score[team] += this.calculatePoints(sp));
-      if (SCORE_EL[team]) SCORE_EL[team].textContent = `${score}`;
-      this.emitBurst(sp.x, sp.y, ['✨', '💥', '💫']);
-
-      // 2. Excite swing
-      sp.swingAmp  = Math.min(sp.swingAmp  + 0.2, 1.3);
+      // piñata-specific side effects only
+      sp.swingAmp = Math.min(sp.swingAmp + 0.2, 1.3);
       sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
-
-      // 3. Rain candy after enough hits
-      if (this.hits >= HIT_TO_RAIN) this._spawnCandies(sp);
-
+      if (++this.hits >= HIT_TO_RAIN) this._spawnCandies(sp);
       return true; // keep piñata alive
     },
-
     /* ---------------- Candy shower ------------------------- */
     _spawnCandies(p) {
       const n = 5 + Math.floor(rand(5));
       for (let i = 0; i < n; i++) {
-        const ang   = between(-TAU / 6, TAU / 6);
+        const ang = between(-TAU / 6, TAU / 6);
         const speed = between(200, 350) * (rand(1) < 0.5 ? -1 : 1);
         this.addSprite({
           type: 'candy',

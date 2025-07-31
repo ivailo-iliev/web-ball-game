@@ -260,15 +260,15 @@ class BaseGame {
 
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team) {
-    if (typeof this.onHit === 'function') {
-      const handled = this.onHit(s, team);
-      if (handled === true) return;
-    }
     if (team === 0 || team === 1) {
       this.score[team] += this.calculatePoints(s);
       scoreEl[team].textContent = `${this.score[team]}`;
     }
     this.emitBurst(s.x, s.y);
+    if (typeof this.onHit === 'function') {
+      const handled = this.onHit(s, team);
+      if (handled === true) return;
+    }
     this._popSprite(s);
     if ((team === 0 || team === 1) && this.score[team] >= this.cfg.winPoints) {
       this.end(team);
