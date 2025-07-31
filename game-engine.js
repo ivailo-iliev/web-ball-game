@@ -88,6 +88,7 @@ class BaseGame {
     this._raf = null;
     this._spawnElapsed = 0;
     this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
+    this._spawnQueue = [];              // ← NEW  event-driven queue
 
     this.burstEl = document.createElement('div');
     this.burstEl.className = 'burst';
@@ -126,6 +127,11 @@ class BaseGame {
         const desc = this.spawn();
         if (desc) this.addSprite(desc);
       }
+    }
+    /* 2.  event-driven spawns — drain the queue */
+    if (this._spawnQueue.length){
+      for (const desc of this._spawnQueue) this.addSprite(desc);
+      this._spawnQueue.length = 0;
     }
     for (let i = len - 1; i >= 0; i--) {
       const s = this.sprites[i];
@@ -194,6 +200,12 @@ class BaseGame {
 
   spawn() {
     return { x: R.rand(this.W), y: R.rand(this.H) };
+  }
+
+  /* ------------------------------------------------------------
+   *  Public helper: enqueue a descriptor to appear next frame  */
+  queueSpawn(desc){
+    this._spawnQueue.push(desc);
   }
 
   /* ---- 3.6 COLLISION helpers ---- */

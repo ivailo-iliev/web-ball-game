@@ -179,7 +179,7 @@
       for (let i = 0; i < n; i++) {
         const ang = between(-TAU / 6, TAU / 6);
         const speed = between(200, 350) * (rand(1) < 0.5 ? -1 : 1);
-        this.addSprite({
+        this.queueSpawn({
           type: 'candy',
           e: pick(this.cfg.emojis),
           r: between(20, 32),
