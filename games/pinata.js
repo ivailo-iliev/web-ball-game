@@ -17,7 +17,8 @@
   const BASE_FREQ = 2.0; // radians per second
   const DECAY_AMP = 0.15; // slower decay → smoother ease-out
   const DECAY_FREQ = 0.15;
-  const STRING = 200;     // px – matches :root{ --string } in CSS
+  const STRING = 600;     // px – matches :root{ --string } in CSS
+  const PINY = STRING*-2;
   const CANDY_GRAVITY = 900;
   const HIT_TO_RAIN = 5;
 
@@ -25,31 +26,26 @@
     max: 0, // disable auto spawn
     collisions: false,
     emojis: ['🍬', '🍭', '🍡', '🍫', '🍪', '🧁'],
+    pinatas: ['🪅','🫏','🦄'],
 
     onStart() {
       this._hits = 0;
       const pivotX = this.W / 2;
-      const pivotY = 0;                   // ceiling – rope hangs down
+      const pivotY = 200;                   // ceiling – rope hangs down
       const sp = this.addSprite({
         x: pivotX,
         y: pivotY,
         r: 70,
-        e: '🪅',
+        e: pick(this.pinatas),
         type: 'pinata',
         swingAmp: BASE_AMP,
         swingFreq: BASE_FREQ,
         phase: 0,                 // oscillator phase (rad)
         pivotX,
-        pivotY
+        pivotY,
+        p: { '--string': `${STRING}px`}
       });
       sp.el.classList.add('pinata');
-
-      /* Rotate around the knot where the rope meets the piñata
-         (horizontal centre, very top of the <div>).                  */
-      sp.el.style.transformOrigin = '50% 0%';
-
-      /* No inline transform here – the engine’s draw() method keeps
-         the element’s “transform” property up-to-date every frame. */
     },
 
     onHit(sp, team) {

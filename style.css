@@ -9,10 +9,8 @@
   --clr-green: #34A853;
   --clr-blue: #4285F4;
   --clr-purple: #A142F4;
-
   --spacing-1: .25rem;
   --spacing-2: .5rem;
-  --string: 200px;
   --angle: 12deg;
   --period: 2.4s;
 }
@@ -446,13 +444,13 @@ input[type="range"] {
 
 /* === Piñata animation === */
 .sprite.pinata {
-  transform-origin: 50% calc(-1*var(--string));
+  transform-origin: 50% calc(-2*var(--string));
 }
 
 .sprite.pinata::before {
   content: "";
   position: absolute;
-  top: calc(-1*var(--string));
+  top: calc(-1*var(--string) + var(--size)/2);
   left: 50%;
   width: 2px;
   height: var(--string);
