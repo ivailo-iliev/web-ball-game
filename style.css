@@ -141,61 +141,6 @@ input[type="range"] {
   contain: layout style size;
 }
 
-/* === Mole game === */
-#game.mole {
-    background-color: #4f8a34;
-  --hole-size: 40px;
-  --hole1-x: -100vw; --hole1-y: -100vh;
-  --hole2-x: -100vw; --hole2-y: -100vh;
-  --hole3-x: -100vw; --hole3-y: -100vh;
-  --hole4-x: -100vw; --hole4-y: -100vh;
-  --hole5-x: -100vw; --hole5-y: -100vh;
-  --hole6-x: -100vw; --hole6-y: -100vh;
-  --hole7-x: -100vw; --hole7-y: -100vh;
-  --hole8-x: -100vw; --hole8-y: -100vh;
-  --hole-img: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>");
-  background-image:
-    var(--hole-img),
-    var(--hole-img),
-    var(--hole-img),
-    var(--hole-img),
-    var(--hole-img),
-    var(--hole-img),
-    var(--hole-img),
-    var(--hole-img);
-  background-repeat: no-repeat;
-  background-size:
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size);
-    background-position:
-      var(--hole1-x) var(--hole1-y),
-      var(--hole2-x) var(--hole2-y),
-      var(--hole3-x) var(--hole3-y),
-      var(--hole4-x) var(--hole4-y),
-      var(--hole5-x) var(--hole5-y),
-      var(--hole6-x) var(--hole6-y),
-      var(--hole7-x) var(--hole7-y),
-      var(--hole8-x) var(--hole8-y);
-}
-
-.game.mole .spawn { animation: moleRise 0.3s forwards; }
-.game.mole .pop   { animation: moleFall 0.3s forwards; }
-
-@keyframes moleRise {
-  from { height: 0; }
-  to   { height: var(--size); }
-}
-
-@keyframes moleFall {
-  from { height: var(--size); }
-  to   { height: 0; }
-}
 
 .sprite {
   position: absolute;
@@ -216,13 +161,10 @@ input[type="range"] {
   height: var(--size);
   font-size: var(--size);
 }
-.mole .sprite {
-  overflow: hidden;
-  align-items: flex-start;
-  transform: none !important;
-  inset: auto auto var(--py) var(--px);
-  will-change: height;
-}
+.pop { animation: pop 0.2s ease-out forwards; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes pop { to { transform: scale(0); opacity: 0; } }
+@keyframes spin { to { transform: rotate(1turn); } }
 
 
 .particle {
@@ -310,137 +252,8 @@ input[type="range"] {
   }
 }
 
-.game.gem {
-      background:
-        radial-gradient(circle at 30% 30%, rgba(255, 230, 180, 0.35) 0%, transparent 40%),
-        radial-gradient(circle at 70% 70%, rgba(255, 220, 160, 0.3) 0%, transparent 50%),
-        linear-gradient(#fceabb, #f8d098);
-      background-repeat: no-repeat;
-      background-size: cover;
-}
-
-@property --mr {
-  syntax: '<percentage>';
-  initial-value: 0%;
-  inherits: false;
-}
-
-.gem .sprite {
-  mask-image: radial-gradient(
-    rgba(0,0,0,1)   0%,
-    rgba(0,0,0,0.5) var(--mr),
-    rgba(0,0,0,0)   calc(var(--mr) + 10%)
-  );
-  transition: --mr 1s ease-in-out !important;
-}
-
-/* === Emoji game === */
-.game.emoji .spawn { animation: emojiSpawn 0.3s ease-out; }
-.game.emoji .pop   { animation: emojiPop 0.2s ease-out forwards; }
-
-@keyframes emojiSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes emojiPop {
-  to { transform: scale(0); opacity: 0; }
-}
-
-/* === Gem game === */
-.game.gem .spawn { animation: gemSpawn 0.3s ease-out; }
-.game.gem .pop   { animation: gemPop 0.2s ease-out forwards; }
-
-@keyframes gemSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes gemPop {
-  to { transform: scale(0); opacity: 0; }
-}
-
-/* Gem collections */
-.gem-collection {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  font-size: 32px;
-  line-height: 1;
-  pointer-events: none;
-  gap: 0.5em;
-  padding: 0.5em;
-  text-shadow: #00000066 0 0 10px;
-}
-.gem-collection.left  { inset: 0 auto 0 0; }
-.gem-collection.right { inset: 0 0 0 auto; }
-
-/* === Balloon game === */
-.game.balloon .spawn { animation: balloonSpawn 0.3s ease-out; }
-.game.balloon .pop   { animation: balloonPop 0.2s ease-out forwards; }
-
-@keyframes balloonSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-  @keyframes balloonPop {
-    to { transform: translateY(-20px) scale(0); opacity: 0; }
-  }
-
-/* === Fish game === */
-  .game.fish .spawn { animation: fishSpawn 0.3s ease-out; }
-.game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
-
-/* === Fruits game === */
-.game.fruits .spawn { animation: fruitSpawn 0.3s ease-out; }
-.game.fruits .pop   { animation: fruitPop 0.2s ease-out forwards; }
-
-@keyframes fishSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes fishPop {
-  to { transform: translateX(var(--flyX)) rotate(360deg); }
-}
 
 
-
-@keyframes fruitSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes fruitPop {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1.5); opacity: 0; }
-}
-
-/* === Piñata game === */
-.game.pinata .spawn { animation: pinataSpawn 0.3s ease-out; }
-.game.pinata .pop   { animation: pinataPop 0.2s ease-out forwards; }
-
-@keyframes pinataSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes pinataPop {
-  to { transform: scale(0); opacity: 0; }
-}
-
-
-
-/* === Piñata animation === */
-.sprite.pinata {
-  transform-origin: 50% calc(var(--size)/2 - var(--string));
-}
-
-.sprite.pinata::before {
-  content: "";
-  position: absolute;
-  top: calc(-1*var(--string) + var(--size)/2);
-  left: 50%;
-  width: 2px;
-  height: var(--string);
-  background: #333;
-  z-index: -1;
-}
 
 .debug-dot{
   position:absolute;

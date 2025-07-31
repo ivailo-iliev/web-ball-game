@@ -1,0 +1,10 @@
+.game.fish .spawn { animation: fishSpawn 0.3s ease-out; }
+.game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
+
+@keyframes fishSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes fishPop {
+  to { transform: translateX(var(--flyX)) rotate(360deg); }
+}

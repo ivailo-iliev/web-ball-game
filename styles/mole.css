@@ -1,0 +1,62 @@
+/* Mole game styles */
+.game.mole {
+  background-color: #4f8a34;
+  --hole-size: 40px;
+  --hole1-x: -100vw; --hole1-y: -100vh;
+  --hole2-x: -100vw; --hole2-y: -100vh;
+  --hole3-x: -100vw; --hole3-y: -100vh;
+  --hole4-x: -100vw; --hole4-y: -100vh;
+  --hole5-x: -100vw; --hole5-y: -100vh;
+  --hole6-x: -100vw; --hole6-y: -100vh;
+  --hole7-x: -100vw; --hole7-y: -100vh;
+  --hole8-x: -100vw; --hole8-y: -100vh;
+  --hole-img: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>");
+  background-image:
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img),
+    var(--hole-img);
+  background-repeat: no-repeat;
+  background-size:
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size),
+    var(--hole-size) var(--hole-size);
+  background-position:
+      var(--hole1-x) var(--hole1-y),
+      var(--hole2-x) var(--hole2-y),
+      var(--hole3-x) var(--hole3-y),
+      var(--hole4-x) var(--hole4-y),
+      var(--hole5-x) var(--hole5-y),
+      var(--hole6-x) var(--hole6-y),
+      var(--hole7-x) var(--hole7-y),
+      var(--hole8-x) var(--hole8-y);
+}
+
+.game.mole .spawn { animation: moleRise 0.3s forwards; }
+.game.mole .pop   { animation: moleFall 0.3s forwards; }
+
+@keyframes moleRise {
+  from { height: 0; }
+  to   { height: var(--size); }
+}
+@keyframes moleFall {
+  from { height: var(--size); }
+  to   { height: 0; }
+}
+
+.game.mole .sprite {
+  overflow: hidden;
+  align-items: flex-start;
+  transform: none !important;
+  inset: auto auto var(--py) var(--px);
+  will-change: height;
+}

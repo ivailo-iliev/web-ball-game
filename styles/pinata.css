@@ -1,0 +1,25 @@
+.game.pinata .spawn { animation: pinataSpawn 0.3s ease-out; }
+.game.pinata .pop   { animation: pinataPop 0.2s ease-out forwards; }
+
+@keyframes pinataSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes pinataPop {
+  to { transform: scale(0); opacity: 0; }
+}
+
+.game.pinata .sprite.pinata {
+  transform-origin: 50% calc(var(--size)/2 - var(--string));
+}
+
+.game.pinata .sprite.pinata::before {
+  content: "";
+  position: absolute;
+  top: calc(-1*var(--string) + var(--size)/2);
+  left: 50%;
+  width: 2px;
+  height: var(--string);
+  background: #333;
+  z-index: -1;
+}

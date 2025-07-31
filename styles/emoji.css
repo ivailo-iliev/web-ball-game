@@ -1,0 +1,10 @@
+.game.emoji .spawn { animation: emojiSpawn 0.3s ease-out; }
+.game.emoji .pop   { animation: emojiPop 0.2s ease-out forwards; }
+
+@keyframes emojiSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes emojiPop {
+  to { transform: scale(0); opacity: 0; }
+}

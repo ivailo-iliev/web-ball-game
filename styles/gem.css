@@ -1,0 +1,48 @@
+.game.gem {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 230, 180, 0.35) 0%, transparent 40%),
+    radial-gradient(circle at 70% 70%, rgba(255, 220, 160, 0.3) 0%, transparent 50%),
+    linear-gradient(#fceabb, #f8d098);
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+@property --mr {
+  syntax: '<percentage>';
+  initial-value: 0%;
+  inherits: false;
+}
+
+.game.gem .sprite {
+  mask-image: radial-gradient(
+    rgba(0,0,0,1)   0%,
+    rgba(0,0,0,0.5) var(--mr),
+    rgba(0,0,0,0)   calc(var(--mr) + 10%)
+  );
+  transition: --mr 1s ease-in-out !important;
+}
+
+.game.gem .spawn { animation: gemSpawn 0.3s ease-out; }
+.game.gem .pop   { animation: gemPop 0.2s ease-out forwards; }
+
+@keyframes gemSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes gemPop {
+  to { transform: scale(0); opacity: 0; }
+}
+
+.game.gem .gem-collection {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  font-size: 32px;
+  line-height: 1;
+  pointer-events: none;
+  gap: 0.5em;
+  padding: 0.5em;
+  text-shadow: #00000066 0 0 10px;
+}
+.game.gem .gem-collection.left  { inset: 0 auto 0 0; }
+.game.gem .gem-collection.right { inset: 0 0 0 auto; }
