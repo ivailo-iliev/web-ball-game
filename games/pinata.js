@@ -178,7 +178,7 @@
       const n = 5 + Math.floor(rand(5));
       for (let i = 0; i < n; i++) {
         const ang = between(-TAU / 6, TAU / 6);
-        const speed = between(200, 350) * (rand(1) < 0.5 ? -1 : 1);
+        const speed = between(200, 350) * pick([-1, 1]);
         this.queueSpawn({
           type: 'candy',
           e: pick(this.cfg.emojis),

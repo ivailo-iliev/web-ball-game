@@ -50,16 +50,10 @@
 
 
     spawn(){
-      let idx = -1;
-      let n = 0;
-      for(let i=0; i<this.holes.length; i++){
-        if(!this.holes[i].occupied){
-          n++;
-          if(rand(n) < 1) idx = i;
-        }
-      }
-      if(idx === -1) return null;
-      const hole = this.holes[idx];
+      const freeHoles = this.holes.filter(h => !h.occupied);
+      if (!freeHoles.length) return null;
+      const hole = pick(freeHoles);
+      const idx = this.holes.indexOf(hole);
       hole.occupied = true;
 
       const d = {
