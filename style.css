@@ -444,7 +444,7 @@ input[type="range"] {
 
 /* === Piñata animation === */
 .sprite.pinata {
-  transform-origin: 50% calc(-2*var(--string));
+  transform-origin: 50% calc(-1*var(--string));
 }
 
 .sprite.pinata::before {
