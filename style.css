@@ -1,20 +1,6 @@
-/* =====================================
-   Global resets & variables
-===================================== */
-:root {
-  /* color palette */
-  --clr-red: #EA4335;
-  --clr-orange: #FBBC05;
-  --clr-yellow: #FDD835;
-  --clr-green: #34A853;
-  --clr-blue: #4285F4;
-  --clr-purple: #A142F4;
-  --spacing-1: .25rem;
-  --spacing-2: .5rem;
-  --angle: 12deg;
-  --period: 2.4s;
-}
-
+/* =======================
+   Global resets
+   ======================= */
 /* A simple universal box‑sizing reset */
 *,
 *::before,
@@ -106,6 +92,13 @@ input[type="range"] {
 
 /* ---- Scoreboard ---- */
 #scoreboard {
+  --clr-red: #EA4335;
+  --clr-orange: #FBBC05;
+  --clr-yellow: #FDD835;
+  --clr-green: #34A853;
+  --clr-blue: #4285F4;
+  --clr-purple: #A142F4;
+  --spacing-1: .25rem;
   position: absolute;
   top: 10px;
   left: 50%;
@@ -148,7 +141,7 @@ input[type="range"] {
   contain: layout style size;
 }
 
-/* Mole mode background */
+/* === Mole game === */
 #game.mole {
     background-color: #4f8a34;
   --hole-size: 40px;
@@ -180,15 +173,28 @@ input[type="range"] {
     var(--hole-size) var(--hole-size),
     var(--hole-size) var(--hole-size),
     var(--hole-size) var(--hole-size);
-  background-position:
-    var(--hole1-x) var(--hole1-y),
-    var(--hole2-x) var(--hole2-y),
-    var(--hole3-x) var(--hole3-y),
-    var(--hole4-x) var(--hole4-y),
-    var(--hole5-x) var(--hole5-y),
-    var(--hole6-x) var(--hole6-y),
-    var(--hole7-x) var(--hole7-y),
-    var(--hole8-x) var(--hole8-y);
+    background-position:
+      var(--hole1-x) var(--hole1-y),
+      var(--hole2-x) var(--hole2-y),
+      var(--hole3-x) var(--hole3-y),
+      var(--hole4-x) var(--hole4-y),
+      var(--hole5-x) var(--hole5-y),
+      var(--hole6-x) var(--hole6-y),
+      var(--hole7-x) var(--hole7-y),
+      var(--hole8-x) var(--hole8-y);
+}
+
+.game.mole .spawn { animation: moleRise 0.3s forwards; }
+.game.mole .pop   { animation: moleFall 0.3s forwards; }
+
+@keyframes moleRise {
+  from { height: 0; }
+  to   { height: var(--size); }
+}
+
+@keyframes moleFall {
+  from { height: var(--size); }
+  to   { height: 0; }
 }
 
 .sprite {
@@ -218,20 +224,6 @@ input[type="range"] {
   will-change: height;
 }
 
-@property --mr {
-  syntax: '<percentage>';
-  initial-value: 0%;
-  inherits: false;
-}
-
-.gem .sprite {
-  mask-image: radial-gradient(
-    rgba(0,0,0,1)   0%,
-    rgba(0,0,0,0.5) var(--mr),
-    rgba(0,0,0,0)   calc(var(--mr) + 10%)
-  );
-  transition: --mr 1s ease-in-out !important;
-}
 
 .particle {
   position: absolute;
@@ -319,7 +311,7 @@ input[type="range"] {
 }
 
 .game.gem {
-      background: 
+      background:
         radial-gradient(circle at 30% 30%, rgba(255, 230, 180, 0.35) 0%, transparent 40%),
         radial-gradient(circle at 70% 70%, rgba(255, 220, 160, 0.3) 0%, transparent 50%),
         linear-gradient(#fceabb, #f8d098);
@@ -327,7 +319,22 @@ input[type="range"] {
       background-size: cover;
 }
 
-/* ----- Spawn and Pop effects ----- */
+@property --mr {
+  syntax: '<percentage>';
+  initial-value: 0%;
+  inherits: false;
+}
+
+.gem .sprite {
+  mask-image: radial-gradient(
+    rgba(0,0,0,1)   0%,
+    rgba(0,0,0,0.5) var(--mr),
+    rgba(0,0,0,0)   calc(var(--mr) + 10%)
+  );
+  transition: --mr 1s ease-in-out !important;
+}
+
+/* === Emoji game === */
 .game.emoji .spawn { animation: emojiSpawn 0.3s ease-out; }
 .game.emoji .pop   { animation: emojiPop 0.2s ease-out forwards; }
 
@@ -339,6 +346,7 @@ input[type="range"] {
   to { transform: scale(0); opacity: 0; }
 }
 
+/* === Gem game === */
 .game.gem .spawn { animation: gemSpawn 0.3s ease-out; }
 .game.gem .pop   { animation: gemPop 0.2s ease-out forwards; }
 
@@ -350,84 +358,7 @@ input[type="range"] {
   to { transform: scale(0); opacity: 0; }
 }
 
-.game.balloon .spawn { animation: balloonSpawn 0.3s ease-out; }
-.game.balloon .pop   { animation: balloonPop 0.2s ease-out forwards; }
-
-@keyframes balloonSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes balloonPop {
-  to { transform: translateY(-20px) scale(0); opacity: 0; }
-}
-
-.game.fish .spawn { animation: fishSpawn 0.3s ease-out; }
-.game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
-
-.game.fruits .spawn { animation: fruitSpawn 0.3s ease-out; }
-.game.fruits .pop   { animation: fruitPop 0.2s ease-out forwards; }
-
-@keyframes fishSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes fishPop {
-  to { transform: translateX(var(--flyX)) rotate(360deg); }
-}
-
-.game.mole .spawn { animation: moleRise 0.3s forwards; }
-.game.mole .pop   { animation: moleFall 0.3s forwards; }
-
-@keyframes moleRise {
-  from { height: 0; }
-  to   { height: var(--size); }
-}
-
-@keyframes moleFall {
-  from { height: var(--size); }
-  to   { height: 0; }
-}
-
-
-@keyframes fruitSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes fruitPop {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1.5); opacity: 0; }
-}
-
-.game.pinata .spawn { animation: pinataSpawn 0.3s ease-out; }
-.game.pinata .pop   { animation: pinataPop 0.2s ease-out forwards; }
-
-@keyframes pinataSpawn {
-  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
-  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
-}
-@keyframes pinataPop {
-  to { transform: scale(0); opacity: 0; }
-}
-
-@keyframes slideDown {
-  from { transform: translate3d(var(--x), var(--y), 0) translateY(0); }
-  to   { transform: translate3d(var(--x), var(--y), 0) translateY(var(--dist, 100%)); }
-}
-
-.shiftDown {
-  animation: slideDown 0.2s ease-out 0.2s forwards;
-}
-
-@keyframes dropIn {
-  from { transform: translate3d(var(--x), var(--y), 0) translateY(-100%); }
-  to   { transform: translate3d(var(--x), var(--y), 0) translateY(0); }
-}
-
-.dropIn {
-  animation: dropIn 0.2s ease-out 0.2s forwards;
-}
-
-/* ---- Gem collections ---- */
+/* Gem collections */
 .gem-collection {
   position: absolute;
   display: flex;
@@ -441,6 +372,59 @@ input[type="range"] {
 }
 .gem-collection.left  { inset: 0 auto 0 0; }
 .gem-collection.right { inset: 0 0 0 auto; }
+
+/* === Balloon game === */
+.game.balloon .spawn { animation: balloonSpawn 0.3s ease-out; }
+.game.balloon .pop   { animation: balloonPop 0.2s ease-out forwards; }
+
+@keyframes balloonSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+  @keyframes balloonPop {
+    to { transform: translateY(-20px) scale(0); opacity: 0; }
+  }
+
+/* === Fish game === */
+  .game.fish .spawn { animation: fishSpawn 0.3s ease-out; }
+.game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
+
+/* === Fruits game === */
+.game.fruits .spawn { animation: fruitSpawn 0.3s ease-out; }
+.game.fruits .pop   { animation: fruitPop 0.2s ease-out forwards; }
+
+@keyframes fishSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes fishPop {
+  to { transform: translateX(var(--flyX)) rotate(360deg); }
+}
+
+
+
+@keyframes fruitSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes fruitPop {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1.5); opacity: 0; }
+}
+
+/* === Piñata game === */
+.game.pinata .spawn { animation: pinataSpawn 0.3s ease-out; }
+.game.pinata .pop   { animation: pinataPop 0.2s ease-out forwards; }
+
+@keyframes pinataSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes pinataPop {
+  to { transform: scale(0); opacity: 0; }
+}
+
+
 
 /* === Piñata animation === */
 .sprite.pinata {
