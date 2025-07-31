@@ -33,13 +33,6 @@
   // Visual troubleshooting — toggle while developing
   const DEBUG = false; // ← flip to true to draw the hit‑centre dot
 
-  /* ------------------------------------------------------------
-   *  HTML hooks
-   * ---------------------------------------------------------- */
-  const SCORE_EL = [
-    document.getElementById('teamAScore'),
-    document.getElementById('teamBScore')
-  ];
 
   /* ------------------------------------------------------------
    *  Helper: spawn a floating debug dot
@@ -134,8 +127,9 @@
       /* 4. Logical centre (used for hit testing) */
       const sinA = Math.sin(sp.angle);
       const cosA = Math.cos(sp.angle);
-      sp.x = sp.pivotX - sinA * STRING;
-      sp.y = sp.pivotY + cosA * STRING;
+      const { pivotX, pivotY } = sp;
+      sp.x = pivotX - sinA * STRING;
+      sp.y = pivotY + cosA * STRING;
 
       /* 5. Debug dot follows logical centre */
       if (DEBUG && sp.debugDot) {
@@ -174,18 +168,19 @@
       return true; // keep piñata alive
     },
     /* ---------------- Candy shower ------------------------- */
-    _spawnCandies(p) {
+    _spawnCandies(pinata) {
       const n = 5 + Math.floor(rand(5));
       for (let i = 0; i < n; i++) {
         const ang = between(-TAU / 6, TAU / 6);
-        const speed = between(200, 350) * pick([-1, 1]);
+        const dir = pick([-1, 1]);
+        const speed = between(200, 350);
         this.queueSpawn({
           type: 'candy',
           e: pick(this.cfg.emojis),
           r: between(20, 32),
-          x: p.x,
-          y: p.y,
-          dx: Math.cos(ang) * speed,
+          x: pinata.x,
+          y: pinata.y,
+          dx: Math.cos(ang) * speed * dir,
           dy: Math.sin(ang) * speed - 200,
           g: CANDY_GRAVITY
         });
