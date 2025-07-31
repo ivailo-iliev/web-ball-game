@@ -16,7 +16,7 @@
 
     spawn(){
       const r = between(...R_RANGE);
-      const swimRight = rand(1) < 0.5;
+      const swimRight = pick([true, false]);
       const speed = between(...V_RANGE);
       const dx = swimRight ? speed : -speed;
       const x = swimRight ? -r : this.W + r;
