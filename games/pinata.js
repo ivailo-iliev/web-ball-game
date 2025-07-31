@@ -1,132 +1,206 @@
 /**
- * Piñata party mini game.
- * The piñata stays on screen and drops candies after a few hits.
+ * Cleaner, self‑contained Piñata mini‑game.
+ *
+ *  ➜ No global temporaries (everything hangs off the game instance)
+ *  ➜ Consolidated constants and helper functions
+ *  ➜ Debug overlay isolated behind a single flag
+ *  ➜ Pinata update logic extracted for clarity
  */
 
 (function (g) {
   'use strict';
+
+  /* ------------------------------------------------------------
+   *  CONSTANTS
+   * ---------------------------------------------------------- */
   const { rand, between, pick } = g.R;
   const TAU = Math.PI * 2;
 
+  // Tune‑once gameplay knobs
+  const CFG = Object.freeze({
+    BASE_AMP: 0.20,      // rad — idle swing half‑amplitude
+    BASE_FREQ: 2.0,      // rad · s⁻¹ — idle angular velocity
+    DECAY: 0.15,         // (0–1) spring‑like ease back to idle
+    STRING: 600,         // px — must match :root{ --string } in CSS
+    CANDY_GRAVITY: 900,  // px · s⁻²
+    HIT_TO_RAIN: 5,      // hits before the piñata bursts
+    PINATA_R: 70         // px — emoji rendered size / 2
+  });
+
+  // Quick lookup aliases
+  const { BASE_AMP, BASE_FREQ, DECAY, STRING, CANDY_GRAVITY, HIT_TO_RAIN, PINATA_R } = CFG;
+
+  // Visual troubleshooting — toggle while developing
+  const DEBUG = false; // ← flip to true to draw the hit‑centre dot
+
+  /* ------------------------------------------------------------
+   *  HTML hooks
+   * ---------------------------------------------------------- */
   const SCORE_EL = [
     document.getElementById('teamAScore'),
     document.getElementById('teamBScore')
   ];
 
-  const BASE_AMP = 0.2; // radians
-  const BASE_FREQ = 2.0; // radians per second
-  const DECAY_AMP = 0.15; // slower decay → smoother ease-out
-  const DECAY_FREQ = 0.15;
-  const STRING = 600;     // px – matches :root{ --string } in CSS
-  const CANDY_GRAVITY = 900;
-  const HIT_TO_RAIN = 5;
+  /* ------------------------------------------------------------
+   *  Helper: spawn a floating debug dot
+   * ---------------------------------------------------------- */
+  function createDebugDot(layer) {
+    const el = document.createElement('div');
+    el.className = 'debug-dot';
+    layer.appendChild(el);
+    return el;
+  }
 
+  /* ------------------------------------------------------------
+   *  Game definition
+   * ---------------------------------------------------------- */
   g.Game.register('pinata', g.BaseGame.make({
-    max: 0, // disable auto spawn
-    collisions: false,
+    max: 0,            // disable auto‑spawn from engine
+    collisions: false, // no sprite–sprite collisions
     emojis: ['🍬', '🍭', '🍡', '🍫', '🍪', '🧁'],
-    pinatas: ['🪅','🫏','🦄'],
+    pinatas: ['🪅', '🫏', '🦄'],
 
+    /* --------------------------------------------------------
+     *  Setup — runs once
+     * ------------------------------------------------------ */
     onStart() {
-      this._hits = 0;
+      this.hits = 0;
+
+      // Create one piñata hanging from the ceiling centre
       const pivotX = this.W / 2;
-      const pivotY = 0;                   // ceiling – rope hangs down
+      const pivotY = 0;
+
       const sp = this.addSprite({
-        x: pivotX,
-        y: pivotY,
-        r: 70,
-        e: pick(this.pinatas),
         type: 'pinata',
+        e: pick(this.pinatas),
+        r: PINATA_R,
+        // logical centre starts STRING px below the pivot
+        x: pivotX,
+        y: pivotY + STRING,
+        // swing state
         swingAmp: BASE_AMP,
         swingFreq: BASE_FREQ,
-        phase: 0,                 // oscillator phase (rad)
+        phase: 0,
+        // rope knot location (immutable)
         pivotX,
         pivotY,
-        p: { '--string': `${STRING}px`}
+        // expose CSS var for the transform‑origin offset
+        p: { '--string': `${STRING}px` }
       });
       sp.el.classList.add('pinata');
-    },
 
-    onHit(sp, team) {
-      if (sp.type !== 'pinata') return;
+      /* Custom draw: keep the knot bolted to (pivotX,pivotY)
+         and let rotation make the emoji swing. */
+      sp.draw = function () {
+        const tx = this.pivotX - this.r;
+        const ty = this.pivotY - this.r + STRING;
+        this.style.transform =
+          `translate3d(${tx}px, ${ty}px, 0)` +
+          ` rotate(${this.angle}rad)` +
+          ` scale(${this.scaleX}, ${this.scaleY})`;
+      };
 
-      this._hits++;
-      const score = (this.score[team] += this.calculatePoints(sp));
-      if (SCORE_EL[team]) {
-        SCORE_EL[team].textContent = `${score}`;
+      // Optional debug overlay
+      if (DEBUG) {
+        sp.debugDot = createDebugDot(this.container);
       }
-      this.emitBurst(sp.x, sp.y, ['✨', '💥', '💫']);
 
-      sp.swingAmp  = Math.min(sp.swingAmp  + 0.2, 1.3);
-      sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
-      /* transform will update next frame */
-
-      if (this._hits >= HIT_TO_RAIN) this._spawnCandies(sp);
-
-      return true; // keep the piñata alive
+      this.pinata = sp; // cache handle for clarity
     },
 
+    /* --------------------------------------------------------
+     *  Per‑frame logic
+     * ------------------------------------------------------ */
     move(sp, dt) {
       if (sp.type === 'pinata') {
-        /* 1 . ease back toward idle values */
-        sp.swingAmp  += (BASE_AMP  - sp.swingAmp)  * DECAY_AMP  * dt;
-        sp.swingFreq += (BASE_FREQ - sp.swingFreq) * DECAY_FREQ * dt;
-
-        /* 2 . integrate the oscillator */
-        sp.phase += sp.swingFreq * dt;
-        const sinP = Math.sin(sp.phase);
-        const cosP = Math.cos(sp.phase);
-
-        /* 3 . expose angle for Sprite.draw() */
-        sp.angle = sp.swingAmp * sinP;
-
-        /* 4 . logical centre follows a true pendulum arc.
-               With transform-origin at 50% −STRING px the knot is kept
-               fixed at (pivotX, pivotY), while the piñata’s centre
-               moves on a circle of radius STRING.                       */
-        const sinA = Math.sin(sp.angle);
-        const cosA = Math.cos(sp.angle);
-        sp.x = sp.pivotX + sinA * STRING;
-        sp.y = sp.pivotY + cosA * STRING;
+        this._updatePinata(sp, dt);
       } else if (sp.type === 'candy') {
-        sp.dy += sp.g * dt;
-        sp.x += sp.dx * dt;
-        sp.y += sp.dy * dt;
+        this._updateCandy(sp, dt);
+      }
+    },
 
-        const ground = this.H - sp.r;
-        if (sp.y > ground) {
-          sp.y = ground;
-          if (!sp.settled) {
-            sp.dy *= -0.4;
-            sp.dx *= 0.5;
-            if (Math.abs(sp.dy) < 50) {
-              sp.dy = 0;
-              sp.dx = 0;
-              sp.g = 0;
-              sp.settled = true;
-            }
+    /* ---------------- Pinata physics & feedback ------------ */
+    _updatePinata(sp, dt) {
+      /* 1. Ease swing amplitude/frequency back toward idle */
+      sp.swingAmp += (BASE_AMP  - sp.swingAmp)  * DECAY * dt;
+      sp.swingFreq += (BASE_FREQ - sp.swingFreq) * DECAY * dt;
+
+      /* 2. Integrate phase */
+      sp.phase += sp.swingFreq * dt;
+
+      /* 3. Final angle for this frame */
+      sp.angle = sp.swingAmp * Math.sin(sp.phase);
+
+      /* 4. Logical centre (used for hit testing) */
+      const sinA = Math.sin(sp.angle);
+      const cosA = Math.cos(sp.angle);
+      sp.x = sp.pivotX - sinA * STRING;
+      sp.y = sp.pivotY + cosA * STRING;
+
+      /* 5. Debug dot follows logical centre */
+      if (DEBUG && sp.debugDot) {
+        sp.debugDot.style.transform =
+          `translate3d(${sp.x}px, ${sp.y}px, 0) translate(-50%, -50%)`;
+      }
+    },
+
+    /* ---------------- Candy physics ------------------------ */
+    _updateCandy(sp, dt) {
+      sp.dy += sp.g * dt;
+      sp.x  += sp.dx * dt;
+      sp.y  += sp.dy * dt;
+
+      const ground = this.H - sp.r;
+      if (sp.y > ground) {
+        sp.y = ground;
+        if (!sp.settled) {
+          sp.dy *= -0.4;
+          sp.dx *= 0.5;
+          if (Math.abs(sp.dy) < 50) {
+            Object.assign(sp, { dy: 0, dx: 0, g: 0, settled: true });
           }
         }
       }
     },
 
+    /* ---------------- Hit feedback ------------------------- */
+    onHit(sp, team) {
+      if (sp.type !== 'pinata') return;
+
+      // 1. Tally score & visual burst
+      this.hits++;
+      const score = (this.score[team] += this.calculatePoints(sp));
+      if (SCORE_EL[team]) SCORE_EL[team].textContent = `${score}`;
+      this.emitBurst(sp.x, sp.y, ['✨', '💥', '💫']);
+
+      // 2. Excite swing
+      sp.swingAmp  = Math.min(sp.swingAmp  + 0.2, 1.3);
+      sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
+
+      // 3. Rain candy after enough hits
+      if (this.hits >= HIT_TO_RAIN) this._spawnCandies(sp);
+
+      return true; // keep piñata alive
+    },
+
+    /* ---------------- Candy shower ------------------------- */
     _spawnCandies(p) {
       const n = 5 + Math.floor(rand(5));
       for (let i = 0; i < n; i++) {
-        const ang = between(-TAU / 6, TAU / 6);
-        const speed = between(200, 350);
-        const dir = rand(1) < 0.5 ? -1 : 1;
+        const ang   = between(-TAU / 6, TAU / 6);
+        const speed = between(200, 350) * (rand(1) < 0.5 ? -1 : 1);
         this.addSprite({
+          type: 'candy',
+          e: pick(this.cfg.emojis),
+          r: between(20, 32),
           x: p.x,
           y: p.y,
-          r: between(20, 32),
-          e: pick(this.cfg.emojis),
-          dx: Math.cos(ang) * speed * dir,
+          dx: Math.cos(ang) * speed,
           dy: Math.sin(ang) * speed - 200,
-          g: CANDY_GRAVITY,
-          type: 'candy'
+          g: CANDY_GRAVITY
         });
       }
     }
   }));
+
 })(window);

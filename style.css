@@ -458,3 +458,13 @@ input[type="range"] {
   z-index: -1;
 }
 
+.debug-dot{
+  position:absolute;
+  width:10px;
+  height:10px;
+  border:2px solid red;
+  border-radius:50%;
+  background:rgba(255,0,0,.2);
+  pointer-events:none;
+  z-index:1000;
+}
