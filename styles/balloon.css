@@ -1,0 +1,10 @@
+.game.balloon .spawn { animation: balloonSpawn 0.3s ease-out; }
+.game.balloon .pop   { animation: balloonPop 0.2s ease-out forwards; }
+
+@keyframes balloonSpawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
+@keyframes balloonPop {
+  to { transform: translateY(-20px) scale(0); opacity: 0; }
+}

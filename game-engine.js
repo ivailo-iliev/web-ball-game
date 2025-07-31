@@ -455,6 +455,14 @@ Game.run = (target, opts = {}) => {
       ? (target % REG.length + REG.length) % REG.length
       : REG.findIndex(e => e.id === target);
   if (i < 0) return;
+  const cssHref = `styles/${REG[i].id}.css`;
+  if (!document.querySelector(`link[data-game='${REG[i].id}']`)) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = cssHref;
+    link.dataset.game = REG[i].id;
+    document.head.appendChild(link);
+  }
   if (inst) inst.end();
   cleanupLayer();
   Game.ripple = document.createElement('div');
