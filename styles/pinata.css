@@ -1,4 +1,49 @@
 /* Pinata game styles */
+.game.pinata {
+  --cactus-svg:url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>\
+<text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='90'>🌵</text>\
+</svg>");
+
+  --donkey-svg:url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>\
+<text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='90'>🫏</text>\
+</svg>");
+
+
+  /* layers painted FRONT → BACK -------------------------------------- */
+  background:
+
+    /* 🌵 cactus (left) */
+    var(--cactus-svg)  3% 68% /15vw auto no-repeat,
+
+    /* 🫏 donkey (right) */
+    var(--donkey-svg) 92% 68% /15vw auto no-repeat,
+
+    /* horizontal bunting ------------------------------------------------
+       pattern width = 40 vw  (4 colours × 8 vw + 4 gaps × 2 vw)
+       each banner block is 8 vw wide, 8 vh high
+       gaps are fully transparent 2 vw strips                             */
+    repeating-linear-gradient(
+        to right,
+        #ff3860  0   8vw, transparent  8vw 10vw,   /* red banner + gap */
+        #ffdd57 10vw 18vw, transparent 18vw 20vw,   /* yellow banner + gap */
+        #23d160 20vw 28vw, transparent 28vw 30vw,   /* green banner + gap */
+        #3273dc 30vw 38vw, transparent 38vw 40vw    /* blue banner + gap */
+    ) 0 0 / 100% 8vh no-repeat,
+
+    /* plain sand ground (no dots) -------------------------------------- */
+    linear-gradient(#e8c78d 0%, #deba7e 100%) 0 100% / 100% 32vh no-repeat,
+
+    /* radial-glow sun --------------------------------------------------- */
+    radial-gradient(circle at 12% 15%,
+        #fff7c2 0%, #ffe58f 25%, rgba(255,229,143,.4) 45%, rgba(255,229,143,0) 65%)
+        0 0 / 100% 100% no-repeat,
+
+    /* warm sunset sky --------------------------------------------------- */
+    linear-gradient(#ffbd80 0%, #ffcfa0 40%, #ffe9d1 100%);
+}
+
 .game.pinata .sprite.pinata {
   transform-origin: 50% calc(var(--size)/2 - var(--string));
 }
