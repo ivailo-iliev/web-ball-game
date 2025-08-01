@@ -1,6 +1,6 @@
 /* Balloon game styles */
 .game.balloon {
-    --cloud-svg:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='250' height='150' opacity='.8'><text x='0' y='120' font-size='120'>☁️</text></svg>");
+    --cloud-svg:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='250' height='150' opacity='.6'><text x='0' y='120' font-size='120'>☁️</text></svg>");
 
     background:
         var(--cloud-svg) repeat-x,
