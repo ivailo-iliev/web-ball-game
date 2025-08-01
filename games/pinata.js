@@ -21,7 +21,7 @@
     BASE_AMP: 0.20,      // rad — idle swing half‑amplitude
     BASE_FREQ: 2.0,      // rad · s⁻¹ — idle angular velocity
     DECAY: 0.15,         // (0–1) spring‑like ease back to idle
-    STRING: 600,         // px — must match :root{ --string } in CSS
+    STRING: 300,         // px — must match :root{ --string } in CSS
     CANDY_GRAVITY: 900,  // px · s⁻²
     HIT_TO_RAIN: 5,      // hits before the piñata bursts
     PINATA_R: 70         // px — emoji rendered size / 2
@@ -169,7 +169,7 @@
     },
     /* ---------------- Candy shower ------------------------- */
     _spawnCandies(pinata) {
-      const n = 5 + Math.floor(rand(5));
+      const n = Math.floor(rand(3));
       for (let i = 0; i < n; i++) {
         const ang = between(-TAU / 6, TAU / 6);
         const dir = pick([-1, 1]);

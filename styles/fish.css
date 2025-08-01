@@ -1,6 +1,109 @@
 /* Fish game styles */
-.game.fish .pop   { animation: fishPop 0.25s ease-out forwards; }
+.game.fish .pop {
+  animation: fishPop 1s ease-out forwards;
+}
 
 @keyframes fishPop {
-  to { transform: translateX(var(--flyX)) rotate(360deg); }
+  to {
+    transform: translateX(var(--flyX)) rotate(360deg);
+  }
+}
+
+/* -------- 2 · SVG LIBRARY -------- */
+.game.fish {
+  /* one copy of every emoji we use; no width / height attributes */
+  --svg-coral: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text x='0' y='32' font-size='32'>🪸</text></svg>");
+  --svg-shell: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text x='0' y='32' font-size='32'>🐚</text></svg>");
+  --svg-anchor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text x='0' y='32' font-size='32'>⚓</text></svg>");
+  --svg-bubble: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text x='0' y='20' font-size='20'>🫧</text></svg>");
+  --svg-wave: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 20' preserveAspectRatio='none'><path d='M0,10 C30,0 60,20 120,10 L120,20 L0,20 Z' fill='%23ffffff' fill-opacity='0.05'/></svg>");
+  --svg-caustic: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 20' preserveAspectRatio='none'><path d='M0 10 Q10 0 20 10 T40 10 T60 10 T80 10 T100 10 T120 10' stroke='%23ffffff' stroke-width='2' fill='none' stroke-opacity='0.07'/></svg>");
+
+  /* ① objects ▸ ② sand ▸ ③ sine band ▸ ④ haze ▸ ⑤ water */
+  background:
+    var(--svg-coral),
+    var(--svg-shell),
+    var(--svg-anchor),
+    var(--svg-coral),
+    var(--svg-shell),
+    linear-gradient(to top, #e0c097 15%, transparent 15%),
+    var(--svg-wave),
+    radial-gradient(ellipse at 50% -30vh, rgba(255, 255, 255, .5) 0%, rgba(0, 153, 204, 0) 40%),
+    linear-gradient(#0287c9 0%, #01508f 70%, #002f5c 100%);
+
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat,
+    no-repeat, repeat-x, no-repeat, no-repeat;
+
+  /* 10 : 6 : 1 ratio ×5 (vh units) */
+  background-size:
+    30vh 30vh, 5vh 5vh, 50vh 50vh, 30vh 30vh, 5vh 5vh,
+    100% 100%, 200% 25px, 100% 100%, 100% 100%;
+
+  background-position:
+    10% 80%, 25% 87%, 45% 82%, 65% 80%, 80% 87%,
+    bottom, 0 calc(100% - 25px), center top, center top;
+
+  animation: drift 12s linear infinite;
+}
+
+/* -------- 4 · BUBBLES (::before) -------- */
+.game.fish::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  /* six layers, all referencing the same SVG variable */
+  background-image:
+    var(--svg-bubble), var(--svg-bubble), var(--svg-bubble),
+    var(--svg-bubble), var(--svg-bubble), var(--svg-bubble);
+
+  /* give each a different size purely in CSS */
+  background-size:
+    24px 24px, 20px 20px, 28px 28px,
+    22px 22px, 26px 26px, 18px 18px;
+
+  /* start below viewport */
+  background-position:
+    20% 110%, 35% 120%, 50% 115%, 65% 125%, 80% 130%, 25% 140%;
+
+  animation: bubbles 8s linear infinite;
+}
+
+/* -------- 5 · CAUSTICS (::after) -------- */
+.game.fish::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--svg-caustic);
+  background-repeat: repeat-x;
+  background-size: 240px 40px;
+  mix-blend-mode: overlay;
+  animation: caustics 6s linear infinite;
+}
+
+/* -------- 6 · ANIMATIONS -------- */
+@keyframes drift {
+  to {
+    background-position:
+      10% 80%, 25% 87%, 45% 82%, 65% 80%, 80% 87%,
+      bottom, -100% calc(100% - 25px), center top, center top;
+  }
+}
+
+@keyframes bubbles {
+  0% {
+    background-position: 20% 110%, 35% 120%, 50% 115%, 65% 125%, 80% 130%, 25% 140%;
+  }
+
+  100% {
+    background-position: 20% -20%, 35% -20%, 50% -25%, 65% -20%, 80% -15%, 25% -25%;
+  }
+}
+
+@keyframes caustics {
+  to {
+    background-position: -240px 0;
+  }
 }

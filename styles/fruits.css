@@ -1,6 +1,6 @@
 /* Fruits game styles */
 .game.fruits .spawn { animation: fruitSpawn 0.3s ease-out; }
-.game.fruits .pop   { animation: fruitPop 0.2s ease-out forwards; }
+.game.fruits .pop   { animation: fruitPop 0.5s ease-out forwards; }
 
 @keyframes fruitSpawn {
   from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }

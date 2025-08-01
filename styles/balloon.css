@@ -1,1 +1,19 @@
 /* Balloon game styles */
+.game.balloon {
+    --cloud-svg:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='250' height='150' opacity='.8'><text x='0' y='120' font-size='120'>☁️</text></svg>");
+
+    background:
+        var(--cloud-svg) repeat-x,
+        var(--cloud-svg) repeat-x,
+        var(--cloud-svg) repeat-x,
+        linear-gradient(#aee7ff 0%,#e1f5ff 100%);
+    background-size:60% auto,40% auto,26% auto,cover;
+    background-position:0 18vh,0 28vh,0 38vh,0 0;
+
+    animation:cloud-near 32s linear infinite,
+              cloud-mid  55s linear infinite,
+              cloud-far  95s linear infinite;
+}
+@keyframes cloud-near{to{background-position:-200% 18vh,0 28vh,0 38vh,0 0}}
+@keyframes cloud-mid {to{background-position:0 18vh,-200% 28vh,0 38vh,0 0}}
+@keyframes cloud-far {to{background-position:0 18vh,0 28vh,-200% 38vh,0 0}}

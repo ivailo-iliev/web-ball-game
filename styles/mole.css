@@ -50,7 +50,7 @@
 }
 
 .game.mole .spawn { animation: moleRise 0.3s forwards; }
-.game.mole .pop   { animation: moleFall 0.3s forwards; }
+.game.mole .pop   { animation: moleFall 1s forwards; }
 
 @keyframes moleRise {
   from { height: 0; }
