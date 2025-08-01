@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Viewport Metrics</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr; row-gap: 0.5rem; column-gap: 1rem; }
+    dt { font-weight: 600; }
+    dd { margin: 0; }
+  </style>
+</head>
+<body>
+  <h1>Viewport Metrics (auto-updates)</h1>
+  <dl>
+    <dt>visualViewport.width:</dt><dd id="vvp-w">–</dd>
+    <dt>visualViewport.height:</dt><dd id="vvp-h">–</dd>
+    <dt>100dvw:</dt><dd id="dvw">–</dd>
+    <dt>100dvh:</dt><dd id="dvh">–</dd>
+    <dt>100vw:</dt><dd id="vw">–</dd>
+    <dt>100vh:</dt><dd id="vh">–</dd>
+  </dl>
+
+  <!-- Elements used solely for measurement -->
+  <div id="measure-d" style="position:absolute;width:100dvw;height:100dvh;pointer-events:none;visibility:hidden;"></div>
+  <div id="measure"   style="position:absolute;width:100vw;height:100vh;pointer-events:none;visibility:hidden;"></div>
+
+  <script>
+    (function () {
+      const els = {
+        vvpW: document.getElementById('vvp-w'),
+        vvpH: document.getElementById('vvp-h'),
+        dvw:  document.getElementById('dvw'),
+        dvh:  document.getElementById('dvh'),
+        vw:   document.getElementById('vw'),
+        vh:   document.getElementById('vh'),
+      };
+      const measureD = document.getElementById('measure-d');
+      const measure  = document.getElementById('measure');
+
+      function update() {
+        const vvp = window.visualViewport; // no fallback
+        els.vvpW.textContent = vvp.width.toFixed(2) + ' px';
+        els.vvpH.textContent = vvp.height.toFixed(2) + ' px';
+
+        els.dvw.textContent = measureD.offsetWidth + ' px';
+        els.dvh.textContent = measureD.offsetHeight + ' px';
+
+        els.vw.textContent = measure.offsetWidth + ' px';
+        els.vh.textContent = measure.offsetHeight + ' px';
+      }
+
+      update();
+
+      window.addEventListener('resize', update, { passive: true });
+      window.addEventListener('orientationchange', update, { passive: true });
+      window.visualViewport.addEventListener('resize', update, { passive: true });
+    })();
+  </script>
+</body>
+</html>
