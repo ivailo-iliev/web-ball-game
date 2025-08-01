@@ -41,6 +41,14 @@
       var(--hole8-x) var(--hole8-y);
 }
 
+.game.mole .sprite {
+  overflow: hidden;
+  align-items: flex-start;
+  transform: none !important;
+  inset: auto auto var(--py) var(--px);
+  will-change: height;
+}
+
 .game.mole .spawn { animation: moleRise 0.3s forwards; }
 .game.mole .pop   { animation: moleFall 0.3s forwards; }
 
@@ -51,12 +59,4 @@
 @keyframes moleFall {
   from { height: var(--size); }
   to   { height: 0; }
-}
-
-.game.mole .sprite {
-  overflow: hidden;
-  align-items: flex-start;
-  transform: none !important;
-  inset: auto auto var(--py) var(--px);
-  will-change: height;
 }

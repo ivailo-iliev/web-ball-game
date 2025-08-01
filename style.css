@@ -98,7 +98,6 @@ input[type="range"] {
   --clr-green: #34A853;
   --clr-blue: #4285F4;
   --clr-purple: #A142F4;
-  --spacing-1: .25rem;
   position: absolute;
   top: 10px;
   left: 50%;
@@ -120,7 +119,7 @@ input[type="range"] {
 }
 #scoreboard > span::before {
   content: var(--dot);
-  margin-right: var(--spacing-1);
+  margin-right: .25rem;
 }
 /* team mapping */
 #scoreboard > .red    { --dot: "🔴"; color: var(--clr-red); }
@@ -141,7 +140,7 @@ input[type="range"] {
   contain: layout style size;
 }
 
-
+/* Sprite */
 .sprite {
   position: absolute;
   font-family: sans-serif;
@@ -161,31 +160,16 @@ input[type="range"] {
   height: var(--size);
   font-size: var(--size);
 }
-.pop { animation: pop 0.2s ease-out forwards; }
-.spin { animation: spin 1s linear infinite; }
+
+.sprite.spawn { animation: spawn 0.3s ease-out; }
+.sprite.pop   { animation: pop 0.2s ease-out forwards; }
+@keyframes spawn {
+  from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
+  to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
+}
 @keyframes pop { to { transform: scale(0); opacity: 0; } }
-@keyframes spin { to { transform: rotate(1turn); } }
 
-
-.particle {
-  position: absolute;
-  will-change: transform, opacity;
-  font-family: sans-serif;
-  font-size: 24px;
-  text-align: center;
-  line-height: 1;
-  pointer-events: none;
-  user-select: none;
-  transform-origin: center;
-  animation: particleMove var(--life, 1s) linear forwards;
-}
-
-@keyframes particleMove {
-  from { transform: translate3d(0, 0, 0); opacity: 1; }
-  to   { transform: translate3d(var(--dx), var(--dy), 0); opacity: 0; }
-}
-
-
+/* Burst */
 .burst {
   position: absolute;
   pointer-events: none;
@@ -208,7 +192,12 @@ input[type="range"] {
   animation: particleMove var(--life, 1s) linear forwards;
 }
 
-/* ripple */
+@keyframes particleMove {
+  from { transform: translate3d(0, 0, 0); opacity: 1; }
+  to   { transform: translate3d(var(--dx), var(--dy), 0); opacity: 0; }
+}
+
+/* Ripple */
 .ripple {
   position: absolute;
   width: 8vh;
@@ -250,18 +239,4 @@ input[type="range"] {
       0 0 0 12vh rgba(0, 162, 255, 0),
       0 0 0 16vh rgba(0, 162, 255, 0);
   }
-}
-
-
-
-
-.debug-dot{
-  position:absolute;
-  width:10px;
-  height:10px;
-  border:2px solid red;
-  border-radius:50%;
-  background:rgba(255,0,0,.2);
-  pointer-events:none;
-  z-index:1000;
 }
