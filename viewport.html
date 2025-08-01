@@ -2,15 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-orientation" content="landscape">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="viewport" content="width=device-width,
-               initial-scale=1,
-               maximum-scale=1,
-               user-scalable=no,
-               viewport-fit=cover"> 
+  <!-- Added shrink-to-fit=no to stop Safari auto‑zoom when width overflows in standalone landscape mode -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />
   <title>Viewport Metrics</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; }
@@ -19,7 +12,7 @@
     dt { font-weight: 600; }
     dd { margin: 0; }
     h2 { margin-top: 2rem; font-size: 1.25rem; }
-    #log { list-style: none; padding-left: 0; max-height: 260px; overflow-y: auto; border: 1px solid #ccc; border-radius: 0.5rem; padding: 0.5rem; }
+    #log { list-style: none; padding-left: 0; max-height: 280px; overflow-y: auto; border: 1px solid #ccc; border-radius: 0.5rem; padding: 0.5rem; }
     #log li { font-family: monospace; font-size: 0.85rem; margin: 0.25rem 0; }
   </style>
 </head>
@@ -31,6 +24,7 @@
     <dt>visualViewport.scale:</dt><dd id="vvp-scale">–</dd>
     <dt>window.innerWidth:</dt><dd id="win-w">–</dd>
     <dt>window.innerHeight:</dt><dd id="win-h">–</dd>
+    <dt>screen.orientation.type:</dt><dd id="screen-o">–</dd>
     <dt>100dvw:</dt><dd id="dvw">–</dd>
     <dt>100dvh:</dt><dd id="dvh">–</dd>
     <dt>100vw:</dt><dd id="vw">–</dd>
@@ -47,15 +41,16 @@
   <script>
     (function () {
       const els = {
-        vvpW:    document.getElementById('vvp-w'),
-        vvpH:    document.getElementById('vvp-h'),
-        vvpS:    document.getElementById('vvp-scale'),
-        winW:    document.getElementById('win-w'),
-        winH:    document.getElementById('win-h'),
-        dvw:     document.getElementById('dvw'),
-        dvh:     document.getElementById('dvh'),
-        vw:      document.getElementById('vw'),
-        vh:      document.getElementById('vh'),
+        vvpW:   document.getElementById('vvp-w'),
+        vvpH:   document.getElementById('vvp-h'),
+        vvpS:   document.getElementById('vvp-scale'),
+        winW:   document.getElementById('win-w'),
+        winH:   document.getElementById('win-h'),
+        scrO:   document.getElementById('screen-o'),
+        dvw:    document.getElementById('dvw'),
+        dvh:    document.getElementById('dvh'),
+        vw:     document.getElementById('vw'),
+        vh:     document.getElementById('vh'),
       };
       const measureD = document.getElementById('measure-d');
       const measure  = document.getElementById('measure');
@@ -65,7 +60,11 @@
         const li = document.createElement('li');
         li.textContent = `${new Date().toLocaleTimeString()} — ${msg}`;
         logEl.prepend(li);
-        if (logEl.children.length > 150) logEl.removeChild(logEl.lastChild);
+        if (logEl.children.length > 200) logEl.removeChild(logEl.lastChild);
+      }
+
+      function orientationLabel() {
+        return screen.orientation ? screen.orientation.type : (window.orientation === 90 || window.orientation === -90 ? 'landscape' : 'portrait');
       }
 
       function update(label) {
@@ -76,6 +75,8 @@
 
         els.winW.textContent = window.innerWidth + ' px';
         els.winH.textContent = window.innerHeight + ' px';
+
+        els.scrO.textContent = orientationLabel();
 
         els.dvw.textContent  = measureD.offsetWidth  + ' px';
         els.dvh.textContent  = measureD.offsetHeight + ' px';
@@ -94,10 +95,11 @@
       // Event listeners
       bind(window, 'resize', 'window resize');
       bind(window, 'orientationchange', 'orientationchange');
+      if (screen.orientation) bind(screen.orientation, 'change', 'screen.orientation change');
       bind(window.visualViewport, 'resize', 'visualViewport resize');
-      bind(window.visualViewport, 'scroll', 'visualViewport scroll'); // triggered on pinch‑zoom or pan
-      // Fallback for iOS viewport zoom oscillation tracking
-      setInterval(() => update('interval refresh'), 500);
+      bind(window.visualViewport, 'scroll', 'visualViewport scroll');
+      // Throttle‑style polling every 750 ms to capture potential oscillation frames.
+      //setInterval(() => update('interval refresh'), 750);
     })();
   </script>
 </body>
