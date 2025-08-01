@@ -10,7 +10,7 @@
   --hole6-x: -100vw; --hole6-y: -100vh;
   --hole7-x: -100vw; --hole7-y: -100vh;
   --hole8-x: -100vw; --hole8-y: -100vh;
-  --hole-img: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='-20' y='50' font-size='100'>🕳️</text></svg>");
+  --hole-img: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='0' y='50' font-size='100'>🕳️</text></svg>");
   background-image:
     var(--hole-img),
     var(--hole-img),
