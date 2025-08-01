@@ -389,17 +389,11 @@ function boot() {
   Game.layer = layer;
 
   const updateViewport = () => {
-    Game.W =
-      (window.visualViewport && window.visualViewport.width) ||
-      window.innerWidth;
-    Game.H =
-      (window.visualViewport && window.visualViewport.height) ||
-      window.innerHeight;
+    ({ width: Game.W, height: Game.H } = window.visualViewport);
+    if (inst) ({ width: inst.W, height: inst.H } = Game);
   };
   updateViewport();
-  window.addEventListener('resize', updateViewport, { passive: true });
-  window.addEventListener('orientationchange', updateViewport, { passive: true });
-
+  window.visualViewport.addEventListener('resize', updateViewport, { passive: true });
 
   layer.addEventListener('pointerdown', e => {
     const g = inst;

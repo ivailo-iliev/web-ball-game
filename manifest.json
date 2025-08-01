@@ -1,0 +1,10 @@
+{
+  "name":        "Emoji Game",
+  "short_name":  "Emojis",
+  "start_url":   ".",
+  "display":     "fullscreen",
+  "orientation": "landscape",
+  "icons": [
+    { "src": "favicon.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

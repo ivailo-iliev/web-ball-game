@@ -29,7 +29,7 @@ body {
 #container > div {
   scroll-snap-align: start;
   position: relative;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -65,7 +65,7 @@ body {
 .cam canvas {
   grid-area: 1 / 1;
   max-width: 100%;
-  max-height: calc(100vh - 6rem);
+  max-height: calc(100dvh - 6rem);
   border: 2px solid magenta;
   -webkit-user-select: none;
   user-select: none;
@@ -132,8 +132,7 @@ input[type="range"] {
 /* Game area */
 #game {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   margin: 0;
   padding: 0;
