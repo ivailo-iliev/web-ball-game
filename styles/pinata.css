@@ -20,17 +20,7 @@
     /* 🫏 donkey (right) */
     var(--donkey-svg) 92% 68% /15vw auto no-repeat,
 
-    /* horizontal bunting ------------------------------------------------
-       pattern width = 40 vw  (4 colours × 8 vw + 4 gaps × 2 vw)
-       each banner block is 8 vw wide, 8 vh high
-       gaps are fully transparent 2 vw strips                             */
-    repeating-linear-gradient(
-        to right,
-        #ff3860  0   8vw, transparent  8vw 10vw,   /* red banner + gap */
-        #ffdd57 10vw 18vw, transparent 18vw 20vw,   /* yellow banner + gap */
-        #23d160 20vw 28vw, transparent 28vw 30vw,   /* green banner + gap */
-        #3273dc 30vw 38vw, transparent 38vw 40vw    /* blue banner + gap */
-    ) 0 0 / 100% 8vh no-repeat,
+    /* bunting moved to ::before pseudo-element */
 
     /* plain sand ground (no dots) -------------------------------------- */
     linear-gradient(#e8c78d 0%, #deba7e 100%) 0 100% / 100% 32vh no-repeat,
@@ -42,6 +32,43 @@
 
     /* warm sunset sky --------------------------------------------------- */
     linear-gradient(#ffbd80 0%, #ffcfa0 40%, #ffe9d1 100%);
+}
+
+/* ─── BUNTING ::before LAYER ───────────────────────────────────────── */
+
+:root {
+  --banner-red:    #e04b40;   /* muted chilli-red  */
+  --banner-yellow: #f7d678;   /* warm mustard      */
+  --banner-green:  #4ba66f;   /* cactus green      */
+  --banner-blue:   #3f7bc4;   /* pottery-blue      */
+}
+
+.game.pinata::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  height: 8vh;
+  background:
+    repeating-linear-gradient(
+      to right,
+      var(--banner-red)    0   8vw, transparent  8vw 10vw,
+      var(--banner-yellow) 10vw 18vw, transparent 18vw 20vw,
+      var(--banner-green)  20vw 28vw, transparent 28vw 30vw,
+      var(--banner-blue)   30vw 38vw, transparent 38vw 40vw
+    );
+  transform-origin: top center;
+  animation: banner-sway 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes banner-sway {
+  0%,100% { transform: rotate(2deg); }
+  50%     { transform: rotate(-2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game.pinata::before { animation: none; }
 }
 
 .game.pinata .sprite.pinata {
