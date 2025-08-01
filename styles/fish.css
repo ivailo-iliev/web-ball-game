@@ -9,7 +9,6 @@
   }
 }
 
-/* -------- 2 · SVG LIBRARY -------- */
 .game.fish {
   /* one copy of every emoji we use; no width / height attributes */
   --svg-coral: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text x='0' y='32' font-size='32'>🪸</text></svg>");
@@ -52,7 +51,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-
+  background-repeat:no-repeat;
   /* six layers, all referencing the same SVG variable */
   background-image:
     var(--svg-bubble), var(--svg-bubble), var(--svg-bubble),
