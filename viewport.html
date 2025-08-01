@@ -19,15 +19,18 @@
     dt { font-weight: 600; }
     dd { margin: 0; }
     h2 { margin-top: 2rem; font-size: 1.25rem; }
-    #log { list-style: none; padding-left: 0; max-height: 240px; overflow-y: auto; border: 1px solid #ccc; border-radius: 0.5rem; padding: 0.5rem; }
+    #log { list-style: none; padding-left: 0; max-height: 260px; overflow-y: auto; border: 1px solid #ccc; border-radius: 0.5rem; padding: 0.5rem; }
     #log li { font-family: monospace; font-size: 0.85rem; margin: 0.25rem 0; }
   </style>
 </head>
 <body>
-  <h1>Viewport Metrics (auto-updates)</h1>
+  <h1>Viewport Metrics (auto‑updates)</h1>
   <dl>
     <dt>visualViewport.width:</dt><dd id="vvp-w">–</dd>
     <dt>visualViewport.height:</dt><dd id="vvp-h">–</dd>
+    <dt>visualViewport.scale:</dt><dd id="vvp-scale">–</dd>
+    <dt>window.innerWidth:</dt><dd id="win-w">–</dd>
+    <dt>window.innerHeight:</dt><dd id="win-h">–</dd>
     <dt>100dvw:</dt><dd id="dvw">–</dd>
     <dt>100dvh:</dt><dd id="dvh">–</dd>
     <dt>100vw:</dt><dd id="vw">–</dd>
@@ -44,12 +47,15 @@
   <script>
     (function () {
       const els = {
-        vvpW: document.getElementById('vvp-w'),
-        vvpH: document.getElementById('vvp-h'),
-        dvw:  document.getElementById('dvw'),
-        dvh:  document.getElementById('dvh'),
-        vw:   document.getElementById('vw'),
-        vh:   document.getElementById('vh'),
+        vvpW:    document.getElementById('vvp-w'),
+        vvpH:    document.getElementById('vvp-h'),
+        vvpS:    document.getElementById('vvp-scale'),
+        winW:    document.getElementById('win-w'),
+        winH:    document.getElementById('win-h'),
+        dvw:     document.getElementById('dvw'),
+        dvh:     document.getElementById('dvh'),
+        vw:      document.getElementById('vw'),
+        vh:      document.getElementById('vh'),
       };
       const measureD = document.getElementById('measure-d');
       const measure  = document.getElementById('measure');
@@ -59,38 +65,39 @@
         const li = document.createElement('li');
         li.textContent = `${new Date().toLocaleTimeString()} — ${msg}`;
         logEl.prepend(li);
-        // keep list manageable
-        if (logEl.children.length > 100) {
-          logEl.removeChild(logEl.lastChild);
-        }
+        if (logEl.children.length > 150) logEl.removeChild(logEl.lastChild);
       }
 
-      function update() {
-        const vvp = window.visualViewport; // no fallback
-        els.vvpW.textContent = vvp.width.toFixed(2) + ' px';
+      function update(label) {
+        const vvp = window.visualViewport;
+        els.vvpW.textContent = vvp.width.toFixed(2)  + ' px';
         els.vvpH.textContent = vvp.height.toFixed(2) + ' px';
+        els.vvpS.textContent = vvp.scale.toFixed(3);
 
-        els.dvw.textContent = measureD.offsetWidth + ' px';
-        els.dvh.textContent = measureD.offsetHeight + ' px';
+        els.winW.textContent = window.innerWidth + ' px';
+        els.winH.textContent = window.innerHeight + ' px';
 
-        els.vw.textContent = measure.offsetWidth + ' px';
-        els.vh.textContent = measure.offsetHeight + ' px';
+        els.dvw.textContent  = measureD.offsetWidth  + ' px';
+        els.dvh.textContent  = measureD.offsetHeight + ' px';
+        els.vw.textContent   = measure.offsetWidth   + ' px';
+        els.vh.textContent   = measure.offsetHeight  + ' px';
+        if (label) log(label);
       }
 
-      // Helper to bind event -> update + log
       function bind(target, type, label) {
-        target.addEventListener(type, () => {
-          log(label);
-          update();
-        }, { passive: true });
+        target.addEventListener(type, () => update(label), { passive: true });
       }
 
-      update();
-      log('initial update');
+      // Initial paint
+      update('initial update');
 
+      // Event listeners
       bind(window, 'resize', 'window resize');
       bind(window, 'orientationchange', 'orientationchange');
       bind(window.visualViewport, 'resize', 'visualViewport resize');
+      bind(window.visualViewport, 'scroll', 'visualViewport scroll'); // triggered on pinch‑zoom or pan
+      // Fallback for iOS viewport zoom oscillation tracking
+      setInterval(() => update('interval refresh'), 500);
     })();
   </script>
 </body>
