@@ -327,12 +327,12 @@ class BaseGame {
     this.ripple.classList.add('animate');
   }
 
-  /* ---- click dispatcher (called from the global pointer listener) ---- */
-  onPointer = (x, y, btn = 0) => {
+  /* ---- handle hits triggered by pointer events or via Game.doHit ---- */
+  doHit = (x, y, team) => {
     this._showRipple(x, y);
     for (const s of this.sprites) {
       if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
-        this.hit(s, btn === 2 ? 0 : 1);
+        this.hit(s, team);
         break;
       }
     }
@@ -399,7 +399,8 @@ function boot() {
     const g = inst;
     if (!g) return;
     const r = layer.getBoundingClientRect();
-    g.onPointer(e.clientX - r.left, e.clientY - r.top, e.button);
+    const team = e.button === 2 ? 0 : 1;
+    g.doHit(e.clientX - r.left, e.clientY - r.top, team);
   });
   layer.addEventListener('contextmenu',  e => e.preventDefault());
   window.addEventListener('contextmenu', e => e.preventDefault());
@@ -412,6 +413,7 @@ const Game = {
   layer   : null,
   W: 0, H: 0,
   ripple  : null,
+  teams   : ['red', 'blue'],
 };
 const REG = [];
 let idx = -1;
@@ -437,8 +439,16 @@ Object.defineProperty(Game, 'current', { get: () => idx });
 Object.defineProperty(Game, 'list',    { get: () => REG.map(e => e.id) });
 
 Game.setTeams = (a, b) => {
+  Game.teams[0] = a;
+  Game.teams[1] = b;
   scoreEl[0].className = a;
   scoreEl[1].className = b;
+};
+
+Game.doHit = (x, y, team) => {
+  if (!inst) return;
+  const idx = typeof team === 'number' ? team : Game.teams.indexOf(team);
+  inst.doHit(x, y, idx);
 };
 
 Game.run = (target, opts = {}) => {
