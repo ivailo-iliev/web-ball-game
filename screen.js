@@ -1,3 +1,12 @@
+const domCache = {};
+window.$ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
+
+const u = {};
+u.rand = n => Math.random() * n;
+u.pick = arr => arr[Math.floor(u.rand(arr.length))];
+u.between = (a, b) => a + u.rand(b - a);
+window.u = u;
+
 const container = document.getElementById('container');
 
 // Factory to make an observer for a single section
@@ -83,7 +92,7 @@ container.addEventListener('pointercancel', cancelPointer);
 
 
 // Enhance number inputs with spinner buttons
-const initNumberSpinners = () => {
+function initNumberSpinners() {
     document.querySelectorAll('input[type=number]:not([data-spinner])').forEach(input => {
         input.setAttribute('data-spinner', '');
 
@@ -126,6 +135,6 @@ const initNumberSpinners = () => {
         input.addEventListener('input', update);
         update();
     });
-};
+}
 
-initNumberSpinners();
+window.initNumberSpinners = initNumberSpinners;

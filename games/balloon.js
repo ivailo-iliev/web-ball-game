@@ -1,5 +1,5 @@
 (function(g){
-  const { between, pick, rand } = g.R;
+  const { between, pick, rand } = g.u;
   const TAU = Math.PI * 2;
 
   const BALLOON_SET  = ['🎈'];

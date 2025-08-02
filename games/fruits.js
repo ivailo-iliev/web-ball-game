@@ -1,5 +1,5 @@
 (function (g) {
-  const { pick } = g.R;
+  const { pick } = g.u;
   const COLS = 10, ROWS = 5;
   const CELL_COUNT = COLS * ROWS;
   const indexToRow = i => Math.floor(i / COLS);
