@@ -55,10 +55,6 @@ function hsvRangeF16(team) {
   return dst;
 }
 
-/* DOM helper with simple caching */
-const domCache = {};
-const $ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
-
 const Config = (() => {
   const DEFAULTS = {
     TOP_W: 640,

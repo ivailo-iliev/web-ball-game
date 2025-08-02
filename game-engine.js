@@ -4,19 +4,7 @@
 (function (win) {
   'use strict';
 
-  /* DOM helper with simple caching */
-  const domCache = {};
-  const $ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
-
-  const scoreEl = [$('#teamAScore'),$('#teamBScore')];
-
-/* ══════════ 1.  Pure helpers – kept tiny & global ══════════ */
-const R = {
-  rand    : n       => Math.random() * n,
-  pick    : arr     => arr[Math.floor(R.rand(arr.length))],
-  between : (a, b)  => a + R.rand(b - a)
-};
-win.R = R;
+  const scoreEl = [$('#teamAScore'), $('#teamBScore')];
 
 const baseCfg = {
   max: 6,
@@ -87,7 +75,7 @@ class BaseGame {
     this.deadline = 0;
     this._raf = null;
     this._spawnElapsed = 0;
-    this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
+    this._nextSpawn = u.between(...this.cfg.spawnDelayRange);
     this._spawnQueue = [];              // ← NEW  event-driven queue
 
     this.burstEl = document.createElement('div');
@@ -123,7 +111,7 @@ class BaseGame {
       this._spawnElapsed += dt;
       if (this._spawnElapsed >= this._nextSpawn) {
         this._spawnElapsed = 0;
-        this._nextSpawn = R.between(...this.cfg.spawnDelayRange);
+        this._nextSpawn = u.between(...this.cfg.spawnDelayRange);
         const desc = this.spawn();
         if (desc) this.addSprite(desc);
       }
@@ -179,10 +167,10 @@ class BaseGame {
   addSprite(desc) {
     const [rMin, rMax] = this.cfg.rRange;
     const [vMin, vMax] = this.cfg.vRange;
-    desc.r ??= R.between(rMin, rMax);
-    const speed = R.between(vMin, vMax);
-    const ang = R.rand(Math.PI * 2);
-    desc.e ??= R.pick(this.cfg.emojis || []);
+    desc.r ??= u.between(rMin, rMax);
+    const speed = u.between(vMin, vMax);
+    const ang = u.rand(Math.PI * 2);
+    desc.e ??= u.pick(this.cfg.emojis || []);
     desc.dx ??= Math.cos(ang) * speed;
     desc.dy ??= Math.sin(ang) * speed;
 
@@ -199,7 +187,7 @@ class BaseGame {
   }
 
   spawn() {
-    return { x: R.rand(this.W), y: R.rand(this.H) };
+    return { x: u.rand(this.W), y: u.rand(this.H) };
   }
 
   /* ------------------------------------------------------------
@@ -307,9 +295,9 @@ class BaseGame {
     const children = this.burstEl.children;
     for (let i = 0; i < children.length; i++) {
       const p = children[i];
-      p.textContent = R.pick(emojiArr);
-      const sp = 150 + R.rand(150);
-      const vec = R.pick(BURST_VECTORS);
+      p.textContent = u.pick(emojiArr);
+      const sp = 150 + u.rand(150);
+      const vec = u.pick(BURST_VECTORS);
       const dx = vec.x * sp;
       const dy = vec.y * sp;
       p.style.setProperty('--dx', `${dx}px`);

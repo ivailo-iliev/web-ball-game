@@ -1,5 +1,5 @@
 (function(g){
-  const { rand, between, pick } = g.R;
+  const { rand, between, pick } = g.u;
   const TAU = Math.PI * 2;
   const FISH_SET = ['🐳','🐋','🐬','🦭','🐟','🐠','🦈','🐙','🪼','🦀','🦞','🦐'];
   const FISH_MAX = 6;

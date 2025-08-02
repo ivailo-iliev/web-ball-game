@@ -1,5 +1,5 @@
 (function (g) {
-  const { between, rand, pick } = g.R;
+  const { between, rand, pick } = g.u;
   const TAU = Math.PI * 2;
   const EMOJI_SET = [
     '🕶️','🤖','🥨','🦥','🌻','🪙','🥇','🏆','🎒','','','','🎉','⭐','🥳','💎',

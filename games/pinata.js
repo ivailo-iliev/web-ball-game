@@ -13,7 +13,7 @@
   /* ------------------------------------------------------------
    *  CONSTANTS
    * ---------------------------------------------------------- */
-  const { rand, between, pick } = g.R;
+  const { rand, between, pick } = g.u;
   const TAU = Math.PI * 2;
 
   // Tune‑once gameplay knobs
