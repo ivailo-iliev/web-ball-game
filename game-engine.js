@@ -425,12 +425,13 @@ function cleanupLayer() {
 Game.register = (id, cls) => {
   cls.prototype.gameName = id;
   REG.push({ id, cls });
-  const launcher = document.getElementById('launcher');
+  const launcher = $('#launcher');
   if (launcher && cls.icon) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = cls.icon;
-    btn.dataset.game = id;
+    const btn = Object.assign(document.createElement('button'), {
+      type: 'button',
+      textContent: cls.icon
+    });
+    Object.assign(btn.dataset, { game: id });
     launcher.prepend(btn);
   }
 };
@@ -460,11 +461,12 @@ Game.run = (target, opts = {}) => {
       : REG.findIndex(e => e.id === target);
   if (i < 0) return;
   const cssHref = `styles/${REG[i].id}.css`;
-  if (!document.querySelector(`link[data-game='${REG[i].id}']`)) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = cssHref;
-    link.dataset.game = REG[i].id;
+  if (!$(`link[data-game='${REG[i].id}']`)) {
+    const link = Object.assign(document.createElement('link'), {
+      rel: 'stylesheet',
+      href: cssHref
+    });
+    Object.assign(link.dataset, { game: REG[i].id });
     document.head.appendChild(link);
   }
   if (inst) inst.end();
