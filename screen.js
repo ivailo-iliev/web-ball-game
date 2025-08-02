@@ -82,84 +82,50 @@ container.addEventListener('pointerleave', cancelPointer);
 container.addEventListener('pointercancel', cancelPointer);
 
 
-(function() {
-  // Scan for number inputs once DOM is ready
-  function init() {
+// Enhance number inputs with spinner buttons
+const initNumberSpinners = () => {
     document.querySelectorAll('input[type=number]:not([data-spinner])').forEach(input => {
-      input.setAttribute('data-spinner', '');
+        input.setAttribute('data-spinner', '');
 
-      // wrap + buttons
-      const wrap = document.createElement('span');
-      wrap.className = 'num-spinner';
-      input.before(wrap);
-      wrap.append(input,
-        Object.assign(document.createElement('button'), {
-          type: 'button',
-          className: 'down',
-          textContent: '−',
-          onclick() {
-            input.stepDown();
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            update();
-          }
-        }),
-        Object.assign(document.createElement('button'), {
-          type: 'button',
-          className: 'up',
-          textContent: '+',
-          onclick() {
-            input.stepUp();
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            update();
-          }
-        })
-      );
+        // wrap + buttons
+        const wrap = document.createElement('span');
+        wrap.className = 'num-spinner';
+        input.before(wrap);
+        wrap.append(
+            input,
+            Object.assign(document.createElement('button'), {
+                type: 'button',
+                className: 'down',
+                textContent: '−',
+                onclick() {
+                    input.stepDown();
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    update();
+                }
+            }),
+            Object.assign(document.createElement('button'), {
+                type: 'button',
+                className: 'up',
+                textContent: '+',
+                onclick() {
+                    input.stepUp();
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    update();
+                }
+            })
+        );
 
-      // disable at bounds
-      function update() {
-        const val = parseFloat(input.value);
-        const min = parseFloat(input.min);
-        const max = parseFloat(input.max);
-        wrap.querySelector('.down').disabled = !isNaN(min) && val <= min;
-        wrap.querySelector('.up')  .disabled = !isNaN(max) && val >= max;
-      }
-      input.addEventListener('input', update);
-      update();
+        // disable at bounds
+        const update = () => {
+            const val = parseFloat(input.value);
+            const min = parseFloat(input.min);
+            const max = parseFloat(input.max);
+            wrap.querySelector('.down').disabled = !isNaN(min) && val <= min;
+            wrap.querySelector('.up').disabled = !isNaN(max) && val >= max;
+        };
+        input.addEventListener('input', update);
+        update();
     });
-  }
+};
 
-  // basic styling
-  const style = document.createElement('style');
-  style.textContent = `
-    .num-spinner {
-      display: inline-flex;
-      align-items: stretch;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .num-spinner input {
-      width: 4em;
-      border: none;
-      padding: 0 .5em;
-      text-align: center;
-      outline: none;
-    }
-    .num-spinner button {
-      border: none;
-      background: #eee;
-      padding: 0 .75em;
-      cursor: pointer;
-      font-size: 1em;
-      line-height: 1;
-    }
-    .num-spinner button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-  `;
-  document.head.append(style);
-
-  if (document.readyState !== 'loading') init();
-  else document.addEventListener('DOMContentLoaded', init);
-})();
+initNumberSpinners();
