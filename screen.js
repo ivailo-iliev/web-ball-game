@@ -28,9 +28,8 @@ const obs2 = createSectionObserver(
 );
 obs2.observe(sec2);
 */
-// === horizontal swipe on #gameScreen only ===
-const game = document.getElementById('gameScreen');
-let startX = 0, startY = 0;
+// === custom swipe handling ===
+let startX = 0, startY = 0, startTarget = null, isMouseDown = false;
 
 function onSwipeLeft() {
     console.log('Swiped LEFT!');
@@ -41,42 +40,67 @@ function onSwipeRight() {
     Game.run(Game.current - 1);
 }
 
+function scrollToIndex(idx) {
+    const top = idx * container.clientHeight;
+    container.scrollTo({ top, behavior: 'smooth' });
+}
+function currentIndex() {
+    return Math.round(container.scrollTop / container.clientHeight);
+}
+function scrollNext() {
+    const max = container.children.length - 1;
+    const i = currentIndex();
+    if (i < max) scrollToIndex(i + 1);
+}
+function scrollPrev() {
+    const i = currentIndex();
+    if (i > 0) scrollToIndex(i - 1);
+}
+
+function handleSwipe(dx, dy, target) {
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) {
+        dy < 0 ? scrollNext() : scrollPrev();
+    } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) {
+        if (target.closest('#gameScreen')) {
+            dx < 0 ? onSwipeLeft() : onSwipeRight();
+        }
+    }
+}
+
 // TOUCH
-game.addEventListener('touchstart', e => {
+container.addEventListener('touchstart', e => {
     if (e.touches.length === 1) {
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
+        startTarget = e.target;
     }
 }, { passive: true });
 
-game.addEventListener('touchend', e => {
+container.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - startX;
     const dy = e.changedTouches[0].clientY - startY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) {
-        dx < 0 ? onSwipeLeft() : onSwipeRight();
-    }
+    handleSwipe(dx, dy, startTarget);
 });
 
 // MOUSE
-game.addEventListener('mousedown', e => {
+container.addEventListener('mousedown', e => {
     isMouseDown = true;
     startX = e.clientX;
     startY = e.clientY;
+    startTarget = e.target;
     // prevent text selection while dragging
     e.preventDefault();
 });
 
-game.addEventListener('mouseup', e => {
+container.addEventListener('mouseup', e => {
     if (!isMouseDown) return;
     isMouseDown = false;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) {
-        dx < 0 ? onSwipeLeft() : onSwipeRight();
-    }
+    handleSwipe(dx, dy, startTarget);
 });
 
-// Optional: cancel a drag if the cursor leaves the element
-game.addEventListener('mouseleave', () => {
+// Optional: cancel a drag if the cursor leaves the container
+container.addEventListener('mouseleave', () => {
     isMouseDown = false;
 });
