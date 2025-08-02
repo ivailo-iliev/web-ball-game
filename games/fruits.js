@@ -20,6 +20,7 @@
   }
 
   g.Game.register('fruits', g.BaseGame.make({
+    icon   : FRUITS[0],
     max    : CELL_COUNT,
     emojis : FRUITS,
     spawnDelayRange : [0, 0],

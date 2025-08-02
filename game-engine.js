@@ -361,8 +361,12 @@ class BaseGame {
 }
 
 /* ══════════ 4. helper : turn plain config into subclass ══════════ */
-BaseGame.make = cfg => class Game extends BaseGame {
-  constructor() { super(cfg); Object.assign(this, cfg); }
+BaseGame.make = cfg => {
+  class Game extends BaseGame {
+    constructor() { super(cfg); Object.assign(this, cfg); }
+  }
+  Game.icon = cfg.icon;
+  return Game;
 };
 
 /* ══════════ 5. registry + public runner ══════════ */
@@ -421,6 +425,14 @@ function cleanupLayer() {
 Game.register = (id, cls) => {
   cls.prototype.gameName = id;
   REG.push({ id, cls });
+  const launcher = document.getElementById('launcher');
+  if (launcher && cls.icon) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = cls.icon;
+    btn.dataset.game = id;
+    launcher.prepend(btn);
+  }
 };
 
 Object.defineProperty(Game, 'current', { get: () => idx });

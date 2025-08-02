@@ -49,10 +49,15 @@ const launcher = $('#launcher');
 
 if (launcher) {
   launcher.addEventListener('click', e => {
-    const btn = e.target.closest('[data-game]');
+    const btn = e.target.closest('button');
     if (!btn) return;
-  // game.run selected game 
-    snapTo(1);                                // jump to game page
+    const game = btn.dataset.game;
+    if (game) {
+      Game.run(game);
+      snapTo(1); // jump to game page
+    } else if (btn.dataset.config !== undefined) {
+      snapTo(2); // jump to config page
+    }
   });
 }
 
