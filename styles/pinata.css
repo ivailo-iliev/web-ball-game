@@ -61,10 +61,10 @@
       radial-gradient(ellipse at center 80%,
         rgba(255,255,255,.4) 0%,transparent 60%),                        /* highlight */
       repeating-linear-gradient(to right,                               /* colour tiles */
-        var(--br)  0  8vw, transparent  8vw 10vw,
-        var(--by) 10vw 18vw, transparent 18vw 20vw,
-        var(--bg) 20vw 28vw, transparent 28vw 30vw,
-        var(--bb) 30vw 38vw, transparent 38vw 40vw);
+        var(--br)  0  4vw, transparent  4vw  5vw,
+        var(--by)  5vw  9vw, transparent  9vw 10vw,
+        var(--bg) 10vw 14vw, transparent 14vw 15vw,
+        var(--bb) 15vw 19vw, transparent 19vw 20vw);
 
   background-blend-mode:soft-light,normal,normal;
   border-top:

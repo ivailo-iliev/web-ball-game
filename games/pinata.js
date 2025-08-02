@@ -23,12 +23,30 @@
     DECAY: 0.15,         // (0–1) spring‑like ease back to idle
     STRING: 200,         // px — must match :root{ --string } in CSS
     CANDY_GRAVITY: 900,  // px · s⁻²
-    HIT_TO_RAIN: 5,      // hits before the piñata bursts
-    PINATA_R: 70         // px — emoji rendered size / 2
+    HIT_TO_CANDY: 5,     // hits before the piñata bursts
+    PINATA_R: 70,        // px — emoji rendered size / 2
+    CANDY_N_RANGE: [3, 6],         // candies per burst
+    CANDY_ANG: TAU / 6,            // rad — half spread angle
+    CANDY_SPEED_RANGE: [200, 350], // px·s⁻¹
+    CANDY_R_RANGE: [20, 32],       // px — candy size
+    CANDY_UP: 200                  // px·s⁻¹ vertical boost
   });
 
   // Quick lookup aliases
-  const { BASE_AMP, BASE_FREQ, DECAY, STRING, CANDY_GRAVITY, HIT_TO_RAIN, PINATA_R } = CFG;
+  const {
+    BASE_AMP,
+    BASE_FREQ,
+    DECAY,
+    STRING,
+    CANDY_GRAVITY,
+    HIT_TO_CANDY,
+    PINATA_R,
+    CANDY_N_RANGE,
+    CANDY_ANG,
+    CANDY_SPEED_RANGE,
+    CANDY_R_RANGE,
+    CANDY_UP
+  } = CFG;
 
   // Visual troubleshooting — toggle while developing
   const DEBUG = false; // ← flip to true to draw the hit‑centre dot
@@ -164,24 +182,24 @@
       // piñata-specific side effects only
       sp.swingAmp = Math.min(sp.swingAmp + 0.2, 1.3);
       sp.swingFreq = Math.min(sp.swingFreq + 0.7, 5.0);
-      if (++this.hits >= HIT_TO_RAIN) this._spawnCandies(sp);
+      if (++this.hits >= HIT_TO_CANDY) this._spawnCandies(sp);
       return true; // keep piñata alive
     },
     /* ---------------- Candy shower ------------------------- */
     _spawnCandies(pinata) {
-      const n = Math.floor(rand(3));
+      const n = Math.floor(between(...CANDY_N_RANGE));
       for (let i = 0; i < n; i++) {
-        const ang = between(-TAU / 6, TAU / 6);
+        const ang = between(-CANDY_ANG, CANDY_ANG);
         const dir = pick([-1, 1]);
-        const speed = between(200, 350);
+        const speed = between(...CANDY_SPEED_RANGE);
         this.queueSpawn({
           type: 'candy',
           e: pick(this.cfg.emojis),
-          r: between(20, 32),
+          r: between(...CANDY_R_RANGE),
           x: pinata.x,
           y: pinata.y,
           dx: Math.cos(ang) * speed * dir,
-          dy: Math.sin(ang) * speed - 200,
+          dy: Math.sin(ang) * speed - CANDY_UP,
           g: CANDY_GRAVITY
         });
       }
