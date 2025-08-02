@@ -11,7 +11,7 @@ window.u = Object.freeze({
   clamp  : (n,l,h)=> n < l ? l : n > h ? h : n
 });
 
-const container = document.getElementById('container');
+const container = $('#container');
 
 /*───────────────────────────────────────────────────────────
     Three-page vertical pager  (0-launcher | 1-game | 2-config)
