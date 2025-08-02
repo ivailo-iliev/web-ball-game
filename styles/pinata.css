@@ -10,6 +10,13 @@
 <text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='90'>🫏</text>\
 </svg>");
 
+  --br:#e04b40;  /* red   */
+  --by:#f7d678;  /* yellow*/
+  --bg:#4ba66f;  /* green */
+  --bb:#3f7bc4;  /* blue  */
+  --rope:#666;   /* cloth cord / banner edge */
+  --depth:400px; /* change to 200-1200 to feel the perspective   */
+
 
   /* layers painted FRONT → BACK -------------------------------------- */
   background:
@@ -20,7 +27,7 @@
     /* 🫏 donkey (right) */
     var(--donkey-svg) 92% 68% /15vw auto no-repeat,
 
-    /* bunting moved to ::before pseudo-element */
+    /* bunting banner drawn via pseudo-elements */
 
     /* plain sand ground (no dots) -------------------------------------- */
     linear-gradient(#e8c78d 0%, #deba7e 100%) 0 100% / 100% 32vh no-repeat,
@@ -32,43 +39,84 @@
 
     /* warm sunset sky --------------------------------------------------- */
     linear-gradient(#ffbd80 0%, #ffcfa0 40%, #ffe9d1 100%);
+
+  transform:translateZ(0);
+  perspective-origin:50% 0;
 }
 
-/* ─── BUNTING ::before LAYER ───────────────────────────────────────── */
+/* ─── BUNTING banner (3D) ───────────────────────────────────────── */
 
-:root {
-  --banner-red:    #e04b40;   /* muted chilli-red  */
-  --banner-yellow: #f7d678;   /* warm mustard      */
-  --banner-green:  #4ba66f;   /* cactus green      */
-  --banner-blue:   #3f7bc4;   /* pottery-blue      */
-}
+.game.pinata::before,
+.game.pinata::after {
+  content:"";
+  position:absolute;
+  top:0;
+  width:60vw;
+  height:8vh;
 
-.game.pinata::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  height: 8vh;
+  /* 3 stacked backgrounds: rim shadow, subtle highlight, colour tiles */
   background:
-    repeating-linear-gradient(
-      to right,
-      var(--banner-red)    0   8vw, transparent  8vw 10vw,
-      var(--banner-yellow) 10vw 18vw, transparent 18vw 20vw,
-      var(--banner-green)  20vw 28vw, transparent 28vw 30vw,
-      var(--banner-blue)   30vw 38vw, transparent 38vw 40vw
-    );
-  transform-origin: top center;
-  animation: banner-sway 6s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 2;
+      linear-gradient(to bottom,
+        transparent 60%,rgba(0,0,0,.25) 100%),                           /* shadow */
+      radial-gradient(ellipse at center 80%,
+        rgba(255,255,255,.4) 0%,transparent 60%),                        /* highlight */
+      repeating-linear-gradient(to right,                               /* colour tiles */
+        var(--br)  0  8vw, transparent  8vw 10vw,
+        var(--by) 10vw 18vw, transparent 18vw 20vw,
+        var(--bg) 20vw 28vw, transparent 28vw 30vw,
+        var(--bb) 30vw 38vw, transparent 38vw 40vw);
+
+  background-blend-mode:soft-light,normal,normal;
+  border-top:
+  1px solid var(--rope);                /* rope now runs along the top edge */
+  border-bottom-left-radius:45% 100%;
+  border-bottom-right-radius:45% 100%;
+
+  pointer-events:none;
+  z-index:2;
+
+  transform-style:preserve-3d;                     /* keep depth in descendants */
+  animation:sway 7s ease-in-out infinite;
 }
 
-@keyframes banner-sway {
-  0%,100% { transform: rotate(2deg); }
-  50%     { transform: rotate(-2deg); }
+/* ▲ left half – outer edge LOWER than centre */
+.game.pinata::before{
+  right:50%;
+  transform-origin:top right;
+  transform:
+    perspective(var(--depth))
+    translateX(1px)            /* hide 1-px join gap              */
+    rotateY(25deg)             /* depth tilt                      */
+    rotateX(-5deg)             /* pitch down a little             */
+    rotateZ(-8deg);            /* slopes down toward the centre   */
+  animation-name:swing-L;
+}
+
+/* ▲ right half – mirror of the left */
+.game.pinata::after{
+  left:50%;
+  transform-origin:top left;
+  transform:
+    perspective(var(--depth))
+    rotateY(-25deg)
+    rotateX(-5deg)
+    rotateZ( 8deg);
+  animation-name:swing-R;
+}
+
+/* gentle breeze: only Z-axis rocks so depth & pitch stay constant */
+@keyframes swing-L{
+  0%,100%{transform:perspective(var(--depth)) translateX(1px) rotateY(25deg) rotateX(-5deg) rotateZ(-8deg);}
+  50%   {transform:perspective(var(--depth)) translateX(1px) rotateY(25deg) rotateX(-5deg) rotateZ(-10deg);}
+}
+@keyframes swing-R{
+  0%,100%{transform:perspective(var(--depth)) rotateY(-25deg) rotateX(-5deg) rotateZ( 8deg);}
+  50%   {transform:perspective(var(--depth)) rotateY(-25deg) rotateX(-5deg) rotateZ(10deg);}
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .game.pinata::before { animation: none; }
+  .game.pinata::before,
+  .game.pinata::after { animation: none; }
 }
 
 .game.pinata .sprite.pinata {
