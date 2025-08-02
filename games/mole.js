@@ -39,6 +39,7 @@
   }
 
   g.Game.register('mole', g.BaseGame.make({
+    icon: MOLE_EMOJIS[0],
     max: MOLE_MAX,
     emojis: MOLE_EMOJIS,
     burst: ['💫'],

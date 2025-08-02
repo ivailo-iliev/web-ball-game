@@ -18,6 +18,7 @@
   const ROT_FREQ = 0.03;
 
   g.Game.register('emoji', g.BaseGame.make({
+    icon       : EMOJI_SET[0],
     max        : EMOJI_MAX,
     emojis     : EMOJI_SET,
     spawnDelayRange : SPAWN_DELAY_RANGE,

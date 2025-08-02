@@ -14,6 +14,7 @@
   const SAT_RANGE    = [0.9, 1.0];
 
   g.Game.register('balloon', g.BaseGame.make({
+    icon: BALLOON_SET[0],
     max: BALLOON_MAX,
     emojis: BALLOON_SET,
     spawnDelayRange: SPAWN_DELAY_RANGE,

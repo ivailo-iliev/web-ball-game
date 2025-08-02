@@ -8,6 +8,7 @@
   const EMOJI_MAX = 6;
 
   g.Game.register('gem', g.BaseGame.make({
+    icon           : EMOJIS[0],
     max            : EMOJI_MAX,
     emojis         : EMOJIS,
     spawnDelayRange: [0, 1],

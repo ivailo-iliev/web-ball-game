@@ -8,6 +8,7 @@
   const V_RANGE = [10, 180];
 
   g.Game.register('fish', g.BaseGame.make({
+    icon: FISH_SET[0],
     max: FISH_MAX,
     emojis: FISH_SET,
     burst: ['🫧'],

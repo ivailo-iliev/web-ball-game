@@ -30,6 +30,22 @@ body {
   overflow: hidden;
 }
 
+#launcher {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  font-size: 4rem;
+}
+
+#launcher button {
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
 /* Config screen grid */
 #configScreen {
   display: grid;

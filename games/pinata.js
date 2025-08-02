@@ -66,6 +66,7 @@
    *  Game definition
    * ---------------------------------------------------------- */
   g.Game.register('pinata', g.BaseGame.make({
+    icon: '🪅',
     max: 0,            // disable auto‑spawn from engine
     collisions: false, // no sprite–sprite collisions
     emojis: ['🍬', '🍭', '🍡', '🍫', '🍪', '🧁'],
