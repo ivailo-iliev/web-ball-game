@@ -11,6 +11,7 @@
   --hole7-x: -100vw; --hole7-y: -100vh;
   --hole8-x: -100vw; --hole8-y: -100vh;
   --hole-img: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='0' y='50' font-size='100'>🕳️</text></svg>");
+  /* One 120 × 120 px tile made of 🍀 🌸 🌼 🏵️ "sprinkled" around */
   background-image:
     var(--hole-img),
     var(--hole-img),
@@ -19,8 +20,20 @@
     var(--hole-img),
     var(--hole-img),
     var(--hole-img),
-    var(--hole-img);
-  background-repeat: no-repeat;
+    var(--hole-img),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><text x='10'  y='22' font-size='22'>🍀</text><text x='70'  y='28' font-size='24'>🌸</text><text x='35'  y='60' font-size='22'>🌼</text><text x='95'  y='80' font-size='24'>🏵️</text><text x='55'  y='105' font-size='20'>🍀</text><text x='15'  y='90' font-size='20'>🌸</text></svg>");
+  /* Repeat the tile forever */
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    repeat;
+  /* Keep it at its native resolution for crisp emoji edges */
   background-size:
     var(--hole-size) var(--hole-size),
     var(--hole-size) var(--hole-size),
@@ -29,7 +42,8 @@
     var(--hole-size) var(--hole-size),
     var(--hole-size) var(--hole-size),
     var(--hole-size) var(--hole-size),
-    var(--hole-size) var(--hole-size);
+    var(--hole-size) var(--hole-size),
+    120px 120px;
   background-position:
       var(--hole1-x) var(--hole1-y),
       var(--hole2-x) var(--hole2-y),
@@ -38,7 +52,8 @@
       var(--hole5-x) var(--hole5-y),
       var(--hole6-x) var(--hole6-y),
       var(--hole7-x) var(--hole7-y),
-      var(--hole8-x) var(--hole8-y);
+      var(--hole8-x) var(--hole8-y),
+      0 0;
 }
 
 .game.mole .sprite {
