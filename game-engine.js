@@ -387,13 +387,7 @@ function boot() {
   updateViewport();
   window.visualViewport.addEventListener('resize', updateViewport, { passive: true });
 
-  layer.addEventListener('pointerdown', e => {
-    const g = inst;
-    if (!g) return;
-    const r = layer.getBoundingClientRect();
-    const team = e.button === 2 ? 0 : 1;
-    g.doHit(e.clientX - r.left, e.clientY - r.top, team);
-  });
+  /* pointer-down events are now handled globally in screen.js */
   layer.addEventListener('contextmenu',  e => e.preventDefault());
   window.addEventListener('contextmenu', e => e.preventDefault());
   layer.addEventListener('animationend', e => inst?._onAnimEnd?.(e));
@@ -450,6 +444,27 @@ Game.doHit = (x, y, team) => {
   if (!inst) return;
   const idx = typeof team === 'number' ? team : Game.teams.indexOf(team);
   inst.doHit(x, y, idx);
+};
+
+/* ultra-light hit router (no DOM look-ups except on launcher page) */
+Game.routeHit = (x, y, team) => {
+  switch (window.currentPage) {
+    case 1:                              /* game page */
+      if (inst) Game.doHit(x, y, team);
+      break;
+
+    case 0: {                            /* launcher page */
+      const btn = document.elementFromPoint(x, y)
+                 ?.closest('#launcher button[data-game]');
+      if (btn && btn.dataset.game) {
+        Game.run(btn.dataset.game);
+        if (typeof snapTo === 'function') snapTo(1);  /* scroll to game */
+      }
+      break;
+    }
+
+    /* page-2 (config) → ignore hit */
+  }
 };
 
 Game.run = (target, opts = {}) => {
