@@ -456,7 +456,7 @@ Game.routeHit = (x, y, team) => {
     case 0: {                            /* launcher page */
       const btn = document.elementFromPoint(x, y)
                  ?.closest('#launcher button[data-game]');
-      if (btn && btn.dataset.game) {
+      if (btn?.dataset.game) {
         Game.run(btn.dataset.game);
         if (typeof snapTo === 'function') snapTo(1);  /* scroll to game */
       }
