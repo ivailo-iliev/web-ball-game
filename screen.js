@@ -13,6 +13,9 @@ window.u = Object.freeze({
 
 const container = $('#container');
 
+/* current page index for ultra-fast hit routing */
+window.currentPage = 0;
+
 /*───────────────────────────────────────────────────────────
     Three-page vertical pager  (0-launcher | 1-game | 2-config)
 ───────────────────────────────────────────────────────────*/
@@ -23,6 +26,8 @@ let   index   = 0;
 function snapTo(i) {
   index = Math.max(0, Math.min(i, MAX_IDX));
   container.scrollTo({ top: index * PAGE_H(), behavior: 'smooth' });
+  window.currentPage = index;          /* 0 launcher | 1 game | 2 config */
+  container.dataset.page = index;      /* handy in DevTools */
 }
 
 /* global vertical swipe */
@@ -32,6 +37,10 @@ container.addEventListener('pointerdown', e => {
   if (!e.isPrimary) return;
   startY = e.clientY;
   container.setPointerCapture(e.pointerId);   // guarantees pointerup
+
+  /* delegate hit to game engine */
+  const team = e.button === 2 ? 0 : 1;
+  if (window.Game?.routeHit) Game.routeHit(e.clientX, e.clientY, team);
 }, { passive: true });
 
 container.addEventListener('pointerup', e => {

@@ -750,7 +750,7 @@ const Controller = (() => {
 
       if (frontDetected) {
         for (const h of hits) {
-          Game.doHit(
+          Game.routeHit(
             h.x * window.innerWidth,
             h.y * window.innerHeight,
             h.team
