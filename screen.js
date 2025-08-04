@@ -37,6 +37,7 @@ let startY = null;
 
 container.addEventListener('pointerdown', e => {
   if (!e.isPrimary) return;
+  if (window.currentPage === 2 || e.target.closest('#configScreen')) return;
   startY = e.clientY;
   container.setPointerCapture(e.pointerId);   // guarantees pointerup
 
@@ -47,6 +48,7 @@ container.addEventListener('pointerdown', e => {
 
 container.addEventListener('pointerup', e => {
   if (startY == null) return;
+  if (window.currentPage === 2 || e.target.closest('#configScreen')) { startY = null; return; }
   const dy = e.clientY - startY;
   startY = null;
   if (Math.abs(dy) < 50) return;              // ignore micro swipes

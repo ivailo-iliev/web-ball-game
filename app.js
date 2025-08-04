@@ -209,6 +209,7 @@ const Setup = (() => {
   </div>
   <div id=cfg>
     <span>
+      <button id=btnStart>►</button>
       <button id=btnTop>⇥</button>
       <button id=btnFront>⛶</button>
       <button id=btnBoth>🀱</button>
@@ -226,17 +227,20 @@ const Setup = (() => {
 
   function bind() {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
+    initNumberSpinners();
     const urlI = $('#topUrl');
     const urlWarn = $('#urlWarn');
     const selA = $('#teamA');
     const selB = $('#teamB');
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
+    const btnStart = $('#btnStart');
     const btnTop   = $('#btnTop');
     const btnFront = $('#btnFront');
     const btnBoth  = $('#btnBoth');
 
     const cfgScreen = $('#configScreen');
+    btnStart?.addEventListener('click', () => snapTo(1));
     btnTop?.addEventListener('click', () => cfgScreen.className = 'onlyTop');
     btnFront?.addEventListener('click', () => cfgScreen.className = 'onlyFront');
     btnBoth?.addEventListener('click', () => cfgScreen.className = '');
@@ -278,6 +282,7 @@ const Setup = (() => {
 
     /* vertical drag on overlay */
     let dragY = null;
+    topOv.style.touchAction = 'none';
     topOv.addEventListener('pointerdown', e => {
       if (!Controller.isPreview()) return;
       const r = topOv.getBoundingClientRect();
@@ -415,19 +420,19 @@ const Setup = (() => {
       topMinInp.value = cfg.TOP_MIN_AREA;
       frontMinInp.value = cfg.FRONT_MIN_AREA;
 
-      topHInp.onchange = e => {
+      topHInp.addEventListener('input', e => {
         cfg.topH = Math.max(10, Math.min(cfg.TOP_H, +e.target.value));
         Config.save('topH', cfg.topH);
         topROI.h = cfg.topH;
         commitTop();
-      };
-      frontHInp.onchange = e => {
+      });
+      frontHInp.addEventListener('input', e => {
         cfg.frontH = Math.max(10, Math.min(cfg.FRONT_H, +e.target.value));
         Config.save('frontH', cfg.frontH);
         roi.h = cfg.frontH;
         roi.w = roi.h * ASPECT;
         commit();
-      };
+      });
       topMinInp.onchange = e => {
         cfg.TOP_MIN_AREA = Math.max(0, +e.target.value);
         Config.save('TOP_MIN_AREA', cfg.TOP_MIN_AREA);
