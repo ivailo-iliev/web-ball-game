@@ -64,14 +64,15 @@ body {
 
 /* ────────── Layout ────────── */
 #configScreen {
+  font-size: 1rem;
+  line-height: 1;
   display: grid;
   place-content: center;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: 1fr 5rem;
-  grid-template-areas:
-    "top front"
-    "cfg cfg";
-  line-height: 1;
+  gap: 1rem;                         /* consistent spacing */
+  grid:
+    "top  front" 1fr                /* first row: two equal tracks   */
+    "cfg  cfg"   auto               /* second row: full-width bar    */
+    / 1fr 1fr;         
 }
 
 #topCam   { grid-area: top; }
@@ -82,8 +83,8 @@ body {
   grid-area: cfg;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
+  justify-content: left;
+  align-items: flex-start;
   gap: .75rem;
   padding: 1rem;
   text-align: center;
@@ -101,7 +102,7 @@ body {
 .cam canvas {
   grid-area: 1 / 1;
   max-width: 100%;
-  max-height: calc(100dvh - 6rem);
+  /* max-height: calc(100dvh - 6rem); */
   border: 2px solid magenta;
 }
 
