@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Winner screen – single-div, external CSS</title>
+
+    <style>
+        .winner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            --bg-angle: 0deg;
+            background:
+                repeating-conic-gradient(from var(--bg-angle),
+                    #ffcc4d 0deg 5deg,
+                    #ffb347 5deg 10deg),
+                radial-gradient(circle at center, #ffe680 0%, #ff9900 100%);
+            background-blend-mode: screen;
+            animation: spinBg 20s linear infinite;
+        }
+
+        /* custom animatable property for the conic-gradient angle */
+        @property --bg-angle {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 0deg;
+        }
+
+        @keyframes spinBg {
+            to { --bg-angle: 360deg; }
+        }
+
+        .winner svg {
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .confetti,
+        .champagne {
+            transform-box: fill-box;
+            transform-origin: center;
+        }
+
+        /* ─────────── Confetti that jiggle in place ──────────── */
+        .confetti {
+            font-size:60px;
+            animation:confettiWiggle var(--t,2s) ease-in-out infinite;
+            will-change:transform;
+        }
+
+        /* give each burst its own pace so they de-synch */
+        .confetti.c1 {--t:2.00s;}
+        .confetti.c2 {--t:2.30s;}
+        .confetti.c3 {--t:2.60s; display: none;}
+        .confetti.c4 {--t:2.10s;}
+        .confetti.c5 {--t:2.45s;}
+        
+        .champagne, .medal { font-size: 150px; }
+
+        .wave {
+            font-size: 40px;
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        /* Mexican-wave staggering */
+        .wave.w1 { animation-delay: 0s; }
+        .wave.w2 { animation-delay: 0.1s; }
+        .wave.w3 { animation-delay: 0.2s; }
+        .wave.w4 { animation-delay: 0.3s; }
+        .wave.w5 { animation-delay: 0.4s; }
+        .wave.w6 { animation-delay: 0.5s; }
+        .wave.w7 { animation-delay: 0.6s; }
+        .wave.w8 { animation-delay: 0.7s; }
+        .wave.w9 { animation-delay: 0.8s; }
+
+        /* --------------- keyframes -------------------------------------------- */
+        @keyframes wave {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-0.6em); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translate(-50%, -50%) translateY(.2em); }
+            50%      { transform: translate(-50%, -50%) translateY(-1em); }
+        }
+
+        @keyframes confettiWiggle {
+            0%   {transform:translate( 0px,  0px) rotate(-8deg) scale(1);}
+            10%  {transform:translate( 2px, -1px) rotate( 6deg) scale(1.10);}
+            20%  {transform:translate(-2px,  1px) rotate(-6deg) scale(0.95);}
+            30%  {transform:translate( 1px,  0px) rotate( 8deg) scale(1.05);}
+            40%  {transform:translate(-1px, -2px) rotate(-4deg) scale(1);}
+            50%  {transform:translate( 0px,  0px) rotate( 0deg) scale(1.10);}
+            60%  {transform:translate( 1px,  2px) rotate( 5deg) scale(0.90);}
+            70%  {transform:translate(-2px,  1px) rotate(-5deg) scale(1.05);}
+            80%  {transform:translate( 2px, -1px) rotate( 4deg) scale(1);}
+            90%  {transform:translate(-1px, -2px) rotate(-3deg) scale(1.10);}
+            100% {transform:translate( 0px,  0px) rotate( 0deg) scale(1);}
+        }
+        /* --------------- winning smiley via ::after --------------------------- */
+        .winner::after {
+            content: '😄';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12em;
+            animation: bounce 1.2s ease-in-out infinite;
+            filter: hue-rotate(180deg);
+        }
+
+        .green::after  { filter:hue-rotate(40deg); }
+        .orange::after { filter:hue-rotate(320deg); }
+        .purple::after { filter:hue-rotate(280deg); }
+    </style>
+</head>
+
+<body>
+<div class="winner blue">
+<svg viewBox="0 0 1000 500"
+     preserveAspectRatio="xMidYMid meet"
+     aria-hidden="true">
+
+  <!-- ───────– confetti row, centred ───────– -->
+  <text class="confetti c1" x="100" y="100" text-anchor="middle">🎉</text>
+  <text class="confetti c2" x="300" y="80"  text-anchor="middle">🎉</text>
+  <text class="confetti c3" x="500" y="110" text-anchor="middle">🎉</text>
+  <text class="confetti c4" x="700" y="80"  text-anchor="middle">🎉</text>
+  <text class="confetti c5" x="900" y="100" text-anchor="middle">🎉</text>
+ 
+  <!-- ───────– main icons, equidistant from centre ───────– -->
+  <text class="medal"     x="200" y="300" text-anchor="middle">🏆</text>
+  <text class="champagne" x="800" y="300" text-anchor="middle">🍾</text>
+
+  <!-- ───────– Mexican-wave, evenly spaced and centred ───────– -->
+  <text class="wave w1" x="100" y="450" text-anchor="middle">☺️</text>
+  <text class="wave w2" x="200" y="450" text-anchor="middle">🤩</text>
+  <text class="wave w3" x="300" y="450" text-anchor="middle">🥳</text>
+  <text class="wave w4" x="400" y="450" text-anchor="middle">🤗</text>
+  <text class="wave w5" x="500" y="450" text-anchor="middle">😲</text>
+  <text class="wave w6" x="600" y="450" text-anchor="middle">😍</text>
+  <text class="wave w7" x="700" y="450" text-anchor="middle">😘</text>
+  <text class="wave w8" x="800" y="450" text-anchor="middle">😄</text>
+  <text class="wave w9" x="900" y="450" text-anchor="middle">😁</text>
+</svg>
+</div>
+
+
+</body>
+</html>
