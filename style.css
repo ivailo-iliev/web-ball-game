@@ -70,8 +70,8 @@ body {
   place-content: center;
   gap: 1rem;                         /* consistent spacing */
   grid:
-    "top  front" 1fr                /* first row: two equal tracks   */
     "cfg  cfg"   auto               /* second row: full-width bar    */
+    "top  front" 1fr                /* first row: two equal tracks   */
     / 1fr 1fr;         
 }
 
@@ -155,8 +155,8 @@ input {
   grid-template-columns: 1fr;
 }
 
-#configScreen.onlyFront { grid-template-areas: "front" "cfg"; }
-#configScreen.onlyTop   { grid-template-areas: "top"   "cfg"; }
+#configScreen.onlyFront { grid-template-areas: "cfg" "front"; }
+#configScreen.onlyTop   { grid-template-areas: "cfg"   "top"; }
 
 #configScreen.onlyFront #topCam,
 #configScreen.onlyTop   #frontCam { display: none; }
