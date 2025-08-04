@@ -209,16 +209,18 @@ const Setup = (() => {
   </div>
   <div id=cfg>
     <input type="range" id="zoomSlider" style="width: 100%;">
-    Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H}   step=1 style="width:5em">
-    Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 style="width:5em">
-    Top Min <input id=topMinInp   type=number min=0 step=25 style="width:6em">
-    Front Min <input id=frontMinInp type=number min=0 step=100 style="width:6em">
-    <button id=btnTop>Top</button>
-    <button id=btnFront>Front</button>
-    <button id=btnBoth>Both</button>
-    IP-Cam URL <input id=url size=32><span id=urlWarn></span>
-    Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
-    Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
+    <span>
+      <button id=btnTop>Top</button>
+      <button id=btnFront>Front</button>
+      <button id=btnBoth>Both</button>
+    </span>
+    <label for=topHInp>Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1 size=3></label>
+    <label for=frontHInp>Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 size=3></label>
+    <label for=topMinInp>Top Min <input id=topMinInp   type=number min=0 step=25 size=3></label>
+    <label for=frontMinInp>Front Min <input id=frontMinInp type=number min=0 step=100 size=5></label>
+    <label for=url>IP-Cam URL <input id=url size=32><span id=urlWarn></span></label>
+    <label for=a>Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
+    <label for=b>Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
     <button onclick="location.reload()">Refresh</button>
   </div>`;
 
