@@ -83,6 +83,9 @@ class BaseGame {
     for (let i = 0; i < this.cfg.burstN; i++) {
       this.burstEl.appendChild(document.createElement('p'));
     }
+
+    this.pointsEl = document.createElement('p');
+    this.pointsEl.className = 'points';
   }
 
   /* ---- 3.2 init : call ONCE after construction ---- */
@@ -260,9 +263,12 @@ class BaseGame {
 
   /* ---- 3.7 HIT entry point ---- */
   hit(s, team) {
+    let pts;
     if (team === 0 || team === 1) {
-      this.score[team] += this.calculatePoints(s);
+      pts = this.calculatePoints(s);
+      this.score[team] += pts;
       scoreEl[team].textContent = `${this.score[team]}`;
+      this.emitPoints(s.x, s.y, pts, team);
     }
     this.emitBurst(s.x, s.y);
     if (typeof this.onHit === 'function') {
@@ -306,6 +312,18 @@ class BaseGame {
     this.burstEl.classList.remove('animate');
     void this.burstEl.offsetWidth;
     this.burstEl.classList.add('animate');
+  }
+
+  emitPoints(x, y, points, team) {
+    const el = this.pointsEl.cloneNode(true);
+    el.textContent = `+${points}`;
+    el.style.setProperty('--x', `${x}px`);
+    el.style.setProperty('--y', `${y}px`);
+    if (team === 0 || team === 1) {
+      el.classList.add(Game.teams[team]);
+    }
+    this.container.appendChild(el);
+    el.addEventListener('animationend', () => el.remove(), { once: true });
   }
 
   _showRipple(x, y) {
