@@ -85,25 +85,21 @@ body {
   flex-wrap: wrap;
   justify-content: left;
   align-items: flex-start;
-  gap: .75rem;
+  gap: .5rem;
   padding: 1rem;
-  text-align: center;
-  overflow: auto;          /* scroll if controls overflow */
 }
 
 /* ────────── Cameras ────────── */
 .cam {
-  display: grid;
-  place-items: center;
+  position: relative;
   overflow: hidden;
   user-select: none;
 }
 
-.cam canvas {
-  grid-area: 1 / 1;
-  max-width: 100%;
-  /* max-height: calc(100dvh - 6rem); */
-  border: 2px solid magenta;
+.cam > canvas, .cam > video {
+  position: absolute; inset: 0;/* stack them and make each fill the slot */
+  width: 100%; height: 100%;   /* identical boxes for every layer        */
+  object-fit: contain;         /* bottom layer (video/texture) keeps AR  */
 }
 
 .cam canvas:last-child { z-index: 1; }
@@ -111,6 +107,8 @@ body {
 /* ────────── Number–spinner ────────── */
 button {
   user-select: none;
+  font-weight: bold;
+  font-size: 1.2em;
 }
 
 .num-spinner {

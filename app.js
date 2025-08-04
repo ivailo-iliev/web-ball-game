@@ -209,20 +209,20 @@ const Setup = (() => {
   </div>
   <div id=cfg>
     <span>
-      <button id=btnStart>►</button>
       <button id=btnTop>⇥</button>
       <button id=btnFront>⛶</button>
       <button id=btnBoth>🀱</button>
       <button onclick="location.reload()">⟳</button>
+      <button id=btnStart>►</button>
     </span>
-    <label for=frontZoom>Zoom <input id=frontZoom type=number></label>
-    <label for=topMinInp>Min <input id=topMinInp   type=number min=0 step=25 style="width:6ch"></label>
-    <label for=topHInp>H <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1></label>
-    <label for=frontMinInp>Min <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
-    <label for=frontHInp>H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1></label>
-    <label for=topUrl>URL <input id=topUrl size=28><span id=urlWarn></span></label>
-    <label for=teamA>Team A <select id=teamA>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
-    <label for=teamB>Team B <select id=teamB>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
+    <label for=frontZoom>🔍 <input id=frontZoom type=number style="width:3ch"></label>
+    <label for=topMinInp>⚫ <input id=topMinInp   type=number min=0 step=25 style="width:6ch"></label>
+    <label for=topHInp>↕️ <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1></label>
+    <label for=frontMinInp>⚫ <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
+    <label for=frontHInp>↕️ <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1></label>
+    <label for=topUrl>🔗 <input id=topUrl size=28><span id=urlWarn></span></label>
+    <label for=teamA>🅰️ <select id=teamA>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
+    <label for=teamB>🅱️ <select id=teamB>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
   </div>`;
 
   function bind() {
