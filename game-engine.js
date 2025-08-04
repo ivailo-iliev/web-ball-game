@@ -370,11 +370,12 @@ class BaseGame {
     this.running = false;
     cancelAnimationFrame(this._raf);
     this.sprites.forEach(sp => sp.remove());
-
-    window.dispatchEvent(new CustomEvent('gameover', { detail: {
-      winner,
-      score: [...this.score]
-    }}));
+    const layer = Game.layer;
+    if (layer) {
+      layer.replaceChildren(WINNER_FRAGMENT.cloneNode(true));
+      layer.className = `winner ${Game.teams[winner]}`;
+      Game.ripple = null;
+    }
   }
 }
 
@@ -503,6 +504,10 @@ Game.run = (target, opts = {}) => {
     document.head.appendChild(link);
   }
   if (inst) inst.end();
+  if (Game.layer) {
+    Game.layer.classList.remove('winner', ...Game.teams);
+    Game.layer.querySelector('svg')?.remove();
+  }
   cleanupLayer();
   Game.ripple = document.createElement('div');
   Game.ripple.className = 'ripple';
@@ -532,6 +537,26 @@ Game.run = (target, opts = {}) => {
 };
 
 //Object.freeze(Game);
+
+const WINNER_FRAGMENT = document.createRange().createContextualFragment(`
+<svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  <text class="confetti c1" x="100" y="100" text-anchor="middle">🎉</text>
+  <text class="confetti c2" x="300" y="80" text-anchor="middle">🎉</text>
+  <text class="confetti c3" x="500" y="110" text-anchor="middle">🎉</text>
+  <text class="confetti c4" x="700" y="80" text-anchor="middle">🎉</text>
+  <text class="confetti c5" x="900" y="100" text-anchor="middle">🎉</text>
+  <text class="medal"     x="200" y="300" text-anchor="middle">🏆</text>
+  <text class="champagne" x="800" y="300" text-anchor="middle">🍾</text>
+  <text class="wave w1" x="100" y="450" text-anchor="middle">☺️</text>
+  <text class="wave w2" x="200" y="450" text-anchor="middle">🤩</text>
+  <text class="wave w3" x="300" y="450" text-anchor="middle">🥳</text>
+  <text class="wave w4" x="400" y="450" text-anchor="middle">🤗</text>
+  <text class="wave w5" x="500" y="450" text-anchor="middle">😲</text>
+  <text class="wave w6" x="600" y="450" text-anchor="middle">😍</text>
+  <text class="wave w7" x="700" y="450" text-anchor="middle">😘</text>
+  <text class="wave w8" x="800" y="450" text-anchor="middle">😄</text>
+  <text class="wave w9" x="900" y="450" text-anchor="middle">😁</text>
+</svg>`);
 
 /* ══════════ 6. export globals ══════════ */
 win.Game   = Game;
