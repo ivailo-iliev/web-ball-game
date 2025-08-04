@@ -215,10 +215,10 @@ const Setup = (() => {
       <button onclick="location.reload()">⟳</button>
     </span>
     <label for=frontZoom><input type="range" id="frontZoom"></label>
-    <label for=topHInp>Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1 size=3></label>
-    <label for=topMinInp>Top Min <input id=topMinInp   type=number min=0 step=25 size=3></label>
-    <label for=frontHInp>Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 size=3></label>
-    <label for=frontMinInp>Front Min <input id=frontMinInp type=number min=0 step=100 size=5></label>
+    <label for=topMinInp>Top Min <input id=topMinInp   type=number min=0 step=25 style="width:6ch"></label>
+    <label for=topHInp>Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1></label>
+    <label for=frontMinInp>Front Min <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
+    <label for=frontHInp>Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1></label>
     <label for=topUrl>IP-Cam URL <input id=topUrl size=28><span id=urlWarn></span></label>
     <label for=teamA>Team A <select id=teamA>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
     <label for=teamB>Team B <select id=teamB>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>

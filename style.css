@@ -62,34 +62,39 @@ body {
   cursor: pointer;
 }
 
-/* Config screen grid */
+/* ────────── Layout ────────── */
 #configScreen {
-  font-size: 1rem;
-  line-height: 1;
   display: grid;
   place-content: center;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: 1fr 8rem; /* main area + control bar */
+  grid-template-rows: 1fr 5rem;
   grid-template-areas:
-    "top  front"
-    "cfg  cfg";
+    "top front"
+    "cfg cfg";
+  line-height: 1;
 }
 
-/* grid areas */
 #topCam   { grid-area: top; }
 #frontCam { grid-area: front; }
+
+/* Config-bar */
 #cfg {
   grid-area: cfg;
-  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: .75rem;
   padding: 1rem;
+  text-align: center;
+  overflow: auto;          /* scroll if controls overflow */
 }
 
-/* Cameras */
+/* ────────── Cameras ────────── */
 .cam {
   display: grid;
   place-items: center;
   overflow: hidden;
-  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -98,17 +103,11 @@ body {
   max-width: 100%;
   max-height: calc(100dvh - 6rem);
   border: 2px solid magenta;
-  -webkit-user-select: none;
-  user-select: none;
-}
-.cam canvas:first-child { z-index: 0; }
-.cam canvas:last-child  { z-index: 1; pointer-events: auto; }
-
-input[type="range"] {
-  height: 2rem;
 }
 
-/* Number input spinner */
+.cam canvas:last-child { z-index: 1; }
+
+/* ────────── Number–spinner ────────── */
 .num-spinner {
   display: inline-flex;
   align-items: stretch;
@@ -116,76 +115,57 @@ input[type="range"] {
   border-radius: 4px;
   overflow: hidden;
 }
+
 .num-spinner input {
   border: none;
   text-align: center;
   outline: none;
 }
+
 .num-spinner button {
   border: none;
   background: #eee;
-  padding: 0 .4em;
-  font-size: 1em;
-  line-height: 1;
+  min-width: 2rem;
+  padding: 0;             /* square tap-targets */
 }
+
 .num-spinner button:disabled {
-  opacity: 0.5;
+  opacity: .5;
   cursor: default;
 }
 
-/* ----- Mode switches ----- */
-:is(#configScreen.onlyFront, #configScreen.onlyTop) {
-  grid-template-columns: 1fr;
-}
-#configScreen.onlyFront {
-  grid-template-areas: "front" "cfg";
-}
-#configScreen.onlyTop {
-  grid-template-areas: "top" "cfg";
-}
-#configScreen.onlyFront #topCam,
-#configScreen.onlyTop   #frontCam { display: none; }
-#configScreen label[for^="top"],
-#configScreen label[for^="front"] { display: none; }
-/* When we’re in “top” mode, suppress everything whose `for` starts with “front” */
-#configScreen.onlyTop   label[for^="top"] { display:initial; }
-#configScreen.onlyTop   label[for^="team"] { display:none; }
-
-/* When we’re in “front” mode, suppress everything whose `for` starts with “top”  */
-#configScreen.onlyFront label[for^="front"]   { display:initial; }
-#configScreen.onlyFront label[for^="team"]   { display:none; }
-
-/* ──────────────────────────────────────────────
-   2. Touch-first control bar
-   ────────────────────────────────────────────── */
-#cfg{
-  /* display:flex; */
-  flex-wrap:wrap;
-  justify-content:center;
-  align-items:center;
-  gap:.75rem;                       /* roomy tap targets              */
-  padding:1rem;
-  overflow:auto;                    /* scrolls if we run out of space */
-}
-
-/* minimum 44 × 44 px for every interactive element */
+/* ────────── Minimum tap-size ────────── */
 button,
 select,
-input{
-  font-size:1rem;
-  min-height:32px;
-  min-width:32px;
-  padding:.5rem auto;
-  border-radius:.5rem;
+input {
+  font-size: 1rem;
+  line-height: 1;
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: .5rem 0;
+  border-radius: .5rem;
 }
 
-/* larger slider thumb / track for fingers */
-input[type="range"]{
-  height:32px;
+/* ────────── Mode switches ────────── */
+#configScreen.onlyFront,
+#configScreen.onlyTop {
+  grid-template-columns: 1fr;
 }
 
-/* bigger ‘spinner’ controls */
-.num-spinner button{min-width:32px;padding:0;}
+#configScreen.onlyFront { grid-template-areas: "front" "cfg"; }
+#configScreen.onlyTop   { grid-template-areas: "top"   "cfg"; }
+
+#configScreen.onlyFront #topCam,
+#configScreen.onlyTop   #frontCam { display: none; }
+
+#configScreen.onlyFront label[for^="team"],
+#configScreen.onlyTop   label[for^="team"] { display: none; }
+
+#configScreen label[for^="top"],
+#configScreen label[for^="front"] { display: none; }
+
+#configScreen.onlyTop   label[for^="top"],
+#configScreen.onlyFront label[for^="front"] { display: initial; }
 
 /* ---- Scoreboard ---- */
 #scoreboard {
