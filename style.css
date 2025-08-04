@@ -17,6 +17,15 @@ body {
   user-select: none;
 }
 
+:root {
+  --clr-red: #EA4335;
+  --clr-orange: #FBBC05;
+  --clr-yellow: #FDD835;
+  --clr-green: #34A853;
+  --clr-blue: #4285F4;
+  --clr-purple: #A142F4;
+}
+
 /* ========= Layout ========= */
 #container {
   width: 100dvw;
@@ -133,12 +142,6 @@ input[type="range"] {
 
 /* ---- Scoreboard ---- */
 #scoreboard {
-  --clr-red: #EA4335;
-  --clr-orange: #FBBC05;
-  --clr-yellow: #FDD835;
-  --clr-green: #34A853;
-  --clr-blue: #4285F4;
-  --clr-purple: #A142F4;
   position: absolute;
   top: 10px;
   left: 50%;
@@ -241,6 +244,35 @@ input[type="range"] {
 @keyframes particleMove {
   from { transform: translate3d(0, 0, 0); opacity: 1; }
   to   { transform: translate3d(var(--dx), var(--dy), 0); opacity: 0; }
+}
+
+/* Points popup */
+.points {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: sans-serif;
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform: translate3d(var(--x), var(--y), 0) translate(-50%, -50%) scale(1);
+  animation: pointsFade .5s ease-out forwards;
+}
+
+.points.red    { color: var(--clr-red); }
+.points.orange { color: var(--clr-orange); }
+.points.yellow { color: var(--clr-yellow); }
+.points.green  { color: var(--clr-green); }
+.points.blue   { color: var(--clr-blue); }
+.points.purple { color: var(--clr-purple); }
+
+@keyframes pointsFade {
+  to {
+    transform: translate3d(var(--x), var(--y), 0) translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
 }
 
 /* Ripple */
