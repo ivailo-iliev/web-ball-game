@@ -216,7 +216,7 @@ const Setup = (() => {
     <button id=btnTop>Top</button>
     <button id=btnFront>Front</button>
     <button id=btnBoth>Both</button>
-    IP-Cam URL <input id=url size=32>
+    IP-Cam URL <input id=url size=32><span id=urlWarn></span>
     Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
     Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select>
     <button onclick="location.reload()">Refresh</button>
@@ -225,6 +225,7 @@ const Setup = (() => {
   function bind() {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
     const urlI = $('#url');
+    const urlWarn = $('#urlWarn');
     const selA = $('#a');
     const selB = $('#b');
     const topOv = $('#topOv');
@@ -442,7 +443,12 @@ const Setup = (() => {
     selA.value = cfg.teamA;
     selB.value = cfg.teamB;
 
-    urlI.onblur = () => { cfg.url = urlI.value; Config.save('url', cfg.url); };
+    urlI.onblur = () => {
+      cfg.url = urlI.value;
+      Config.save('url', cfg.url);
+      if (urlWarn) urlWarn.textContent = '';
+    };
+    
     selA.onchange = e => {
       cfg.teamA = e.target.value;
       Config.save('teamA', cfg.teamA);
@@ -471,6 +477,7 @@ const Feeds = (() => {
     try {
       await videoTop.decode();
     } catch (err) {
+      if (urlWarn) urlWarn.textContent = '⚠️';
       throw new Error('Failed to load top camera feed');
     }
 
@@ -767,7 +774,6 @@ const Controller = (() => {
     try {
       await Feeds.init();
     } catch (err) {
-      alert(err.message);
       console.error('Feed initialization failed:', err);
       return;
     }

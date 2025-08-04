@@ -15,6 +15,7 @@ body {
   height: 100%;
   overflow: hidden;
   user-select: none;
+  font-family: sans-serif;
 }
 
 :root {
@@ -63,10 +64,12 @@ body {
 
 /* Config screen grid */
 #configScreen {
+  font-size: 1rem;
+  line-height: 1;
   display: grid;
   place-content: center;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: 1fr 6rem; /* main area + control bar */
+  grid-template-rows: 1fr 8rem; /* main area + control bar */
   grid-template-areas:
     "top  front"
     "cfg  cfg";
@@ -102,7 +105,7 @@ body {
 .cam canvas:last-child  { z-index: 1; pointer-events: auto; }
 
 input[type="range"] {
-  height: 2rem; /* matches Apple’s minimum recommended touch target */
+  height: 2rem;
 }
 
 /* Number input spinner */
@@ -114,17 +117,14 @@ input[type="range"] {
   overflow: hidden;
 }
 .num-spinner input {
-  width: 4em;
   border: none;
-  padding: 0 .5em;
   text-align: center;
   outline: none;
 }
 .num-spinner button {
   border: none;
   background: #eee;
-  padding: 0 .75em;
-  cursor: pointer;
+  padding: 0 .4em;
   font-size: 1em;
   line-height: 1;
 }
@@ -155,7 +155,6 @@ input[type="range"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: sans-serif;
   font-size: 24px;
   background: rgba(255, 255, 255, .8);
   padding: 8px 16px;
@@ -198,7 +197,6 @@ input[type="range"] {
 /* Sprite */
 .sprite {
   position: absolute;
-  font-family: sans-serif;
   text-align: center;
   line-height: 1;
   pointer-events: auto;
@@ -236,7 +234,6 @@ input[type="range"] {
   position: absolute;
   top: 0;
   left: 0;
-  font-family: sans-serif;
   font-size: 24px;
   line-height: 1;
   will-change: transform, opacity;
@@ -258,7 +255,6 @@ input[type="range"] {
   left: 0;
   top: 0;
   z-index: 1000;
-  font-family: sans-serif;
   font-size: 24px;
   font-weight: bold;
   line-height: 1;

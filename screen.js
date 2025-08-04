@@ -28,6 +28,8 @@ function snapTo(i) {
   container.scrollTo({ top: index * PAGE_H(), behavior: 'smooth' });
   window.currentPage = index;          /* 0 launcher | 1 game | 2 config */
   container.dataset.page = index;      /* handy in DevTools */
+  if (i===2) App.Controller.setPreview(true);
+  else App.Controller.setPreview(false); 
 }
 
 /* global vertical swipe */

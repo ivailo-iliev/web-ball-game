@@ -101,6 +101,11 @@ class BaseGame {
 
     this.container.className =
       'game' + (this.gameName ? ' ' + this.gameName : '');
+
+    if (win.App?.Config?.get) {
+      const cfg = win.App.Config.get();
+      Game.setTeams(cfg.teamA, cfg.teamB);
+    }
   }
 
   /* ---- 3.3 main loop : called from rAF ---- */
