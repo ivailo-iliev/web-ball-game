@@ -70,7 +70,7 @@
     max: 0,            // disable auto‑spawn from engine
     collisions: false, // no sprite–sprite collisions
     emojis: ['🍬', '🍭', '🍡', '🍫', '🍪', '🧁'],
-    pinatas: ['🪅', '🫏', '🦄'],
+    pinatas: ['🪅', '🧸', '🦄', '🦙'],
 
     /* --------------------------------------------------------
      *  Setup — runs once

@@ -3,7 +3,7 @@
   const TAU = Math.PI * 2;
   const MOLE_LIFETIME_SECS = 10;
   const MOLE_MAX = 3;
-  const MOLE_EMOJIS = ['🐭','🐰'];
+  const MOLE_EMOJIS = ['🐭','🐰','🐹'];
   const MOLE_ROWS = [3,2,3];
   const SPAWN_DELAY_RANGE = [0, 3];
 
