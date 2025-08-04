@@ -214,7 +214,7 @@ const Setup = (() => {
       <button id=btnBoth>🀱</button>
       <button onclick="location.reload()">⟳</button>
     </span>
-    <label for=frontZoom><input type="range" id="frontZoom"></label>
+    <label for=frontZoom><input id=frontZoom type=number></label>
     <label for=topMinInp>Top Min <input id=topMinInp   type=number min=0 step=25 style="width:6ch"></label>
     <label for=topHInp>Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1></label>
     <label for=frontMinInp>Front Min <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
@@ -232,7 +232,6 @@ const Setup = (() => {
     const selB = $('#teamB');
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
-    const zoomSlider = $('#frontZoom');
     const btnTop   = $('#btnTop');
     const btnFront = $('#btnFront');
     const btnBoth  = $('#btnBoth');
@@ -503,14 +502,14 @@ const Feeds = (() => {
     if (cap.powerEfficient) adv.powerEfficient = false;
 
     if (cap.zoom) {
-      const zoomSlider = $('#zoomSlider');
+      const zoomInput = $('#frontZoom');
       const { min, max, step } = cap.zoom;
-      zoomSlider.min = min;
-      zoomSlider.max = Math.min(2, max);
-      zoomSlider.step = step || 0.1;
-      zoomSlider.value = cfg.zoom;
-      zoomSlider.addEventListener('input', async () => {
-        adv.zoom = parseFloat(zoomSlider.value);
+      zoomInput.min = min;
+      zoomInput.max = Math.min(2, max);
+      zoomInput.step = step || 0.1;
+      zoomInput.value = cfg.zoom;
+      zoomInput.addEventListener('input', async () => {
+        adv.zoom = parseFloat(zoomInput.value);
         cfg.zoom = adv.zoom;
         Config.save('zoom', cfg.zoom);
         try {
