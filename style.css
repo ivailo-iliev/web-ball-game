@@ -109,6 +109,10 @@ body {
 .cam canvas:last-child { z-index: 1; }
 
 /* ────────── Number–spinner ────────── */
+button {
+  user-select: none;
+}
+
 .num-spinner {
   display: inline-flex;
   align-items: stretch;
