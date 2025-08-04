@@ -68,10 +68,11 @@ body {
   line-height: 1;
   display: grid;
   place-content: center;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* grid-template-rows: 1fr 8rem; main area + control bar */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 1fr 8rem; /* main area + control bar */
   grid-template-areas:
-    "top front cfg"
+    "top  front"
+    "cfg  cfg";
 }
 
 /* grid areas */
@@ -144,12 +145,21 @@ input[type="range"] {
 }
 #configScreen.onlyFront #topCam,
 #configScreen.onlyTop   #frontCam { display: none; }
+#configScreen label[for^="top"],
+#configScreen label[for^="front"] { display: none; }
+/* When we’re in “top” mode, suppress everything whose `for` starts with “front” */
+#configScreen.onlyTop   label[for^="top"] { display:initial; }
+#configScreen.onlyTop   label[for^="team"] { display:none; }
+
+/* When we’re in “front” mode, suppress everything whose `for` starts with “top”  */
+#configScreen.onlyFront label[for^="front"]   { display:initial; }
+#configScreen.onlyFront label[for^="team"]   { display:none; }
 
 /* ──────────────────────────────────────────────
    2. Touch-first control bar
    ────────────────────────────────────────────── */
 #cfg{
-  display:flex;
+  /* display:flex; */
   flex-wrap:wrap;
   justify-content:center;
   align-items:center;
@@ -162,7 +172,7 @@ input[type="range"] {
 button,
 select,
 input{
-  font-size:clamp(1rem,2.5vw,1.25rem);
+  font-size:1rem;
   min-height:32px;
   min-width:32px;
   padding:.5rem auto;
@@ -172,16 +182,10 @@ input{
 /* larger slider thumb / track for fingers */
 input[type="range"]{
   height:32px;
-  accent-color:#4285F4;             /* optional: match your palette   */
 }
 
 /* bigger ‘spinner’ controls */
 .num-spinner button{min-width:32px;padding:0;}
-
-/* make sure canvases shrink only by the control bar’s height */
-.cam canvas{
-  max-height:calc(100dvh - 24vh);   /* 22 vh bar + 2 vh gap ≈ control bar */
-}
 
 /* ---- Scoreboard ---- */
 #scoreboard {

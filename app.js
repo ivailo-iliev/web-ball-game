@@ -208,31 +208,31 @@ const Setup = (() => {
    <canvas id=frontOv  class=overlay width=${cfg.FRONT_W} height=${cfg.FRONT_H}></canvas>
   </div>
   <div id=cfg>
-    <input type="range" id="zoomSlider" style="width: 100%;">
     <span>
-      <button id=btnTop>Top</button>
-      <button id=btnFront>Front</button>
-      <button id=btnBoth>Both</button>
+      <button id=btnTop>⇥</button>
+      <button id=btnFront>⛶</button>
+      <button id=btnBoth>🀱</button>
+      <button onclick="location.reload()">⟳</button>
     </span>
+    <label for=frontZoom><input type="range" id="frontZoom"></label>
     <label for=topHInp>Top H <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1 size=3></label>
-    <label for=frontHInp>Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 size=3></label>
     <label for=topMinInp>Top Min <input id=topMinInp   type=number min=0 step=25 size=3></label>
+    <label for=frontHInp>Front H <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1 size=3></label>
     <label for=frontMinInp>Front Min <input id=frontMinInp type=number min=0 step=100 size=5></label>
-    <label for=url>IP-Cam URL <input id=url size=32><span id=urlWarn></span></label>
-    <label for=a>Team A <select id=a>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
-    <label for=b>Team B <select id=b>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
-    <button onclick="location.reload()">Refresh</button>
+    <label for=topUrl>IP-Cam URL <input id=topUrl size=28><span id=urlWarn></span></label>
+    <label for=teamA>Team A <select id=teamA>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
+    <label for=teamB>Team B <select id=teamB>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
   </div>`;
 
   function bind() {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
-    const urlI = $('#url');
+    const urlI = $('#topUrl');
     const urlWarn = $('#urlWarn');
-    const selA = $('#a');
-    const selB = $('#b');
+    const selA = $('#teamA');
+    const selB = $('#teamB');
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
-    const zoomSlider = $('#zoomSlider');
+    const zoomSlider = $('#frontZoom');
     const btnTop   = $('#btnTop');
     const btnFront = $('#btnFront');
     const btnBoth  = $('#btnBoth');
