@@ -30,6 +30,7 @@ function snapTo(i) {
   container.dataset.page = index;      /* handy in DevTools */
   if (i===2) App.Controller.setPreview(true);
   else App.Controller.setPreview(false); 
+  if (i===1 && Game.current === -1) Game.run(u.pick(Game.list));
 }
 
 /* global vertical swipe */

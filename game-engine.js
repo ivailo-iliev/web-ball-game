@@ -474,7 +474,7 @@ Game.doHit = (x, y, team) => {
 Game.routeHit = (x, y, team) => {
   switch (window.currentPage) {
     case 1:                              /* game page */
-      if (inst) Game.doHit(x, y, team);
+      if (inst?.running) Game.doHit(x, y, team);
       break;
 
     case 0: {                            /* launcher page */

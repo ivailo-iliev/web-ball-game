@@ -32,6 +32,12 @@ const COLOR_TABLE = new Float32Array([
   /* blue   */ 0.50, 0.4, 0.4, 0.70, 1.00, 1.00,
   /* green  */ 0.70, 0.2, 0.2, 0.90, 1.00, 1.00
 ]);
+const COLOR_EMOJI = {
+  red: '🔴',
+  yellow: '🟡',
+  green: '🟢',
+  blue: '🔵'
+};
 function hsvRange(team) {
   const i = TEAM_INDICES[team] * 6;
   return COLOR_TABLE.subarray(i, i + 6);
@@ -221,8 +227,8 @@ const Setup = (() => {
     <label for=frontMinInp>⚫ <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
     <label for=frontHInp>↕️ <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1></label>
     <label for=topUrl>🔗 <input id=topUrl size=28><span id=urlWarn></span></label>
-    <label for=teamA>🅰️ <select id=teamA>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
-    <label for=teamB>🅱️ <select id=teamB>${Object.keys(TEAM_INDICES).map(c => `<option>${c}</option>`).join('')}</select></label>
+    <label for=teamA>🅰️ <select id=teamA>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
+    <label for=teamB>🅱️ <select id=teamB>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
   </div>`;
 
   function bind() {
