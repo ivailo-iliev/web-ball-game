@@ -84,37 +84,40 @@ function initNumberSpinners() {
         const wrap = document.createElement('span');
         wrap.className = 'num-spinner';
         input.before(wrap);
-        wrap.append(
-            input,
-            Object.assign(document.createElement('button'), {
-                type: 'button',
-                className: 'down',
-                textContent: '−',
-                onclick() {
-                    input.stepDown();
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    update();
-                }
-            }),
-            Object.assign(document.createElement('button'), {
-                type: 'button',
-                className: 'up',
-                textContent: '+',
-                onclick() {
-                    input.stepUp();
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    update();
-                }
-            })
-        );
+
+        // pre-create buttons so we can reuse references in update()
+        const btnDown = Object.assign(document.createElement('button'), {
+            type: 'button',
+            className: 'down',
+            textContent: '−',
+            onclick() {
+                input.stepDown();
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                update();
+            }
+        });
+        const btnUp = Object.assign(document.createElement('button'), {
+            type: 'button',
+            className: 'up',
+            textContent: '+',
+            onclick() {
+                input.stepUp();
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                update();
+            }
+        });
+
+        wrap.append(input, btnDown, btnUp);
+
+        // cache min/max once; they don't change after init
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
 
         // disable at bounds
         const update = () => {
             const val = parseFloat(input.value);
-            const min = parseFloat(input.min);
-            const max = parseFloat(input.max);
-            wrap.querySelector('.down').disabled = !isNaN(min) && val <= min;
-            wrap.querySelector('.up').disabled = !isNaN(max) && val >= max;
+            btnDown.disabled = !isNaN(min) && val <= min;
+            btnUp.disabled = !isNaN(max) && val >= max;
         };
         input.addEventListener('input', update);
         update();
