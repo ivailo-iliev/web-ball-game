@@ -1,90 +1,69 @@
 <!doctype html>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>P2P one-bit LAN link</title>
+<title>One-bit P2P demo</title>
 
-<h3 id=state>Waiting…</h3>
+<h3 id=state>Connecting…</h3>
 <button id=btn0 disabled>Send 0</button>
 <button id=btn1 disabled>Send 1</button>
-<video id=cam autoplay playsinline style="width:0;height:0"></video>
-<div id=qr></div>
-
-<!-- tiny libs (each ≈10 kB gzipped) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://unpkg.com/@zxing/browser@latest"></script>
 
 <script>
-const pc = new RTCPeerConnection({iceServers: []});
-let dc;
-let role;                  // "offerer" or "answerer"
-const $ = id=>document.getElementById(id);
-
-// UI helpers
+const $ = id => document.getElementById(id);
 const log = t => $('#state').textContent = t;
-const enable = yes => $('#btn0').disabled = $('#btn1').disabled = !yes;
 
-// ---------- create offer right away ----------
-(async () => {
-  role = 'offerer';
-  dc = pc.createDataChannel('bit',{ordered:false,maxRetransmits:0});
-  await pc.setLocalDescription(await pc.createOffer());
-  await waitIceComplete();
-  showQR(JSON.stringify(pc.localDescription));
-  log('Offer ready – scanning for answer…');
-})();
+// ---- 1. Connect to signalling server ----
+const ws = new WebSocket('ws://192.168.0.42:8080');   // ← change to your server’s LAN IP
+ws.onopen = () => log('Waiting for peer…');
+ws.onmessage = async ev => {
+  const msg = JSON.parse(ev.data);
+  if (msg.type === 'role') {
+    startWebRTC(msg.role);
+  } else {
+    // any other message is a signalling blob from partner
+    await handleSignal(msg);
+  }
+};
 
-// ---------- camera scan loop ----------
-const codeReader = new ZXingBrowser.BrowserQRCodeReader();
-startScan();
-async function startScan(){
-  try{
-    const {text} = await codeReader.decodeOnceFromVideoDevice(undefined,'cam');
-    const desc = JSON.parse(text);
-    await pc.setRemoteDescription(desc);
+// ---- 2. WebRTC setup ----
+const pc = new RTCPeerConnection({iceServers: []});
+let dc;   // datachannel
+pc.onicecandidate = e => e.candidate && send({type:'candidate',candidate:e.candidate});
 
-    if(desc.type==='offer'){          // we were not first – switch roles
-      role = 'answerer';
-      await pc.setLocalDescription(await pc.createAnswer());
-      await waitIceComplete();
-      showQR(JSON.stringify(pc.localDescription));
-      log('Answer ready – waiting for peer…');
-      startScan();                    // keep scanning until peer grabs our answer
-    }else{
-      log('Handshake complete – opening data channel…');
-    }
-  }catch(e){
-    console.warn(e);
-    startScan();                      // retry on failure
+async function startWebRTC(role) {
+  if (role === 'offerer') {
+    dc = pc.createDataChannel('bit',{ordered:false,maxRetransmits:0});
+    dc.onopen = channelOpen;
+    dc.onmessage = e => alert('Received: '+e.data);
+    await pc.setLocalDescription(await pc.createOffer());
+    send({type:'offer',sdp: pc.localDescription});
+  } else {
+    pc.ondatachannel = e => {
+      dc = e.channel;
+      dc.onopen = channelOpen;
+      dc.onmessage = e => alert('Received: '+e.data);
+    };
   }
 }
 
-// ---------- util ----------
-function showQR(txt){
-  $('#qr').innerHTML='';
-  new QRCode($('#qr'),{text:txt,width:192,height:192});
-}
-function waitIceComplete(){
-  return new Promise(r=>{
-    if(pc.iceGatheringState==='complete') return r();
-    pc.onicegatheringstatechange=()=>pc.iceGatheringState==='complete'&&r();
-  });
+async function handleSignal({type,sdp,candidate}) {
+  if (type === 'offer') {
+    await pc.setRemoteDescription(sdp);
+    await pc.setLocalDescription(await pc.createAnswer());
+    send({type:'answer',sdp: pc.localDescription});
+  } else if (type === 'answer') {
+    await pc.setRemoteDescription(sdp);
+  } else if (type === 'candidate') {
+    try { await pc.addIceCandidate(candidate); } catch{}
+  }
 }
 
-// ---------- data channel ----------
-pc.ondatachannel = e => { dc = e.channel; };
-function ready(){ return dc && dc.readyState==='open'; }
-function handleOpen(){
-  log('Channel open! Tap buttons to send bit.');
-  enable(true);
-  codeReader.reset();                       // stop camera & scanning
-  $('#cam').srcObject?.getTracks().forEach(t=>t.stop());
-}
-function handleRecv(e){ alert('Received: '+e.data); }
-pc.onconnectionstatechange = ()=>{
-  if(pc.connectionState==='connected') handleOpen();
-};
-dc && (dc.onopen = handleOpen, dc.onmessage = handleRecv);
+function send(obj){ ws.send(JSON.stringify(obj)); }
 
-// send buttons
-$('#btn0').onclick = _=> ready() && dc.send('0');
-$('#btn1').onclick = _=> ready() && dc.send('1');
+function channelOpen() {
+  log('Channel open! Tap a button.');
+  $('#btn0').disabled = $('#btn1').disabled = false;
+}
+
+// ---- 3. Buttons to send the bit ----
+$('#btn0').onclick = () => dc.readyState==='open' && dc.send('0');
+$('#btn1').onclick = () => dc.readyState==='open' && dc.send('1');
 </script>
