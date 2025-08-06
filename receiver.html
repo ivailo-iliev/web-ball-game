@@ -1,0 +1,26 @@
+<!doctype html>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<h2>Scan offer QR, then show answer QR</h2>
+<video id=cam autoplay playsinline style="width:100%;border:1px solid #ccc"></video>
+<canvas id=qrCanvas hidden></canvas>
+<div id=answerQR></div>
+<script src="https://unpkg.com/@zxing/browser@0.0.9/esm/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const pc = new RTCPeerConnection({iceServers: []});
+pc.ondatachannel = ev => {
+  const dc = ev.channel;
+  dc.onmessage = e => alert('Received bit: ' + e.data);
+};
+
+(async () => {
+  // Start camera & scan a single QR frame
+  const codeReader = new ZXingBrowser.BrowserQRCodeReader();
+  const {text:offerJSON} = await codeReader.decodeOnceFromVideoDevice(undefined, 'cam');
+  await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(offerJSON)));
+
+  await pc.setLocalDescription(await pc.createAnswer());
+  await new Promise(r => { pc.onicegatheringstatechange = s => pc.iceGatheringState==='complete' && r(); });
+  new QRCode(document.getElementById('answerQR'), JSON.stringify(pc.localDescription));
+})();
+</script>
