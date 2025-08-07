@@ -32,6 +32,15 @@ const COLOR_TABLE = new Float32Array([
   /* blue   */ 0.50, 0.4, 0.4, 0.70, 1.00, 1.00,
   /* green  */ 0.70, 0.2, 0.2, 0.90, 1.00, 1.00
 ]);
+const savedCT = localStorage.getItem('COLOR_TABLE');
+if (savedCT) {
+  try {
+    const arr = JSON.parse(savedCT);
+    if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
+      COLOR_TABLE.set(arr.map(Number));
+    }
+  } catch (e) {}
+}
 const COLOR_EMOJI = {
   red: '🔴',
   yellow: '🟡',
@@ -229,15 +238,39 @@ const Setup = (() => {
     <label for=topUrl>🔗 <input id=topUrl size=28><span id=urlWarn></span></label>
     <label for=teamA>🅰️ <select id=teamA>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
     <label for=teamB>🅱️ <select id=teamB>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
+    <label>HSV <span id=teamAThresh></span></label>
   </div>`;
 
   function bind() {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
-    initNumberSpinners();
     const urlI = $('#topUrl');
     const urlWarn = $('#urlWarn');
     const selA = $('#teamA');
     const selB = $('#teamB');
+    const thCont = $('#teamAThresh');
+    const thInputs = [];
+    for (let i = 0; i < 6; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = '0';
+      inp.max = '1';
+      inp.step = '0.05';
+      inp.style.width = '4ch';
+      inp.id = `threshA${i}`;
+      thCont?.appendChild(inp);
+      thInputs.push(inp);
+      inp.addEventListener('change', e => {
+        const base = TEAM_INDICES[cfg.teamA] * 6 + i;
+        COLOR_TABLE[base] = parseFloat(e.target.value);
+        localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
+        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+      });
+    }
+    initNumberSpinners();
+    function updateThreshInputs() {
+      const base = TEAM_INDICES[cfg.teamA] * 6;
+      for (let i = 0; i < 6; i++) thInputs[i].value = COLOR_TABLE[base + i];
+    }
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
     const btnStart = $('#btnStart');
@@ -451,9 +484,10 @@ const Setup = (() => {
       commit();
     })();
 
-    urlI.value = cfg.url;
-    selA.value = cfg.teamA;
-    selB.value = cfg.teamB;
+      urlI.value = cfg.url;
+      selA.value = cfg.teamA;
+      selB.value = cfg.teamB;
+      updateThreshInputs();
 
     urlI.onblur = () => {
       cfg.url = urlI.value;
@@ -461,11 +495,13 @@ const Setup = (() => {
       if (urlWarn) urlWarn.textContent = '';
     };
     
-    selA.onchange = e => {
-      cfg.teamA = e.target.value;
-      Config.save('teamA', cfg.teamA);
-      Game.setTeams(cfg.teamA, cfg.teamB);
-    };
+      selA.onchange = e => {
+        cfg.teamA = e.target.value;
+        Config.save('teamA', cfg.teamA);
+        Game.setTeams(cfg.teamA, cfg.teamB);
+        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+        updateThreshInputs();
+      };
     selB.onchange = e => {
       cfg.teamB = e.target.value;
       Config.save('teamB', cfg.teamB);
