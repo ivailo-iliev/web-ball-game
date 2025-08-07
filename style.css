@@ -240,11 +240,13 @@ input {
 
 .sprite.spawn { animation: spawn 0.3s ease-out; }
 .sprite.pop   { animation: pop 0.2s ease-out forwards; }
+.sprite.miss  { animation: miss 0.4s ease-out forwards; }
 @keyframes spawn {
   from { transform: translate3d(var(--x), var(--y), 0) scale(0); opacity: 0; }
   to   { transform: translate3d(var(--x), var(--y), 0) scale(1); opacity: 1; }
 }
 @keyframes pop { to { transform: scale(0); opacity: 0; } }
+@keyframes miss { to { transform: translate3d(var(--x), var(--y), 0) scale(1.5); opacity: 0; } }
 
 /* Burst */
 .burst {
@@ -319,8 +321,16 @@ input {
     0 0 0 0 rgba(0, 162, 255, .2);
   -webkit-user-select: none;
   user-select: none;
+  filter: hue-rotate(var(--hue, var(--hue-blue)));
 }
 .ripple.animate { animation: ripple .8s ease-out; }
+
+.ripple.red    { --hue: var(--hue-red); }
+.ripple.orange { --hue: var(--hue-orange); }
+.ripple.yellow { --hue: var(--hue-yellow); }
+.ripple.green  { --hue: var(--hue-green); }
+.ripple.blue   { --hue: var(--hue-blue); }
+.ripple.purple { --hue: var(--hue-purple); }
 
 @keyframes ripple {
   0% {
