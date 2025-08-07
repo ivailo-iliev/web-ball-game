@@ -15,6 +15,9 @@ const FLAG_PREVIEW = 1;   // bit 0 – you already use this
 const FLAG_TEAM_A_ACTIVE = 2;   // bit 1 – set when cntA > cfg.TOP_MIN_AREA
 const FLAG_TEAM_B_ACTIVE = 4;   // bit 2 – set when cntB > cfg.TOP_MIN_AREA
 
+const TOP_MODE_MJPEG = 'mjpeg';
+const TOP_MODE_WEBRTC = 'webrtc';
+
 // front-camera (device camera)
 
 /* HSV ranges per team */
@@ -85,7 +88,8 @@ const Config = (() => {
     polyF:  [],
     zoom:   1.0,
     topH:   160,
-    frontH: 220
+    frontH: 220,
+    topMode: TOP_MODE_WEBRTC
   };
 
   const PERSIST = {
@@ -98,7 +102,8 @@ const Config = (() => {
     topH:   "topH",
     frontH: "frontH",
     TOP_MIN_AREA: "topMinArea",
-    FRONT_MIN_AREA: "frontMinArea"
+    FRONT_MIN_AREA: "frontMinArea",
+    topMode: "topMode"
   };
 
   let cfg;
@@ -235,6 +240,10 @@ const Setup = (() => {
     <label for=topHInp>↕️ <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1></label>
     <label for=frontMinInp>⚫ <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
     <label for=frontHInp>↕️ <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1></label>
+    <label for=topMode>📡 <select id=topMode>
+      <option value="${TOP_MODE_WEBRTC}">WebRTC</option>
+      <option value="${TOP_MODE_MJPEG}">MJPEG</option>
+    </select></label>
     <label for=topUrl>🔗 <input id=topUrl size=28><span id=urlWarn></span></label>
     <label for=teamA>🅰️ <select id=teamA>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
     <label for=teamB>🅱️ <select id=teamB>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
@@ -245,6 +254,7 @@ const Setup = (() => {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
     const urlI = $('#topUrl');
     const urlWarn = $('#urlWarn');
+    const selMode = $('#topMode');
     const selA = $('#teamA');
     const selB = $('#teamB');
     const thCont = $('#teamAThresh');
@@ -268,6 +278,12 @@ const Setup = (() => {
         cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
       });
     }
+    selMode.value = cfg.topMode;
+    selMode.onchange = e => {
+      cfg.topMode = e.target.value;
+      Config.save('topMode', cfg.topMode);
+    };
+
     initNumberSpinners();
     function updateThreshInputs() {
       const base = TEAM_INDICES[cfg.teamA] * 6;
@@ -518,17 +534,35 @@ const Feeds = (() => {
   const cfg = Config.get();
   let videoTop, videoFront, track;
 
+  function initRTC() {
+    const bind = () => {
+      if (typeof dc === 'undefined') return;
+      dc.onmessage = e => {
+        const bit = parseInt(e.data, 10);
+        if (isNaN(bit)) return;
+        Controller.handleBit(bit);
+      };
+    };
+    if (typeof dc !== 'undefined' && dc.readyState === 'open') bind();
+    else window.handleOpen = bind;
+  }
+
   async function init() {
     videoFront = $('#vid');
 
-    videoTop = new Image();
-    videoTop.crossOrigin = 'anonymous';
-    videoTop.src = cfg.url;
-    try {
-      await videoTop.decode();
-    } catch (err) {
-      if (urlWarn) urlWarn.textContent = '⚠️';
-      throw new Error('Failed to load top camera feed');
+    if (cfg.topMode === TOP_MODE_MJPEG) {
+      const urlWarnEl = $('#urlWarn');
+      videoTop = new Image();
+      videoTop.crossOrigin = 'anonymous';
+      videoTop.src = cfg.url;
+      try {
+        await videoTop.decode();
+      } catch (err) {
+        if (urlWarnEl) urlWarnEl.textContent = '⚠️';
+        throw new Error('Failed to load top camera feed');
+      }
+    } else {
+      initRTC();
     }
 
     const frontStream = await navigator.mediaDevices.getUserMedia({
@@ -789,7 +823,6 @@ const Detect = (() => {
   return { init, runTopDetection, runFrontDetection };
 })();
 
-
 const Controller = (() => {
   const cfg = Config.get();
   const TOP_FPS = 30;               // throttle only the MJPEG-top feed
@@ -827,6 +860,24 @@ const Controller = (() => {
     requestAnimationFrame(topLoop);
   }
 
+  async function handleBit(bit) {
+    let flags = preview ? FLAG_PREVIEW : 0;
+    if (bit === 0 || bit === 2) flags |= FLAG_TEAM_A_ACTIVE;
+    if (bit === 1 || bit === 2) flags |= FLAG_TEAM_B_ACTIVE;
+    if (!(flags & (FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE))) return;
+    const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags, preview);
+    if (frontDetected) {
+      for (const h of hits) {
+        Game.routeHit(
+          h.x * window.innerWidth,
+          h.y * window.innerHeight,
+          h.team
+        );
+        console.log('Queued hit:', h);
+      }
+    }
+  }
+
   async function start() {
     Setup.bind();
     try {
@@ -837,13 +888,15 @@ const Controller = (() => {
     }
     await Detect.init();
     lastTop = 0;
-    requestAnimationFrame(topLoop);
+    if (cfg.topMode === TOP_MODE_MJPEG) {
+      requestAnimationFrame(topLoop);
+    }
   }
 
   function setPreview(on) { preview = on; }
   function isPreview() { return preview; }
 
-  return { start, setPreview, isPreview };
+  return { start, setPreview, isPreview, handleBit };
 })();
 window.App = { Config, PreviewGfx, Setup, Feeds, Detect, Controller };
 Controller.start();
