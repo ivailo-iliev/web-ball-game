@@ -2,11 +2,17 @@
 <html>
 <head>
   <meta name=viewport content="width=device-width,initial-scale=1">
-<title>One-bit P2P demo</title>
-
+  <title>One-bit P2P demo</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <h3 id=state>Connecting…</h3>
+<div id="configScreen">
+  <div class="cam" id="topCam">
+    <video id="topVid" autoplay playsinline></video>
+    <canvas id="topOv" class="overlay" width="640" height="480"></canvas>
+  </div>
+</div>
 <button id=b0 disabled>Send 0</button>
 <button id=b1 disabled>Send 1</button>
 
@@ -21,5 +27,6 @@ function handleOpen(){
 }
 </script>
 <script src="rtc-connect.js"></script>
+<script src="rtc-top.js"></script>
 </body>
 </html>

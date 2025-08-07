@@ -1,0 +1,280 @@
+// rtc-top.js – top camera detection for rtc-connect.html
+// Derived from app.js but simplified to only handle the top camera.
+(function(){
+  'use strict';
+
+  const $ = sel => document.querySelector(sel);
+
+  /* ---- Color tables and helpers copied from app.js ---- */
+  const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
+  const COLOR_TABLE = new Float32Array([
+    /* red    */ 0.00, 0.5, 0.7, 0.10, 1.00, 1.00,
+    /* yellow */ 0.10, 0.5, 0.5, 0.20, 1.00, 1.00,
+    /* blue   */ 0.50, 0.4, 0.4, 0.70, 1.00, 1.00,
+    /* green  */ 0.70, 0.2, 0.2, 0.90, 1.00, 1.00
+  ]);
+  const savedCT = localStorage.getItem('COLOR_TABLE');
+  if (savedCT) {
+    try {
+      const arr = JSON.parse(savedCT);
+      if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
+        COLOR_TABLE.set(arr.map(Number));
+      }
+    } catch(e){}
+  }
+  function hsvRange(team){
+    const i = TEAM_INDICES[team] * 6;
+    return COLOR_TABLE.subarray(i, i+6);
+  }
+  function float32ToFloat16(val){
+    const f32 = new Float32Array([val]);
+    const u32 = new Uint32Array(f32.buffer)[0];
+    const sign = (u32 >> 16) & 0x8000;
+    let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
+    let mant = u32 & 0x7FFFFF;
+    if (exp <= 0) return sign;
+    if (exp >= 0x1F) return sign | 0x7C00;
+    return sign | (exp << 10) | (mant >> 13);
+  }
+  function hsvRangeF16(team){
+    const src = hsvRange(team);
+    const dst = new Uint16Array(6);
+    for (let i=0;i<6;i++) dst[i] = float32ToFloat16(src[i]);
+    return dst;
+  }
+
+  // Detection flag bits (subset from app.js)
+  const FLAG_TEAM_A_ACTIVE = 2;
+  const FLAG_TEAM_B_ACTIVE = 4;
+
+  /* ---- Config copied from app.js (trimmed to top camera only) ---- */
+  const Config = (() => {
+    const DEFAULTS = {
+      TOP_W: 640,
+      TOP_H: 480,
+      TOP_MIN_AREA: 600,
+      teamA: 'green',
+      teamB: 'blue',
+      polyT: [],
+      topH: 160
+    };
+    const PERSIST = {
+      teamA:  'teamA',
+      teamB:  'teamB',
+      polyT:  'roiPolyTop',
+      topH:   'topH',
+      TOP_MIN_AREA: 'topMinArea'
+    };
+    let cfg;
+    function load(){
+      cfg = {};
+      for (const [name, def] of Object.entries(DEFAULTS)) {
+        if (PERSIST[name]) {
+          const raw = localStorage.getItem(PERSIST[name]);
+          cfg[name] = raw !== null ? JSON.parse(raw) : def;
+        } else {
+          cfg[name] = def;
+        }
+      }
+      cfg.f16Ranges = {};
+      for (const t of Object.keys(TEAM_INDICES)) {
+        cfg.f16Ranges[t] = hsvRangeF16(t);
+      }
+      return cfg;
+    }
+    function save(name,val){
+      if (PERSIST[name]) localStorage.setItem(PERSIST[name], JSON.stringify(val));
+      if (cfg) cfg[name] = val;
+    }
+    function get(){ return cfg; }
+    return { load, save, get };
+  })();
+  Config.load();
+
+  /* ---- Preview graphics for ROI ---- */
+  const PreviewGfx = (() => {
+    const cfg = Config.get();
+    let ctxTop2d;
+    function ensure2d(){
+      if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
+    }
+    function drawROI(poly, color){
+      ensure2d();
+      if (!ctxTop2d) return;
+      ctxTop2d.clearRect(0,0,cfg.TOP_W,cfg.TOP_H);
+      if (!poly || poly.length !== 4) return;
+      ctxTop2d.strokeStyle = color;
+      ctxTop2d.lineWidth = 2;
+      ctxTop2d.beginPath();
+      ctxTop2d.moveTo(poly[0][0], poly[0][1]);
+      for (let i=1;i<poly.length;i++) ctxTop2d.lineTo(poly[i][0], poly[i][1]);
+      ctxTop2d.closePath();
+      ctxTop2d.stroke();
+    }
+    return { drawROI };
+  })();
+
+  /* ---- Setup: ROI gestures ---- */
+  const Setup = (() => {
+    const cfg = Config.get();
+    function bind(){
+      const topOv = $('#topOv');
+      const topROI = { y: 0, h: cfg.topH };
+      function commitTop(){
+        topROI.y = Math.min(Math.max(0, topROI.y), cfg.TOP_H - topROI.h);
+        const { y, h } = topROI;
+        cfg.polyT = [[0,y],[cfg.TOP_W,y],[cfg.TOP_W,y+h],[0,y+h]];
+        Config.save('polyT', cfg.polyT);
+        PreviewGfx.drawROI(cfg.polyT, 'lime');
+      }
+      if (cfg.polyT.length === 4){
+        const ys = cfg.polyT.map(p=>p[1]);
+        topROI.y = Math.min(...ys);
+        topROI.h = Math.max(...ys) - topROI.y;
+      }
+      topOv.style.touchAction = 'none';
+      let dragY = null;
+      topOv.addEventListener('pointerdown', e=>{
+        const r = topOv.getBoundingClientRect();
+        dragY = (e.clientY - r.top) * cfg.TOP_H / r.height;
+        topOv.setPointerCapture(e.pointerId);
+      });
+      topOv.addEventListener('pointermove', e=>{
+        if (dragY == null) return;
+        const r = topOv.getBoundingClientRect();
+        const curY = (e.clientY - r.top) * cfg.TOP_H / r.height;
+        topROI.y += curY - dragY;
+        dragY = curY;
+        commitTop();
+      });
+      topOv.addEventListener('pointerup', ()=> dragY=null);
+      topOv.addEventListener('pointercancel', ()=> dragY=null);
+      commitTop();
+    }
+    return { bind };
+  })();
+
+  /* ---- Feeds: top camera via getUserMedia ---- */
+  const Feeds = (() => {
+    const cfg = Config.get();
+    let videoTop;
+    async function init(){
+      videoTop = $('#topVid');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio:false,
+        video:{ width:{ exact: cfg.TOP_W }, height:{ exact: cfg.TOP_H }, facingMode:'environment', frameRate:{ideal:60,max:120} }
+      });
+      videoTop.srcObject = stream;
+      await videoTop.play();
+    }
+    return { init, top: ()=>videoTop };
+  })();
+
+  /* ---- Detect: WebGPU shader ---- */
+  const Detect = (() => {
+    const cfg = Config.get();
+    let device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop;
+    const zero = new Uint32Array([0,0,0]);
+    const uniformArrayBuffer = new ArrayBuffer(64);
+    const uniformU16 = new Uint16Array(uniformArrayBuffer);
+    const uniformF32 = new Float32Array(uniformArrayBuffer);
+    const uniformU32 = new Uint32Array(uniformArrayBuffer);
+    function writeUniform(buf, hsvA6, hsvB6, rect, flags){
+      const u16=uniformU16, f32=uniformF32, u32=uniformU32;
+      for(let i=0;i<3;i++) u16[i]=hsvA6[i];
+      for(let i=0;i<3;i++) u16[4+i]=hsvA6[i+3];
+      for(let i=0;i<3;i++) u16[8+i]=hsvB6[i];
+      for(let i=0;i<3;i++) u16[12+i]=hsvB6[i+3];
+      f32[8]=rect.min[0]; f32[9]=rect.min[1];
+      f32[10]=rect.max[0]; f32[11]=rect.max[1];
+      u32[12]=flags;
+      device.queue.writeBuffer(buf,0,uniformArrayBuffer);
+    }
+    function rectTop(){
+      const ys = cfg.polyT.map(p=>p[1]);
+      return {min:[0, Math.min(...ys)], max:[cfg.TOP_W, Math.max(...ys)]};
+    }
+    async function init(){
+      const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+      const hasF16 = adapter.features.has('shader-f16');
+      device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
+      const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
+      const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
+      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:texUsage1 });
+      maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:maskUsage });
+      sampler   = device.createSampler();
+      uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      statsA= device.createBuffer({ size:12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      statsB= device.createBuffer({ size:12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      readA = device.createBuffer({ size:12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      readB = device.createBuffer({ size:12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      const code = await fetch('shader.wgsl').then(r=>r.text());
+      const mod = device.createShaderModule({code});
+      pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
+      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format:'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
+      bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
+      bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
+    }
+    async function runTopDetection(preview){
+      device.queue.writeBuffer(statsA,0,zero);
+      device.queue.writeBuffer(statsB,0,zero);
+      device.queue.copyExternalImageToTexture(
+        {source: Feeds.top()},
+        {texture: frameTex1},
+        [cfg.TOP_W,cfg.TOP_H]
+      );
+      const enc = device.createCommandEncoder();
+      enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
+      const flagsTop = FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+      writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectTop(), flagsTop);
+      let cp = enc.beginComputePass();
+      cp.setPipeline(pipeC);
+      cp.setBindGroup(0,bgTop);
+      cp.dispatchWorkgroups(Math.ceil(cfg.TOP_W/8), Math.ceil(cfg.TOP_H/32));
+      cp.end();
+      enc.copyBufferToBuffer(statsA,0,readA,0,12);
+      enc.copyBufferToBuffer(statsB,0,readB,0,12);
+      device.queue.submit([enc.finish()]);
+      await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
+      const [cntA] = new Uint32Array(readA.getMappedRange());
+      readA.unmap();
+      const [cntB] = new Uint32Array(readB.getMappedRange());
+      readB.unmap();
+      const topDetected = cntA > cfg.TOP_MIN_AREA || cntB > cfg.TOP_MIN_AREA;
+      return { detected: topDetected, cntA, cntB };
+    }
+    return { init, runTopDetection };
+  })();
+
+  /* ---- Controller: run detection loop and send bit ---- */
+  const Controller = (() => {
+    const cfg = Config.get();
+    const TOP_FPS = 30;
+    const TOP_INTERVAL = 1000 / TOP_FPS;
+    let lastTop = 0;
+    async function topLoop(ts){
+      if (ts - lastTop < TOP_INTERVAL) { requestAnimationFrame(topLoop); return; }
+      lastTop = ts;
+      const { detected, cntA, cntB } = await Detect.runTopDetection(false);
+      if (detected) {
+        const a = cntA > cfg.TOP_MIN_AREA;
+        const b = cntB > cfg.TOP_MIN_AREA;
+        let bit;
+        if (a && b) bit = 2;
+        else if (a) bit = 0;
+        else if (b) bit = 1;
+        if (bit !== undefined) window.sendBit && window.sendBit(String(bit));
+      }
+      requestAnimationFrame(topLoop);
+    }
+    async function start(){
+      Setup.bind();
+      await Feeds.init();
+      await Detect.init();
+      requestAnimationFrame(topLoop);
+    }
+    return { start };
+  })();
+
+  window.addEventListener('DOMContentLoaded', () => Controller.start());
+})();
