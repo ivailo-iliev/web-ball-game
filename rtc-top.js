@@ -166,6 +166,11 @@
       });
       videoTop.srcObject = stream;
       await videoTop.play();
+      const parent = videoTop.parentElement;
+      if (parent) {
+        parent.style.width = cfg.TOP_W + 'px';
+        parent.style.height = cfg.TOP_H + 'px';
+      }
     }
     return { init, top: ()=>videoTop };
   })();
