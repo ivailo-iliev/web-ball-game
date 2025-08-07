@@ -543,7 +543,6 @@ const Feeds = (() => {
 
     videoFront.srcObject = frontStream;
     track = frontStream.getVideoTracks()[0];
-    await videoFront.play();
 
     const cap = track.getCapabilities();
     const adv = {};
@@ -556,7 +555,10 @@ const Feeds = (() => {
       zoomInput.min = min;
       zoomInput.max = Math.min(2, max);
       zoomInput.step = step || 0.1;
+      const storedZoom = localStorage.getItem('zoom');
+      if (storedZoom !== null) cfg.zoom = JSON.parse(storedZoom);
       zoomInput.value = cfg.zoom;
+      adv.zoom = cfg.zoom;
       zoomInput.addEventListener('input', async () => {
         adv.zoom = parseFloat(zoomInput.value);
         cfg.zoom = adv.zoom;
@@ -570,8 +572,14 @@ const Feeds = (() => {
     }
 
     if (Object.keys(adv).length) {
-      await track.applyConstraints({ advanced: [adv] });
+      try {
+        await track.applyConstraints({ advanced: [adv] });
+      } catch (err) {
+        console.error('Zoom apply failed:', err);
+      }
     }
+
+    await videoFront.play();
   }
 
   return {
