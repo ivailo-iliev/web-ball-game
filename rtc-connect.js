@@ -55,7 +55,10 @@ async function start(role) {
 
 // ---- 3. send the single bit ----
 function sendBit(bit) {
-  dc?.readyState === 'open' && dc.send(bit);
+  if (dc?.readyState === 'open') {
+    console.log('CLIENT →', bit);
+    dc.send(bit);
+  }
 }
 
 window.sendBit = sendBit;
