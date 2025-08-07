@@ -259,7 +259,9 @@ const Setup = (() => {
       inp.id = `threshA${i}`;
       thCont?.appendChild(inp);
       thInputs.push(inp);
-      inp.addEventListener('change', e => {
+      // Use the `input` event so spinner buttons and manual typing
+      // both immediately update the threshold values and persist them.
+      inp.addEventListener('input', e => {
         const base = TEAM_INDICES[cfg.teamA] * 6 + i;
         COLOR_TABLE[base] = parseFloat(e.target.value);
         localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
