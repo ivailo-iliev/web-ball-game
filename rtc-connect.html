@@ -11,58 +11,15 @@
 <button id=b1 disabled>Send 1</button>
 
 <script>
-const $ = id => document.querySelector(id);
-const log = s => $('#state').textContent = s;
-
-// ---- 1. connect to signalling server on same host ----
-const ws = new WebSocket('ws://p2p.local:8000');
-ws.onopen    = () => log('Waiting for peer…');
- ws.onmessage = async e => {
-   // if we accidentally got a binary frame, it'll arrive as a Blob
-   let raw = e.data;
-   if (raw instanceof Blob) {
-     console.log('CLIENT: received Blob, converting to text');
-     raw = await raw.text();
-   }
-   console.log('CLIENT ←', raw);
-   handleSignal(JSON.parse(raw));
- };
-
-let dc;                     // DataChannel
-const pc = new RTCPeerConnection({iceServers:[]});
-pc.onicecandidate = e => e.candidate && send({type:'cand', cand:e.candidate});
-
-function send(obj){ ws.readyState===1 && ws.send(JSON.stringify(obj)); }
-
-// ---- 2. signalling handshake ----
-async function handleSignal(m){
-  if (m.type==='role')          return start(m.role);
-  if (m.type==='offer')         { await pc.setRemoteDescription(m.sdp);
-                                   await pc.setLocalDescription(await pc.createAnswer());
-                                   send({type:'answer',sdp: pc.localDescription}); }
-  else if (m.type==='answer')   await pc.setRemoteDescription(m.sdp);
-  else if (m.type==='cand')     try{ await pc.addIceCandidate(m.cand);}catch{}
+const $ = sel => document.querySelector(sel);
+function handleLog(msg){ $('#state').textContent = msg; }
+function handleOpen(){
+  handleLog('Channel open – tap a button');
+  $('#b0').disabled = $('#b1').disabled = false;
+  $('#b0').onclick = () => sendBit('0');
+  $('#b1').onclick = () => sendBit('1');
 }
-
-async function start(role){
-  if (role==='offerer'){
-    dc = pc.createDataChannel('bit',{ordered:false,maxRetransmits:0});
-    dc.onopen    = open;
-    dc.onmessage = m => alert('Received: '+m.data);
-    await pc.setLocalDescription(await pc.createOffer());
-    send({type:'offer',sdp: pc.localDescription});
-  } else {
-    pc.ondatachannel = e => { dc=e.channel; dc.onopen=open; dc.onmessage=m=>alert('Received: '+m.data); };
-  }
-}
-
-function open(){
-  log('Channel open – tap a button'); $('#b0').disabled = $('#b1').disabled = false;
-}
-
-// ---- 3. send the single bit ----
-$('#b0').onclick = ()=> dc?.readyState==='open' && dc.send('0');
-$('#b1').onclick = ()=> dc?.readyState==='open' && dc.send('1');
 </script>
+<script src="rtc-connect.js"></script>
 </body>
 </html>
