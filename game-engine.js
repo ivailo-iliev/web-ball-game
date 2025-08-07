@@ -289,7 +289,7 @@ class BaseGame {
   /* ---- 3.7b MISS entry point ---- */
   miss(s) {
     if (typeof this.onMiss === 'function') this.onMiss(s);
-    this._popSprite(s);
+    this._missSprite(s);
   }
 
   /* ---- 3.8 POP animation ---- */
@@ -299,6 +299,14 @@ class BaseGame {
     s.style.setProperty('--x', `${s.x - s.r}px`);
     s.style.setProperty('--y', `${s.y - s.r}px`);
     s.el.classList.add('pop');
+  }
+
+  _missSprite(s) {               // visual + remove() with different animation
+    s.alive = false;
+    s.el.classList.remove('spawn');
+    s.style.setProperty('--x', `${s.x - s.r}px`);
+    s.style.setProperty('--y', `${s.y - s.r}px`);
+    s.el.classList.add('miss');
   }
 
   emitBurst(x, y, emojiArr = this.cfg.burst) {
@@ -331,8 +339,12 @@ class BaseGame {
     el.addEventListener('animationend', () => el.remove(), { once: true });
   }
 
-  _showRipple(x, y) {
+  _showRipple(x, y, team) {
     Object.assign(this.ripple.style, { left: `${x}px`, top: `${y}px` });
+    this.ripple.className = 'ripple';
+    if (team === 0 || team === 1) {
+      this.ripple.classList.add(Game.teams[team]);
+    }
     this.ripple.classList.remove('animate');
     void this.ripple.offsetWidth;
     this.ripple.classList.add('animate');
@@ -340,7 +352,7 @@ class BaseGame {
 
   /* ---- handle hits triggered by pointer events or via Game.doHit ---- */
   doHit = (x, y, team) => {
-    this._showRipple(x, y);
+    this._showRipple(x, y, team);
     for (const s of this.sprites) {
       if ((x - s.x) ** 2 + (y - s.y) ** 2 <= s.r ** 2) {
         this.hit(s, team);
@@ -364,7 +376,7 @@ class BaseGame {
           this.onSpriteAlive(sp);
         }
       }
-    } else if (el.classList.contains('pop')) {
+    } else if (el.classList.contains('pop') || el.classList.contains('miss')) {
       sp.remove();
     }
   };
