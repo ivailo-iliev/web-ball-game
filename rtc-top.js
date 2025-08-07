@@ -249,12 +249,7 @@
   /* ---- Controller: run detection loop and send bit ---- */
   const Controller = (() => {
     const cfg = Config.get();
-    const TOP_FPS = 30;
-    const TOP_INTERVAL = 1000 / TOP_FPS;
-    let lastTop = 0;
-    async function topLoop(ts){
-      if (ts - lastTop < TOP_INTERVAL) { requestAnimationFrame(topLoop); return; }
-      lastTop = ts;
+    async function topLoop(){
       const { detected, cntA, cntB } = await Detect.runTopDetection(false);
       if (detected) {
         const a = cntA > cfg.TOP_MIN_AREA;
@@ -265,13 +260,13 @@
         else if (b) bit = 1;
         if (bit !== undefined) window.sendBit && window.sendBit(String(bit));
       }
-      requestAnimationFrame(topLoop);
+      Feeds.top().requestVideoFrameCallback(topLoop);
     }
     async function start(){
       Setup.bind();
       await Feeds.init();
       await Detect.init();
-      requestAnimationFrame(topLoop);
+      Feeds.top().requestVideoFrameCallback(topLoop);
     }
     return { start };
   })();
