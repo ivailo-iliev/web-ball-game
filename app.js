@@ -579,9 +579,9 @@ const Feeds = (() => {
     track = frontStream.getVideoTracks()[0];
 
     const cap = track.getCapabilities();
-    const adv = {};
+    const advConstraints = [];
 
-    if (cap.powerEfficient) adv.powerEfficient = false;
+    if (cap.powerEfficient) advConstraints.push({ powerEfficient: false });
 
     if (cap.zoom) {
       const zoomInput = $('#frontZoom');
@@ -592,28 +592,57 @@ const Feeds = (() => {
       const storedZoom = localStorage.getItem('zoom');
       if (storedZoom !== null) cfg.zoom = JSON.parse(storedZoom);
       zoomInput.value = cfg.zoom;
-      adv.zoom = cfg.zoom;
+      advConstraints.push({ zoom: cfg.zoom });
       zoomInput.addEventListener('input', async () => {
-        adv.zoom = parseFloat(zoomInput.value);
-        cfg.zoom = adv.zoom;
+        const z = parseFloat(zoomInput.value);
+        cfg.zoom = z;
         Config.save('zoom', cfg.zoom);
         try {
-          await track.applyConstraints({ advanced: [adv] });
+          await track.applyConstraints({ advanced: [{ zoom: z }] });
         } catch (err) {
           console.error('Zoom apply failed:', err);
         }
       });
     }
 
-    if (Object.keys(adv).length) {
+    await videoFront.play();
+    if (
+      cap.exposureMode &&
+      cap.exposureMode.includes('manual') &&
+      cap.exposureTime &&
+      cap.iso
+    ) {
+      advConstraints.push({
+        exposureMode: 'manual',
+        exposureTime: 1 / 500,
+        iso: 400,
+      });
+    }
+    if (
+      cap.focusMode &&
+      cap.focusMode.includes('manual') &&
+      cap.focusDistance
+    ) {
+      advConstraints.push({ focusMode: 'manual', focusDistance: 3.0 });
+    }
+    if (
+      cap.whiteBalanceMode &&
+      cap.whiteBalanceMode.includes('manual') &&
+      cap.colorTemperature
+    ) {
+      advConstraints.push({
+        whiteBalanceMode: 'manual',
+        colorTemperature: 5600,
+      });
+    }
+    if (advConstraints.length) {
       try {
-        await track.applyConstraints({ advanced: [adv] });
+        await new Promise((r) => setTimeout(r, 1500));
+        await track.applyConstraints({ advanced: advConstraints });
       } catch (err) {
-        console.error('Zoom apply failed:', err);
+        console.error('Advanced constraints apply failed:', err);
       }
     }
-
-    await videoFront.play();
   }
 
   return {
