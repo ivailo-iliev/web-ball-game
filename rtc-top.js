@@ -22,6 +22,7 @@
       }
     } catch(e){}
   }
+  const COLOR_EMOJI = { red: '🔴', yellow: '🟡', green: '🟢', blue: '🔵' };
   function hsvRange(team){
     const i = TEAM_INDICES[team] * 6;
     return COLOR_TABLE.subarray(i, i+6);
@@ -63,7 +64,9 @@
       teamB:  'teamB',
       polyT:  'roiPolyTop',
       topH:   'topH',
-      TOP_MIN_AREA: 'topMinArea'
+      TOP_MIN_AREA: 'topMinArea',
+      TOP_W: 'topWidth',
+      TOP_H: 'topHeight'
     };
     let cfg;
     function load(){
@@ -114,18 +117,33 @@
     return { drawROI };
   })();
 
-  /* ---- Setup: ROI gestures ---- */
+  /* ---- Setup: ROI gestures and config inputs ---- */
   const Setup = (() => {
     const cfg = Config.get();
+    const options = Object.entries(COLOR_EMOJI)
+      .map(([c, e]) => `<option value="${c}">${e}</option>`).join('');
+    const detectionUI = `
+      <label for=topWInp>W <input id=topWInp type=number min=1 step=1 style="width:5ch"></label>
+      <label for=topHResInp>H <input id=topHResInp type=number min=1 step=1 style="width:5ch"></label>
+      <label for=topMinInp>⚫ <input id=topMinInp type=number min=0 step=25 style="width:6ch"></label>
+      <label for=topHInp>↕️ <input id=topHInp type=number min=10 max=${cfg.TOP_H} step=1></label>
+      <label for=teamA>🅰️ <select id=teamA>${options}</select></label>
+      <label for=teamB>🅱️ <select id=teamB>${options}</select></label>
+      <label>HSV <span id=teamAThresh></span></label>`;
+
     function bind(){
+      const cfgEl = $('#cfg');
+      cfgEl.insertAdjacentHTML('beforeend', detectionUI);
+
       const topOv = $('#topOv');
       topOv.width = cfg.TOP_W;
       topOv.height = cfg.TOP_H;
+
       const topROI = { y: 0, h: cfg.topH };
       function commitTop(){
         topROI.y = Math.min(Math.max(0, topROI.y), cfg.TOP_H - topROI.h);
         const { y, h } = topROI;
-        cfg.polyT = [[0,y],[cfg.TOP_W,y],[cfg.TOP_W,y+h],[0,y+h]];
+        cfg.polyT = [[0, y], [cfg.TOP_W, y], [cfg.TOP_W, y + h], [0, y + h]];
         Config.save('polyT', cfg.polyT);
         PreviewGfx.drawROI(cfg.polyT, 'lime');
       }
@@ -134,14 +152,89 @@
         topROI.y = Math.min(...ys);
         topROI.h = Math.max(...ys) - topROI.y;
       }
+
+      const topMinInp = $('#topMinInp');
+      const topHInp = $('#topHInp');
+      const topWInp = $('#topWInp');
+      const topHResInp = $('#topHResInp');
+      const selA = $('#teamA');
+      const selB = $('#teamB');
+      const thCont = $('#teamAThresh');
+
+      topMinInp.value = cfg.TOP_MIN_AREA;
+      topHInp.value = topROI.h;
+      topWInp.value = cfg.TOP_W;
+      topHResInp.value = cfg.TOP_H;
+      selA.value = cfg.teamA;
+      selB.value = cfg.teamB;
+
+      topMinInp.addEventListener('input', e => {
+        cfg.TOP_MIN_AREA = Math.max(0, +e.target.value);
+        Config.save('TOP_MIN_AREA', cfg.TOP_MIN_AREA);
+      });
+      topHInp.addEventListener('input', e => {
+        topROI.h = Math.max(10, Math.min(cfg.TOP_H, +e.target.value));
+        Config.save('topH', topROI.h);
+        commitTop();
+      });
+      topWInp.addEventListener('input', e => {
+        cfg.TOP_W = Math.max(1, +e.target.value);
+        Config.save('TOP_W', cfg.TOP_W);
+        topOv.width = cfg.TOP_W;
+        const vid = $('#topVid');
+        if (vid && vid.parentElement) vid.parentElement.style.width = cfg.TOP_W + 'px';
+        commitTop();
+      });
+      topHResInp.addEventListener('input', e => {
+        cfg.TOP_H = Math.max(1, +e.target.value);
+        Config.save('TOP_H', cfg.TOP_H);
+        topOv.height = cfg.TOP_H;
+        topHInp.max = cfg.TOP_H;
+        const vid = $('#topVid');
+        if (vid && vid.parentElement) vid.parentElement.style.height = cfg.TOP_H + 'px';
+        commitTop();
+      });
+      selA.addEventListener('change', e => {
+        cfg.teamA = e.target.value;
+        Config.save('teamA', cfg.teamA);
+        updateThreshInputs();
+      });
+      selB.addEventListener('change', e => {
+        cfg.teamB = e.target.value;
+        Config.save('teamB', cfg.teamB);
+      });
+
+      const thInputs = [];
+      for (let i = 0; i < 6; i++) {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.min = '0';
+        inp.max = '1';
+        inp.step = '0.05';
+        inp.style.width = '4ch';
+        thCont.appendChild(inp);
+        thInputs.push(inp);
+        inp.addEventListener('input', e => {
+          const base = TEAM_INDICES[cfg.teamA] * 6 + i;
+          COLOR_TABLE[base] = parseFloat(e.target.value);
+          localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
+          cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+        });
+      }
+      function updateThreshInputs(){
+        const base = TEAM_INDICES[cfg.teamA] * 6;
+        for (let i = 0; i < 6; i++) thInputs[i].value = COLOR_TABLE[base + i];
+      }
+      updateThreshInputs();
+
       topOv.style.touchAction = 'none';
       let dragY = null;
-      topOv.addEventListener('pointerdown', e=>{
+      topOv.addEventListener('pointerdown', e => {
         const r = topOv.getBoundingClientRect();
         dragY = (e.clientY - r.top) * cfg.TOP_H / r.height;
         topOv.setPointerCapture(e.pointerId);
       });
-      topOv.addEventListener('pointermove', e=>{
+      topOv.addEventListener('pointermove', e => {
         if (dragY == null) return;
         const r = topOv.getBoundingClientRect();
         const curY = (e.clientY - r.top) * cfg.TOP_H / r.height;
@@ -149,8 +242,8 @@
         dragY = curY;
         commitTop();
       });
-      topOv.addEventListener('pointerup', ()=> dragY=null);
-      topOv.addEventListener('pointercancel', ()=> dragY=null);
+      topOv.addEventListener('pointerup', () => dragY = null);
+      topOv.addEventListener('pointercancel', () => dragY = null);
       commitTop();
     }
     return { bind };
