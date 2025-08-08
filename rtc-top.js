@@ -5,6 +5,13 @@
 
   const $ = sel => document.querySelector(sel);
 
+  // Chrome Android occasionally swaps U/V during NV12→RGBA copies.
+  // Drawing to a 2D canvas first forces a correct conversion.
+  function needsRGBWorkaround(){
+    const ua = navigator.userAgent || '';
+    return /Android/i.test(ua) && /Chrome\/\d+/.test(ua);
+  }
+
   /* ---- Color tables and helpers copied from app.js ---- */
   const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
   const COLOR_TABLE = new Float32Array([
@@ -255,12 +262,16 @@
     let videoTop;
     async function init(){
       videoTop = $('#topVid');
-      const longer  = Math.max(cfg.TOP_W, cfg.TOP_H);
-      const shorter = Math.min(cfg.TOP_W, cfg.TOP_H);
+      const longer  = Math.max(cfg.TOP_W, cfg.TOP_H);   // kept if you need it elsewhere
+      const shorter = Math.min(cfg.TOP_W, cfg.TOP_H);   // kept if you need it elsewhere
       const stream = await navigator.mediaDevices.getUserMedia({
         audio:false,
-        video:{ width:{ ideal: longer }, height:{ ideal: shorter },
-                facingMode:'user', frameRate:{ideal:60,max:120} }
+        // Request portrait directly; discourage internal scaler paths.
+        video:{
+          width:{ ideal: shorter }, height:{ ideal: longer },
+          facingMode:{ ideal:'user' }, resizeMode:'none',
+          frameRate:{ ideal:60, max:120 }
+        }
       });
       videoTop.srcObject = stream;
       await videoTop.play();
@@ -283,6 +294,28 @@
 
       /* Re-create WebGPU textures that depend on size */
       Detect.resizeTextures && Detect.resizeTextures();
+
+      // Watch for mid-stream resolution changes and keep everything in sync.
+      let lastW = cfg.TOP_W, lastH = cfg.TOP_H;
+      function onFrame(){
+        const w = videoTop.videoWidth, h = videoTop.videoHeight;
+        if (w && h && (w !== lastW || h !== lastH)){
+          lastW = cfg.TOP_W = w;
+          lastH = cfg.TOP_H = h;
+          Config.save('TOP_W', w);
+          Config.save('TOP_H', h);
+          const parent = videoTop.parentElement;
+          if (parent){
+            parent.style.width  = w + 'px';
+            parent.style.height = h + 'px';
+          }
+          const topOv = $('#topOv');
+          if (topOv){ topOv.width = w; topOv.height = h; }
+          Detect.resizeTextures && Detect.resizeTextures();
+        }
+        videoTop.requestVideoFrameCallback(onFrame);
+      }
+      videoTop.requestVideoFrameCallback(onFrame);
     }
     return { init, top: ()=>videoTop };
   })();
@@ -359,23 +392,27 @@
       /* Chrome Android + portrait occasionally swaps U/V when copying
          NV12 → RGBA.  Drawing to a 2-D canvas first forces a correct
          YUV→RGB conversion and fixes the blue-tint bug.             */
-      if (cfg.TOP_H > cfg.TOP_W && 'OffscreenCanvas' in self){
-        if (!Detect._off){
+      const useCanvasPath = ( (cfg.TOP_H > cfg.TOP_W) || needsRGBWorkaround() )
+                            && ('OffscreenCanvas' in self);
+      if (useCanvasPath){
+        // Keep the offscreen canvas in sync with the current frame size.
+        if (!Detect._off ||
+            Detect._off.width  !== cfg.TOP_W ||
+            Detect._off.height !== cfg.TOP_H){
           Detect._off = new OffscreenCanvas(cfg.TOP_W, cfg.TOP_H);
-          Detect._ctx = Detect._off.getContext('2d');
-       }
-        Detect._ctx.drawImage(Feeds.top(), 0, 0,
-                              cfg.TOP_W, cfg.TOP_H);
+          Detect._ctx = Detect._off.getContext('2d', { alpha:false });
+        }
+        Detect._ctx.drawImage(Feeds.top(), 0, 0, cfg.TOP_W, cfg.TOP_H);
         device.queue.copyExternalImageToTexture(
-          {source: Detect._off},
-          {texture: frameTex1},
-          [cfg.TOP_W,cfg.TOP_H]
+          { source: Detect._off },
+          { texture: frameTex1 },
+          [cfg.TOP_W, cfg.TOP_H]
         );
       } else {
         device.queue.copyExternalImageToTexture(
-          {source: Feeds.top()},
-          {texture: frameTex1},
-          [cfg.TOP_W,cfg.TOP_H]
+          { source: Feeds.top() },
+          { texture: frameTex1 },
+          [cfg.TOP_W, cfg.TOP_H]
         );
       }
       const enc = device.createCommandEncoder();
