@@ -94,13 +94,25 @@
   })();
   Config.load();
 
-  /* ---- Preview graphics for ROI ---- */
+  /* ---- Preview graphics for ROI and mask ---- */
   const PreviewGfx = (() => {
     const cfg = Config.get();
-    let ctxTop2d;
+    let ctxTop2d, ctxTopGPU;
+
     function ensure2d(){
       if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
     }
+
+    function ensureGPU(device){
+      if (!ctxTopGPU) {
+        const c = $('#topTex');
+        if (c) {
+          ctxTopGPU = c.getContext('webgpu');
+          ctxTopGPU.configure({ device, format: 'rgba8unorm' });
+        }
+      }
+    }
+
     function drawROI(poly, color){
       ensure2d();
       if (!ctxTop2d) return;
@@ -114,7 +126,20 @@
       ctxTop2d.closePath();
       ctxTop2d.stroke();
     }
-    return { drawROI };
+
+    function drawMask(enc, pipe, bg, device){
+      ensureGPU(device);
+      if (!ctxTopGPU) return;
+      const rp = enc.beginRenderPass({
+        colorAttachments:[{ view: ctxTopGPU.getCurrentTexture().createView(), loadOp:'clear', storeOp:'store' }]
+      });
+      rp.setPipeline(pipe);
+      rp.setBindGroup(0, bg);
+      rp.draw(3);
+      rp.end();
+    }
+
+    return { drawROI, drawMask };
   })();
 
   /* ---- Setup: ROI gestures and config inputs ---- */
@@ -138,6 +163,12 @@
       const topOv = $('#topOv');
       topOv.width = cfg.TOP_W;
       topOv.height = cfg.TOP_H;
+      const topTex = document.createElement('canvas');
+      topTex.id = 'topTex';
+      topTex.width = cfg.TOP_W;
+      topTex.height = cfg.TOP_H;
+      const topCam = $('#topCam');
+      if (topCam) topCam.insertBefore(topTex, topOv);
 
       const topROI = { y: 0, h: cfg.topH };
       function commitTop(){
@@ -181,6 +212,8 @@
         cfg.TOP_W = Math.max(1, +e.target.value);
         Config.save('TOP_W', cfg.TOP_W);
         topOv.width = cfg.TOP_W;
+        const tex = $('#topTex');
+        if (tex) tex.width = cfg.TOP_W;
         const vid = $('#topVid');
         if (vid && vid.parentElement) vid.parentElement.style.width = cfg.TOP_W + 'px';
         commitTop();
@@ -189,6 +222,8 @@
         cfg.TOP_H = Math.max(1, +e.target.value);
         Config.save('TOP_H', cfg.TOP_H);
         topOv.height = cfg.TOP_H;
+        const tex = $('#topTex');
+        if (tex) tex.height = cfg.TOP_H;
         topHInp.max = cfg.TOP_H;
         const vid = $('#topVid');
         if (vid && vid.parentElement) vid.parentElement.style.height = cfg.TOP_H + 'px';
@@ -315,7 +350,7 @@
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
     }
-    async function runTopDetection(preview){
+    async function runTopDetection(){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
       device.queue.copyExternalImageToTexture(
@@ -334,6 +369,7 @@
       cp.end();
       enc.copyBufferToBuffer(statsA,0,readA,0,12);
       enc.copyBufferToBuffer(statsB,0,readB,0,12);
+      PreviewGfx.drawMask(enc, pipeQ, bgR, device);
       device.queue.submit([enc.finish()]);
       await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
       const [cntA] = new Uint32Array(readA.getMappedRange());
@@ -350,7 +386,7 @@
   const Controller = (() => {
     const cfg = Config.get();
     async function topLoop(){
-      const { detected, cntA, cntB } = await Detect.runTopDetection(false);
+      const { detected, cntA, cntB } = await Detect.runTopDetection();
       if (detected) {
         const a = cntA > cfg.TOP_MIN_AREA;
         const b = cntB > cfg.TOP_MIN_AREA;
