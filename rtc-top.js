@@ -280,7 +280,7 @@
       }
 
       /* Re-create WebGPU textures that depend on size */
-      Detect.resizeTextures();
+      Detect.resizeTextures && Detect.resizeTextures();
     }
     return { init, top: ()=>videoTop };
   })();
@@ -309,38 +309,15 @@
       const ys = cfg.polyT.map(p=>p[1]);
       return {min:[0, Math.min(...ys)], max:[cfg.TOP_W, Math.max(...ys)]};
     }
+
+    const api = { resizeTextures: () => {} };
+
     async function init(){
       const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
       const hasF16 = adapter.features.has('shader-f16');
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      createTextures();
-
-    /* new helper – centralises (re)creation of size-dependent textures */
-    function createTextures(){
-      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
-                                         format:'rgba8unorm', usage:texUsage1 });
-      maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
-                                         format:'rgba8unorm', usage:maskUsage });
-      bgR  = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0),
-        entries:[
-          {binding:0, resource: frameTex1.createView()},
-          {binding:4, resource: maskTex1.createView()},
-          {binding:5, resource: sampler}
-      ]});
-      bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0),
-        entries:[
-          {binding:0, resource: frameTex1.createView()},
-          {binding:1, resource: maskTex1.createView()},
-          {binding:2, resource:{buffer:statsA}},
-          {binding:3, resource:{buffer:statsB}},
-          {binding:6, resource:{buffer:uni}}
-      ]});
-    }
-
-    /* exposed so Feeds.init() can call it after resizing */
-    function resizeTextures(){ createTextures(); }
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       statsA= device.createBuffer({ size:12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
@@ -351,9 +328,29 @@
       const mod = device.createShaderModule({code});
       pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
       pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format:'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
-      bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
-      bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
+      api.resizeTextures = () => {
+        frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
+                                           format:'rgba8unorm', usage:texUsage1 });
+        maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
+                                           format:'rgba8unorm', usage:maskUsage });
+        bgR  = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0),
+          entries:[
+            {binding:0, resource: frameTex1.createView()},
+            {binding:4, resource: maskTex1.createView()},
+            {binding:5, resource: sampler}
+        ]});
+        bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0),
+          entries:[
+            {binding:0, resource: frameTex1.createView()},
+            {binding:1, resource: maskTex1.createView()},
+            {binding:2, resource:{buffer:statsA}},
+            {binding:3, resource:{buffer:statsB}},
+            {binding:6, resource:{buffer:uni}}
+        ]});
+      };
+      api.resizeTextures();
     }
+
     async function runTopDetection(preview){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
@@ -399,7 +396,10 @@
       const topDetected = cntA > cfg.TOP_MIN_AREA || cntB > cfg.TOP_MIN_AREA;
       return { detected: topDetected, cntA, cntB };
     }
-    return { init, runTopDetection, resizeTextures };
+
+    api.init = init;
+    api.runTopDetection = runTopDetection;
+    return api;
   })();
 
   /* ---- Controller: run detection loop and send bit ---- */
