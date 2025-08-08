@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 import bonjour from 'bonjour';
 
 const PORT       = 8000;            // HTTP + WS same port
-const PUBLIC_DIR = 'public';        // put client.html here
+const PUBLIC_DIR = '.';        // put client.html here
 const MIME = {                       // very small mime table
   '.html':'text/html',
   '.js'  :'text/javascript',
