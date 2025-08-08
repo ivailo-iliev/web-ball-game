@@ -5,6 +5,12 @@
 
   const $ = sel => document.querySelector(sel);
 
+  // Some Chrome/Android devices deliver BGRA bytes when copying external images.
+  // Sampling that as RGBA gives the "blue people" look. Use BGRA texture there.
+  const _ua = navigator.userAgent || '';
+  const IS_CHROME_ANDROID = /Android/i.test(_ua) && /Chrome\/\d+/.test(_ua);
+  const FRAME_TEX_FORMAT = IS_CHROME_ANDROID ? 'bgra8unorm' : 'rgba8unorm';
+
   // Chrome Android occasionally swaps U/V during NV12→RGBA copies.
   // Drawing to a 2D canvas first forces a correct conversion.
   function needsRGBWorkaround(){
@@ -365,7 +371,7 @@
       pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format:'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
       api.resizeTextures = () => {
         frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
-                                           format:'rgba8unorm', usage:texUsage1 });
+                                           format: FRAME_TEX_FORMAT, usage:texUsage1 });
         maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
                                            format:'rgba8unorm', usage:maskUsage });
         bgR  = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0),
