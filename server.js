@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 import bonjour from 'bonjour';
 
 const PORT       = 8000;            // HTTP + WS same port
-const PUBLIC_DIR = '.';        // put client.html here
+const PUBLIC_DIR = 'public';        // put client.html here
 const MIME = {                       // very small mime table
   '.html':'text/html',
   '.js'  :'application/javascript',
@@ -18,19 +18,13 @@ const MIME = {                       // very small mime table
 
 // ---------- tiny static-file web server ----------
 const server = createServer(async (req, res) => {
-  const cleanPath = req.url === '/'
-    ? 'index.html'
-    : req.url.replace(/^\/+/, '');
+  let file = req.url === '/' ? '/index.html' : req.url;
   try {
-    const fullPath = join(PUBLIC_DIR, cleanPath);
-    const data     = await readFile(fullPath);
-    res.writeHead(200, {
-      'Content-Type': MIME[extname(fullPath)] || 'application/octet-stream'
-    });
+    const data = await readFile(join(PUBLIC_DIR, file));
+    res.writeHead(200, {'Content-Type': MIME[extname(file)] || 'application/octet-stream'});
     res.end(data);
   } catch {
-    res.writeHead(404);
-    res.end('Not found');
+    res.writeHead(404); res.end('Not found');
   }
 });
 server.listen(PORT, () => console.log(`HTTP & WS on http://p2p.local:${PORT}`));
