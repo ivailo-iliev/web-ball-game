@@ -101,7 +101,7 @@
     function drawROI(poly, color){
       ensure2d();
       if (!ctxTop2d) return;
-      ctxTop2d.clearRect(0,0,cfg.TOP_W,cfg.TOP_H);
+      ctxTop2d.clearRect(0, 0, ctxTop2d.canvas.width, ctxTop2d.canvas.height);
       if (!poly || poly.length !== 4) return;
       ctxTop2d.strokeStyle = color;
       ctxTop2d.lineWidth = 2;
@@ -119,6 +119,8 @@
     const cfg = Config.get();
     function bind(){
       const topOv = $('#topOv');
+      topOv.width = cfg.TOP_W;
+      topOv.height = cfg.TOP_H;
       const topROI = { y: 0, h: cfg.topH };
       function commitTop(){
         topROI.y = Math.min(Math.max(0, topROI.y), cfg.TOP_H - topROI.h);
