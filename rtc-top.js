@@ -257,7 +257,7 @@
       videoTop = $('#topVid');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio:false,
-        video:{ width:{ exact: cfg.TOP_W }, height:{ exact: cfg.TOP_H }, facingMode:'environment', frameRate:{ideal:60,max:120} }
+        video:{ width:{ exact: cfg.TOP_W }, height:{ exact: cfg.TOP_H }, facingMode:'user', frameRate:{ideal:60,max:120} }
       });
       videoTop.srcObject = stream;
       await videoTop.play();
