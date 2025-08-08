@@ -9,22 +9,28 @@ const PORT       = 8000;            // HTTP + WS same port
 const PUBLIC_DIR = '.';        // put client.html here
 const MIME = {                       // very small mime table
   '.html':'text/html',
-  '.js'  :'text/javascript',
+  '.js'  :'application/javascript',
   '.css' :'text/css',
   '.json':'application/json',
   '.png' :'image/png',
-  '.jpg' :'image/jpeg'
+  '.wgsl' :'text/wgsl'
 };
 
 // ---------- tiny static-file web server ----------
 const server = createServer(async (req, res) => {
-  let file = req.url === '/' ? '/index.html' : req.url;
+  const cleanPath = req.url === '/'
+    ? 'index.html'
+    : req.url.replace(/^\/+/, '');
   try {
-    const data = await readFile(join(PUBLIC_DIR, file));
-    res.writeHead(200, {'Content-Type': MIME[extname(file)] || 'application/octet-stream'});
+    const fullPath = join(PUBLIC_DIR, cleanPath);
+    const data     = await readFile(fullPath);
+    res.writeHead(200, {
+      'Content-Type': MIME[extname(fullPath)] || 'application/octet-stream'
+    });
     res.end(data);
   } catch {
-    res.writeHead(404); res.end('Not found');
+    res.writeHead(404);
+    res.end('Not found');
   }
 });
 server.listen(PORT, () => console.log(`HTTP & WS on http://p2p.local:${PORT}`));

@@ -1,16 +1,25 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
+
 <head>
-  <meta name=viewport content="width=device-width,initial-scale=1">
-  <title>One-bit P2P demo</title>
+  <meta charset="UTF-8" />
+  <title>Emoji / Fish Game</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.png" sizes="any" type="image/png">
+  <meta name="viewport" content="width=device-width,
+               initial-scale=1,
+               maximum-scale=1,
+               user-scalable=no,
+               viewport-fit=cover">
 </head>
+
 <body>
-<h3 id=state>Connecting…</h3>
+<h3 id=state>Connecting...</h3>
 <div id="configScreen">
   <div class="cam" id="topCam">
     <video id="topVid" autoplay playsinline></video>
-    <canvas id="topOv" class="overlay" width="640" height="480"></canvas>
+    <canvas id="topOv" class="overlay"></canvas>
   </div>
 </div>
 <button id=b0 disabled>Send 0</button>
@@ -20,7 +29,7 @@
 const $ = sel => document.querySelector(sel);
 function handleLog(msg){ $('#state').textContent = msg; }
 function handleOpen(){
-  handleLog('Channel open – tap a button');
+  handleLog('Channel open - tap a button');
   $('#b0').disabled = $('#b1').disabled = false;
   $('#b0').onclick = () => sendBit('0');
   $('#b1').onclick = () => sendBit('1');
