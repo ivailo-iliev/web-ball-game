@@ -108,7 +108,8 @@
         const c = $('#topTex');
         if (c) {
           ctxTopGPU = c.getContext('webgpu');
-          ctxTopGPU.configure({ device, format: 'rgba8unorm' });
+          const fmt = cfg.texFormat || 'rgba8unorm';
+          ctxTopGPU.configure({ device, format: fmt });
         }
       }
     }
@@ -145,6 +146,8 @@
   /* ---- Setup: ROI gestures and config inputs ---- */
   const Setup = (() => {
     const cfg = Config.get();
+    let commitTop;
+    let topROI;
     const options = Object.entries(COLOR_EMOJI)
       .map(([c, e]) => `<option value="${c}">${e}</option>`).join('');
     const detectionUI = `
@@ -169,15 +172,14 @@
       topTex.height = cfg.TOP_H;
       const topCam = $('#topCam');
       if (topCam) topCam.insertBefore(topTex, topOv);
-
-      const topROI = { y: 0, h: cfg.topH };
-      function commitTop(){
+      topROI = { y: 0, h: cfg.topH };
+      commitTop = function(){
         topROI.y = Math.min(Math.max(0, topROI.y), cfg.TOP_H - topROI.h);
         const { y, h } = topROI;
         cfg.polyT = [[0, y], [cfg.TOP_W, y], [cfg.TOP_W, y + h], [0, y + h]];
         Config.save('polyT', cfg.polyT);
         PreviewGfx.drawROI(cfg.polyT, 'lime');
-      }
+      };
       if (cfg.polyT.length === 4){
         const ys = cfg.polyT.map(p=>p[1]);
         topROI.y = Math.min(...ys);
@@ -281,28 +283,102 @@
       topOv.addEventListener('pointercancel', () => dragY = null);
       commitTop();
     }
-    return { bind };
+
+    function resize(){
+      const topOv = $('#topOv');
+      topOv.width = cfg.TOP_W;
+      topOv.height = cfg.TOP_H;
+      const tex = $('#topTex');
+      if (tex) { tex.width = cfg.TOP_W; tex.height = cfg.TOP_H; }
+      const vid = $('#topVid');
+      if (vid && vid.parentElement) {
+        vid.parentElement.style.width = cfg.TOP_W + 'px';
+        vid.parentElement.style.height = cfg.TOP_H + 'px';
+      }
+      const topHInp = $('#topHInp');
+      if (topHInp) topHInp.max = cfg.TOP_H;
+      const topWInp = $('#topWInp');
+      if (topWInp) topWInp.value = cfg.TOP_W;
+      const topHResInp = $('#topHResInp');
+      if (topHResInp) topHResInp.value = cfg.TOP_H;
+      if (commitTop) commitTop();
+    }
+    return { bind, resize };
   })();
 
   /* ---- Feeds: top camera via getUserMedia ---- */
   const Feeds = (() => {
     const cfg = Config.get();
-    let videoTop;
+    let videoTop, offCanvas, offCtx, rotate = false, swapRB = false;
     async function init(){
       videoTop = $('#topVid');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio:false,
-        video:{ width:{ exact: cfg.TOP_W }, height:{ exact: cfg.TOP_H }, facingMode:'user', frameRate:{ideal:60,max:120} }
+        video:{ width:{ ideal: cfg.TOP_W }, height:{ ideal: cfg.TOP_H }, facingMode:'user', frameRate:{ideal:60,max:120} }
       });
       videoTop.srcObject = stream;
+      await new Promise(res => videoTop.onloadedmetadata = res);
       await videoTop.play();
+
+      let { width: sw, height: sh } = stream.getVideoTracks()[0].getSettings();
+      if (!sw || !sh) { sw = videoTop.videoWidth; sh = videoTop.videoHeight; }
+      rotate = sw > sh;
+      const w = rotate ? sh : sw;
+      const h = rotate ? sw : sh;
+      cfg.TOP_W = w;
+      cfg.TOP_H = h;
+      cfg.topH = Math.min(cfg.topH, cfg.TOP_H);
+      cfg.polyT = [[0,0],[cfg.TOP_W,0],[cfg.TOP_W,cfg.topH],[0,cfg.topH]];
+      Config.save('TOP_W', cfg.TOP_W);
+      Config.save('TOP_H', cfg.TOP_H);
+      Config.save('polyT', cfg.polyT);
+
+      offCanvas = document.createElement('canvas');
+      offCanvas.width = w;
+      offCanvas.height = h;
+      offCtx = offCanvas.getContext('2d');
+
+      // color validation
+      offCtx.fillStyle = '#ff0000';
+      offCtx.fillRect(0,0,1,1);
+      const d = offCtx.getImageData(0,0,1,1).data;
+      swapRB = d[0] === 0 && d[2] === 255;
+      offCtx.clearRect(0,0,1,1);
+
       const parent = videoTop.parentElement;
       if (parent) {
-        parent.style.width = cfg.TOP_W + 'px';
-        parent.style.height = cfg.TOP_H + 'px';
+        parent.style.width = w + 'px';
+        parent.style.height = h + 'px';
+      }
+      if (rotate) {
+        videoTop.style.transform = 'rotate(90deg)';
+        const ov = $('#topOv');
+        if (ov) ov.style.transform = 'rotate(90deg)';
+        const tex = $('#topTex');
+        if (tex) tex.style.transform = 'rotate(90deg)';
       }
     }
-    return { init, top: ()=>videoTop };
+    function frame(){
+      if (!offCtx) return videoTop;
+      offCtx.clearRect(0,0,cfg.TOP_W,cfg.TOP_H);
+      if (rotate){
+        offCtx.save();
+        offCtx.translate(cfg.TOP_W,0);
+        offCtx.rotate(Math.PI/2);
+        offCtx.drawImage(videoTop,0,0);
+        offCtx.restore();
+      } else {
+        offCtx.drawImage(videoTop,0,0,cfg.TOP_W,cfg.TOP_H);
+      }
+      if (swapRB){
+        const img = offCtx.getImageData(0,0,cfg.TOP_W,cfg.TOP_H);
+        const data = img.data;
+        for (let i=0;i<data.length;i+=4){ const r=data[i]; data[i]=data[i+2]; data[i+2]=r; }
+        offCtx.putImageData(img,0,0);
+      }
+      return offCanvas;
+    }
+    return { init, top: ()=>videoTop, frame };
   })();
 
   /* ---- Detect: WebGPU shader ---- */
@@ -335,7 +411,9 @@
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:texUsage1 });
+      const fmt = navigator.gpu.getPreferredCanvasFormat();
+      cfg.texFormat = fmt;
+      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:fmt, usage:texUsage1 });
       maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:maskUsage });
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -346,15 +424,16 @@
       const code = await fetch('shader.wgsl').then(r=>r.text());
       const mod = device.createShaderModule({code});
       pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
-      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format:'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
+      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format:fmt}]}, primitive:{topology:'triangle-list'} });
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
     }
     async function runTopDetection(){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
+      const src = Feeds.frame();
       device.queue.copyExternalImageToTexture(
-        {source: Feeds.top()},
+        {source: src},
         {texture: frameTex1},
         [cfg.TOP_W,cfg.TOP_H]
       );
@@ -401,6 +480,7 @@
     async function start(){
       Setup.bind();
       await Feeds.init();
+      Setup.resize();
       await Detect.init();
       Feeds.top().requestVideoFrameCallback(topLoop);
     }
