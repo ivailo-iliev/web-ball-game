@@ -257,15 +257,30 @@
       videoTop = $('#topVid');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio:false,
-        video:{ width:{ exact: cfg.TOP_W }, height:{ exact: cfg.TOP_H }, facingMode:'user', frameRate:{ideal:60,max:120} }
+        video:{ width:{ ideal: cfg.TOP_W }, height:{ ideal: cfg.TOP_H },
+                facingMode:'user', frameRate:{ideal:60,max:120} }
       });
       videoTop.srcObject = stream;
       await videoTop.play();
+      /* ---- after play(): update cfg + UI with the real resolution ---- */
+      cfg.TOP_W = videoTop.videoWidth;
+      cfg.TOP_H = videoTop.videoHeight;
+      Config.save('TOP_W', cfg.TOP_W);
+      Config.save('TOP_H', cfg.TOP_H);
+
       const parent = videoTop.parentElement;
-      if (parent) {
-        parent.style.width = cfg.TOP_W + 'px';
+      if (parent){
+        parent.style.width  = cfg.TOP_W + 'px';
         parent.style.height = cfg.TOP_H + 'px';
       }
+      const topOv = $('#topOv');
+      if (topOv){
+        topOv.width  = cfg.TOP_W;
+        topOv.height = cfg.TOP_H;
+      }
+
+      /* Re-create WebGPU textures that depend on size */
+      Detect.resizeTextures();
     }
     return { init, top: ()=>videoTop };
   })();
@@ -300,8 +315,32 @@
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:texUsage1 });
-      maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:maskUsage });
+      createTextures();
+
+    /* new helper – centralises (re)creation of size-dependent textures */
+    function createTextures(){
+      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
+                                         format:'rgba8unorm', usage:texUsage1 });
+      maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H],
+                                         format:'rgba8unorm', usage:maskUsage });
+      bgR  = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0),
+        entries:[
+          {binding:0, resource: frameTex1.createView()},
+          {binding:4, resource: maskTex1.createView()},
+          {binding:5, resource: sampler}
+      ]});
+      bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0),
+        entries:[
+          {binding:0, resource: frameTex1.createView()},
+          {binding:1, resource: maskTex1.createView()},
+          {binding:2, resource:{buffer:statsA}},
+          {binding:3, resource:{buffer:statsB}},
+          {binding:6, resource:{buffer:uni}}
+      ]});
+    }
+
+    /* exposed so Feeds.init() can call it after resizing */
+    function resizeTextures(){ createTextures(); }
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       statsA= device.createBuffer({ size:12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
@@ -318,11 +357,28 @@
     async function runTopDetection(preview){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
-      device.queue.copyExternalImageToTexture(
-        {source: Feeds.top()},
-        {texture: frameTex1},
-        [cfg.TOP_W,cfg.TOP_H]
-      );
+      /* Chrome Android + portrait occasionally swaps U/V when copying
+         NV12 → RGBA.  Drawing to a 2-D canvas first forces a correct
+         YUV→RGB conversion and fixes the blue-tint bug.             */
+      if (cfg.TOP_H > cfg.TOP_W && 'OffscreenCanvas' in self){
+        if (!Detect._off){
+          Detect._off = new OffscreenCanvas(cfg.TOP_W, cfg.TOP_H);
+          Detect._ctx = Detect._off.getContext('2d');
+       }
+        Detect._ctx.drawImage(Feeds.top(), 0, 0,
+                              cfg.TOP_W, cfg.TOP_H);
+        device.queue.copyExternalImageToTexture(
+          {source: Detect._off},
+          {texture: frameTex1},
+          [cfg.TOP_W,cfg.TOP_H]
+        );
+      } else {
+        device.queue.copyExternalImageToTexture(
+          {source: Feeds.top()},
+          {texture: frameTex1},
+          [cfg.TOP_W,cfg.TOP_H]
+        );
+      }
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
       const flagsTop = FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
@@ -343,7 +399,7 @@
       const topDetected = cntA > cfg.TOP_MIN_AREA || cntB > cfg.TOP_MIN_AREA;
       return { detected: topDetected, cntA, cntB };
     }
-    return { init, runTopDetection };
+    return { init, runTopDetection, resizeTextures };
   })();
 
   /* ---- Controller: run detection loop and send bit ---- */
