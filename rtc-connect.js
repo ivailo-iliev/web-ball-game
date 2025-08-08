@@ -1,5 +1,11 @@
-// ---- 1. connect to signalling server on same host ----
-const ws = new WebSocket('ws://p2p.local:8000');
+// ---- 1. connect to signalling server ----
+// default to p2p.local, but use localhost when top.html is served locally
+let wsHost = 'p2p.local:8000';
+if (window.location.hostname === 'localhost' &&
+    window.location.pathname.endsWith('top.html')) {
+  wsHost = window.location.host;
+}
+const ws = new WebSocket('ws://' + wsHost);
 ws.onopen = () => window.handleLog && handleLog('Waiting for peer…');
 ws.onmessage = async e => {
   // if we accidentally got a binary frame, it'll arrive as a Blob
