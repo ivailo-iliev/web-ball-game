@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Narrow-width camera test (h = 640 & 800)</title>
+<style>
+ body {font-family: system-ui, sans-serif; padding: 1rem; line-height: 1.4;}
+ h1  {font-size: 1.25rem;}
+ video{max-width: 100%; background: #000; margin-top: .5rem;}
+ code {background: #eee; padding: 0 .2em;}
+ .result{margin: .4rem 0 .8rem; font-weight: 600;}
+ .err{color: #c00;}
+</style>
+</head>
+<body>
+
+<h1>Narrow-width camera test (height = 640 / 800)</h1>
+
+<div id="log">Running…</div>
+<video id="preview" autoplay playsinline muted></video>
+
+<script>
+(async () => {
+
+  const heights = [640, 800, 1280];                    // heights to test (px, portrait)
+  const widthCandidates = [160, 180, 200, 240,   // increasingly wider candidates
+                           270, 300, 320, 360,
+                           400, 480, 600, 640, 800, 1024, 1280];
+
+  const log = msg => (document.getElementById('log').insertAdjacentHTML('beforeend', msg));
+
+  const testHeight = async (h) => {
+    log(`<p>▶ Testing height <code>${h}</code> px…</p>`);
+    for (const w of widthCandidates) {
+      log(`Trying <code>${w} × ${h}</code>… `);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { exact: w }, height: { exact: h } }
+        });
+        stream.getTracks().forEach(t => t.stop());            // close straight away
+        log(`<span class="result">success!</span> (camera accepted ${w} × ${h})</p>`);
+        return w;                                             // narrowest width found
+      } catch (e) {
+        log(`failed<br>`);
+      }
+    }
+    log(`<span class="err">❌ No matching width found for height ${h}</span></p>`);
+    return null;
+  };
+
+  // Run the probes
+  for (const h of heights) {
+    await testHeight(h);
+  }
+
+  // Finally open a preview at whichever height you prefer (here: 640) so users see what the camera picked
+  try {
+    const previewStream = await navigator.mediaDevices.getUserMedia({
+      video: { height: { exact: 640 }, width: { ideal: 1 } }  // ask browser to pick its own minimum width
+    });
+    const videoEl = document.getElementById('preview');
+    videoEl.srcObject = previewStream;
+    await videoEl.play();
+    const settings = previewStream.getVideoTracks()[0].getSettings();
+    log(`<p>Live preview at <code>${settings.width} × ${settings.height}</code> (browser-chosen)</p>`);
+  } catch (err) {
+    log(`<p class="err">Couldn’t start preview: ${err.message}</p>`);
+  }
+
+})();
+</script>
+</body>
+</html>
