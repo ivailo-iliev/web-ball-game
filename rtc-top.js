@@ -255,18 +255,18 @@
     let videoTop;
     async function init(){
       videoTop = $('#topVid');
+      const longer  = Math.max(cfg.TOP_W, cfg.TOP_H);
+      const shorter = Math.min(cfg.TOP_W, cfg.TOP_H);
       const stream = await navigator.mediaDevices.getUserMedia({
         audio:false,
-        // Request landscape video, keeping canvas values portrait.
-        video:{ width:{ ideal: cfg.TOP_H }, height:{ ideal: cfg.TOP_W },
+        video:{ width:{ ideal: longer }, height:{ ideal: shorter },
                 facingMode:'user', frameRate:{ideal:60,max:120} }
       });
       videoTop.srcObject = stream;
       await videoTop.play();
       /* ---- after play(): update cfg + UI with the real resolution ---- */
-      // Swap the reported dimensions so cfg stays portrait (width < height)
-      cfg.TOP_W = videoTop.videoHeight;
-      cfg.TOP_H = videoTop.videoWidth;
+      cfg.TOP_W = videoTop.videoWidth;
+      cfg.TOP_H = videoTop.videoHeight;
       Config.save('TOP_W', cfg.TOP_W);
       Config.save('TOP_H', cfg.TOP_H);
 
