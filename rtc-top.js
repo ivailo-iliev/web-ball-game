@@ -50,8 +50,8 @@
   /* ---- Config copied from app.js (trimmed to top camera only) ---- */
   const Config = (() => {
     const DEFAULTS = {
-      TOP_W: 160,
-      TOP_H: 800,
+      TOP_W: 480,
+      TOP_H: 640,
       TOP_MIN_AREA: 600,
       teamA: 'green',
       teamB: 'blue',

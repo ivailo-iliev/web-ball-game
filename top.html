@@ -15,27 +15,30 @@
 </head>
 
 <body>
-<h3 id=state>Connecting...</h3>
-<div id="configScreen">
-  <div class="cam" id="topCam">
-    <video id="topVid" autoplay playsinline></video>
-    <canvas id="topOv" class="overlay"></canvas>
+  <div id="configScreen onlyTop">
+    <div id="cfg">
+      <pre id=state>Connecting...</pre><button id=b0 disabled>Send 0</button>
+      <button id=b1 disabled>Send 1</button>
+    </div>
+    <div class="cam" id="topCam">
+      <video id="topVid" autoplay playsinline></video>
+      <canvas id="topOv" class="overlay"></canvas>
+    </div>
   </div>
-</div>
-<button id=b0 disabled>Send 0</button>
-<button id=b1 disabled>Send 1</button>
 
-<script>
-const $ = sel => document.querySelector(sel);
-function handleLog(msg){ $('#state').textContent = msg; }
-function handleOpen(){
-  handleLog('Channel open - tap a button');
-  $('#b0').disabled = $('#b1').disabled = false;
-  $('#b0').onclick = () => sendBit('0');
-  $('#b1').onclick = () => sendBit('1');
-}
-</script>
-<script src="rtc-connect.js"></script>
-<script src="rtc-top.js"></script>
+
+  <script>
+    const $ = sel => document.querySelector(sel);
+    function handleLog(msg) { $('#state').textContent = msg; }
+    function handleOpen() {
+      handleLog('Channel open - tap a button');
+      $('#b0').disabled = $('#b1').disabled = false;
+      $('#b0').onclick = () => sendBit('0');
+      $('#b1').onclick = () => sendBit('1');
+    }
+  </script>
+  <script src="rtc-connect.js"></script>
+  <script src="rtc-top.js"></script>
 </body>
+
 </html>

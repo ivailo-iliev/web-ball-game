@@ -41,14 +41,14 @@ async function start(role) {
   if (role === 'offerer') {
     dc = pc.createDataChannel('bit', { ordered: false, maxRetransmits: 0 });
     dc.onopen = notifyOpen;
-    dc.onmessage = m => alert('Received: ' + m.data);
+    dc.onmessage = m => console.log('Received: ' + m.data);
     await pc.setLocalDescription(await pc.createOffer());
     send({ type: 'offer', sdp: pc.localDescription });
   } else {
     pc.ondatachannel = e => {
       dc = e.channel;
       dc.onopen = notifyOpen;
-      dc.onmessage = m => alert('Received: ' + m.data);
+      dc.onmessage = m => console.log('Received: ' + m.data);
     };
   }
 }
