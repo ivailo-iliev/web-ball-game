@@ -51,22 +51,24 @@
   /* ---- Config copied from app.js (trimmed to top camera only) ---- */
   const Config = (() => {
     const DEFAULTS = {
-      TOP_W: 1280,
-      TOP_H: 720,
-      TOP_MIN_AREA: 600,
+      topResW: 1280,
+      topResH: 720,
+      topMinArea: 600,
       teamA: 'green',
       teamB: 'blue',
       polyT: [],
-      topH: 160
+      topRoiH: 160,
+      topRoiW: 1280
     };
     const PERSIST = {
-      teamA:  'teamA',
-      teamB:  'teamB',
-      polyT:  'roiPolyTop',
-      topH:   'topH',
-      TOP_MIN_AREA: 'topMinArea',
-      TOP_W: 'topWidth',
-      TOP_H: 'topHeight'
+      teamA:    'teamA',
+      teamB:    'teamB',
+      polyT:    'roiPolyTop',
+      topRoiH:  'topRoiH',
+      topRoiW:  'topRoiW',
+      topMinArea: 'topMinArea',
+      topResW:  'topWidth',
+      topResH:  'topHeight'
     };
     let cfg;
     function load(){
@@ -123,10 +125,10 @@
     const options = Object.entries(COLOR_EMOJI)
       .map(([c, e]) => `<option value="${c}">${e}</option>`).join('');
     const detectionUI = `
-      <label for=topWInp>W <input id=topWInp type=number min=1 step=1 style="width:5ch"></label>
-      <label for=topHResInp>H <input id=topHResInp type=number min=1 step=1 style="width:5ch"></label>
+      <label for=topResWInp>W <input id=topResWInp type=number min=1 step=1 style="width:5ch"></label>
+      <label for=topResHInp>H <input id=topResHInp type=number min=1 step=1 style="width:5ch"></label>
+      <label for=topRoiWInp>↔️ <input id=topRoiWInp type=number min=10 max=${cfg.topResW} step=1></label>
       <label for=topMinInp>⚫ <input id=topMinInp type=number min=0 step=25 style="width:6ch"></label>
-      <label for=topHInp>↕️ <input id=topHInp type=number min=10 max=${cfg.TOP_H} step=1></label>
       <label for=teamA>🅰️ <select id=teamA>${options}</select></label>
       <label for=teamB>🅱️ <select id=teamB>${options}</select></label>
       <label>HSV <span id=teamAThresh></span></label>`;
@@ -136,57 +138,55 @@
       cfgEl.insertAdjacentHTML('beforeend', detectionUI);
 
       const topOv = $('#topOv');
-      topOv.width = cfg.TOP_W;
-      topOv.height = cfg.TOP_H;
+      topOv.width = cfg.topResW;
+      topOv.height = cfg.topResH;
 
-      const topROI = { y: 0, h: cfg.topH };
+      const topROI = { x: 0, w: cfg.topRoiW };
       function commitTop(){
-        topROI.y = Math.min(Math.max(0, topROI.y), cfg.TOP_H - topROI.h);
-        const { y, h } = topROI;
-        cfg.polyT = [[0, y], [cfg.TOP_W, y], [cfg.TOP_W, y + h], [0, y + h]];
+        topROI.x = Math.min(Math.max(0, topROI.x), cfg.topResW - topROI.w);
+        const { x, w } = topROI;
+        cfg.polyT = [[x, 0], [x + w, 0], [x + w, cfg.topRoiH], [x, cfg.topRoiH]];
         Config.save('polyT', cfg.polyT);
         PreviewGfx.drawROI(cfg.polyT, 'lime');
       }
       if (cfg.polyT.length === 4){
-        const ys = cfg.polyT.map(p=>p[1]);
-        topROI.y = Math.min(...ys);
-        topROI.h = Math.max(...ys) - topROI.y;
+        const xs = cfg.polyT.map(p=>p[0]);
+        topROI.x = Math.min(...xs);
+        topROI.w = Math.max(...xs) - topROI.x;
       }
 
       const topMinInp = $('#topMinInp');
-      const topHInp = $('#topHInp');
-      const topWInp = $('#topWInp');
-      const topHResInp = $('#topHResInp');
+      const topResWInp = $('#topResWInp');
+      const topResHInp = $('#topResHInp');
+      const topRoiWInp = $('#topRoiWInp');
       const selA = $('#teamA');
       const selB = $('#teamB');
       const thCont = $('#teamAThresh');
 
-      topMinInp.value = cfg.TOP_MIN_AREA;
-      topHInp.value = topROI.h;
-      topWInp.value = cfg.TOP_W;
-      topHResInp.value = cfg.TOP_H;
+      topMinInp.value = cfg.topMinArea;
+      topResWInp.value = cfg.topResW;
+      topResHInp.value = cfg.topResH;
+      topRoiWInp.value = topROI.w;
       selA.value = cfg.teamA;
       selB.value = cfg.teamB;
 
       topMinInp.addEventListener('input', e => {
-        cfg.TOP_MIN_AREA = Math.max(0, +e.target.value);
-        Config.save('TOP_MIN_AREA', cfg.TOP_MIN_AREA);
+        cfg.topMinArea = Math.max(0, +e.target.value);
+        Config.save('topMinArea', cfg.topMinArea);
       });
-      topHInp.addEventListener('input', e => {
-        topROI.h = Math.max(10, Math.min(cfg.TOP_H, +e.target.value));
-        Config.save('topH', topROI.h);
+      topResWInp.addEventListener('input', e => {
+        cfg.topResW = Math.max(1, +e.target.value);
+        Config.save('topResW', cfg.topResW);
+        topRoiWInp.max = cfg.topResW;
+      });
+      topResHInp.addEventListener('input', e => {
+        cfg.topResH = Math.max(1, +e.target.value);
+        Config.save('topResH', cfg.topResH);
+      });
+      topRoiWInp.addEventListener('input', e => {
+        topROI.w = Math.max(10, Math.min(cfg.topResW, +e.target.value));
+        Config.save('topRoiW', topROI.w);
         commitTop();
-      });
-      // Width/height inputs: save only. Apply after reload for consistency.
-      topWInp.addEventListener('input', e => {
-        cfg.TOP_W = Math.max(1, +e.target.value);
-        Config.save('TOP_W', cfg.TOP_W);
-        // No live resize; refresh to apply.
-      });
-      topHResInp.addEventListener('input', e => {
-        cfg.TOP_H = Math.max(1, +e.target.value);
-        Config.save('TOP_H', cfg.TOP_H);
-        // No live resize; refresh to apply.
       });
       selA.addEventListener('change', e => {
         cfg.teamA = e.target.value;
@@ -222,22 +222,22 @@
       updateThreshInputs();
 
       topOv.style.touchAction = 'none';
-      let dragY = null;
+      let dragX = null;
       topOv.addEventListener('pointerdown', e => {
         const r = topOv.getBoundingClientRect();
-        dragY = (e.clientY - r.top) * cfg.TOP_H / r.height;
+        dragX = (e.clientX - r.left) * cfg.topResW / r.width;
         topOv.setPointerCapture(e.pointerId);
       });
       topOv.addEventListener('pointermove', e => {
-        if (dragY == null) return;
+        if (dragX == null) return;
         const r = topOv.getBoundingClientRect();
-        const curY = (e.clientY - r.top) * cfg.TOP_H / r.height;
-        topROI.y += curY - dragY;
-        dragY = curY;
+        const curX = (e.clientX - r.left) * cfg.topResW / r.width;
+        topROI.x += curX - dragX;
+        dragX = curX;
         commitTop();
       });
-      topOv.addEventListener('pointerup', () => dragY = null);
-      topOv.addEventListener('pointercancel', () => dragY = null);
+      topOv.addEventListener('pointerup', () => dragX = null);
+      topOv.addEventListener('pointercancel', () => dragX = null);
       commitTop();
     }
     return { bind };
@@ -250,8 +250,8 @@
     async function init(){
       videoTop = $('#topVid');
       // Request camera with LONGER side as width (simple ideal; no extras).
-      const longer  = Math.max(cfg.TOP_W, cfg.TOP_H);
-      const shorter = Math.min(cfg.TOP_W, cfg.TOP_H);
+      const longer  = Math.max(cfg.topResW, cfg.topResH);
+      const shorter = Math.min(cfg.topResW, cfg.topResH);
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: { width: { ideal: longer }, height: { ideal: shorter }, facingMode: 'user' }
@@ -259,8 +259,8 @@
       videoTop.srcObject = stream;
       await videoTop.play();
       // Size the video element via attributes to stored dimensions (CSS controls layout).
-      videoTop.width  = cfg.TOP_W;
-      videoTop.height = cfg.TOP_H;
+      videoTop.width  = cfg.topResW;
+      videoTop.height = cfg.topResH;
     }
     return { init, top: ()=>videoTop };
   })();
@@ -286,8 +286,8 @@
       device.queue.writeBuffer(buf,0,uniformArrayBuffer);
     }
     function rectTop(){
-      const ys = cfg.polyT.map(p=>p[1]);
-      return {min:[0, Math.min(...ys)], max:[cfg.TOP_W, Math.max(...ys)]};
+      const xs = cfg.polyT.map(p=>p[0]);
+      return {min:[Math.min(...xs), 0], max:[Math.max(...xs), cfg.topRoiH]};
     }
     async function init(){
       const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
@@ -295,8 +295,8 @@
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      frameTex1 = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:texUsage1 });
-      maskTex1  = device.createTexture({ size:[cfg.TOP_W,cfg.TOP_H], format:'rgba8unorm', usage:maskUsage });
+      frameTex1 = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:texUsage1 });
+      maskTex1  = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:maskUsage });
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       statsA= device.createBuffer({ size:12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
@@ -316,7 +316,7 @@
       device.queue.copyExternalImageToTexture(
         {source: Feeds.top()},
         {texture: frameTex1},
-        [cfg.TOP_W,cfg.TOP_H]
+        [cfg.topResW,cfg.topResH]
       );
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
@@ -325,7 +325,7 @@
       let cp = enc.beginComputePass();
       cp.setPipeline(pipeC);
       cp.setBindGroup(0,bgTop);
-      cp.dispatchWorkgroups(Math.ceil(cfg.TOP_W/8), Math.ceil(cfg.TOP_H/32));
+      cp.dispatchWorkgroups(Math.ceil(cfg.topResW/8), Math.ceil(cfg.topResH/32));
       cp.end();
       enc.copyBufferToBuffer(statsA,0,readA,0,12);
       enc.copyBufferToBuffer(statsB,0,readB,0,12);
@@ -335,7 +335,7 @@
       readA.unmap();
       const [cntB] = new Uint32Array(readB.getMappedRange());
       readB.unmap();
-      const topDetected = cntA > cfg.TOP_MIN_AREA || cntB > cfg.TOP_MIN_AREA;
+      const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
       return { detected: topDetected, cntA, cntB };
     }
     return { init, runTopDetection };
@@ -347,8 +347,8 @@
     async function topLoop(){
       const { detected, cntA, cntB } = await Detect.runTopDetection(false);
       if (detected) {
-        const a = cntA > cfg.TOP_MIN_AREA;
-        const b = cntB > cfg.TOP_MIN_AREA;
+        const a = cntA > cfg.topMinArea;
+        const b = cntB > cfg.topMinArea;
         let bit;
         if (a && b) bit = 2;
         else if (a) bit = 0;
