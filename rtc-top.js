@@ -57,14 +57,12 @@
       teamA: 'green',
       teamB: 'blue',
       polyT: [],
-      topRoiH: 160,
       topRoiW: 720
     };
     const PERSIST = {
       teamA:    'teamA',
       teamB:    'teamB',
       polyT:    'roiPolyTop',
-      topRoiH:  'topRoiH',
       topRoiW:  'topRoiW',
       topMinArea: 'topMinArea',
       topResW:  'topWidth',
@@ -148,7 +146,7 @@
       function commitTop(){
         topROI.x = Math.min(Math.max(0, topROI.x), cfg.topResW - topROI.w);
         const { x, w } = topROI;
-        cfg.polyT = [[x, 0], [x + w, 0], [x + w, cfg.topRoiH], [x, cfg.topRoiH]];
+        cfg.polyT = [[x, 0], [x + w, 0], [x + w, cfg.topResH], [x, cfg.topResH]];
         Config.save('polyT', cfg.polyT);
         PreviewGfx.drawROI(cfg.polyT, 'lime');
       }
@@ -291,7 +289,7 @@
     }
     function rectTop(){
       const xs = cfg.polyT.map(p=>p[0]);
-      return {min:[Math.min(...xs), 0], max:[Math.max(...xs), cfg.topRoiH]};
+      return {min:[Math.min(...xs), 0], max:[Math.max(...xs), cfg.topResH]};
     }
     async function init(){
       const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
