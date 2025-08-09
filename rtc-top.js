@@ -51,14 +51,14 @@
   /* ---- Config copied from app.js (trimmed to top camera only) ---- */
   const Config = (() => {
     const DEFAULTS = {
-      topResW: 1280,
-      topResH: 720,
+      topResW: 720,
+      topResH: 1280,
       topMinArea: 600,
       teamA: 'green',
       teamB: 'blue',
       polyT: [],
       topRoiH: 160,
-      topRoiW: 1280
+      topRoiW: 720
     };
     const PERSIST = {
       teamA:    'teamA',
@@ -140,6 +140,9 @@
       const topOv = $('#topOv');
       topOv.width = cfg.topResW;
       topOv.height = cfg.topResH;
+
+      const topCam = $('#topCam');
+      if (topCam) topCam.style.height = cfg.topResH + 'px';
 
       const topROI = { x: 0, w: cfg.topRoiW };
       function commitTop(){
