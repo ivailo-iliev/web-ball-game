@@ -51,8 +51,8 @@
   /* ---- Config copied from app.js (trimmed to top camera only) ---- */
   const Config = (() => {
     const DEFAULTS = {
-      TOP_W: 480,
-      TOP_H: 640,
+      TOP_W: 1280,
+      TOP_H: 720,
       TOP_MIN_AREA: 600,
       teamA: 'green',
       teamB: 'blue',
@@ -177,22 +177,16 @@
         Config.save('topH', topROI.h);
         commitTop();
       });
+      // Width/height inputs: save only. Apply after reload for consistency.
       topWInp.addEventListener('input', e => {
         cfg.TOP_W = Math.max(1, +e.target.value);
         Config.save('TOP_W', cfg.TOP_W);
-        topOv.width = cfg.TOP_W;
-        const vid = $('#topVid');
-        if (vid && vid.parentElement) vid.parentElement.style.width = cfg.TOP_W + 'px';
-        commitTop();
+        // No live resize; refresh to apply.
       });
       topHResInp.addEventListener('input', e => {
         cfg.TOP_H = Math.max(1, +e.target.value);
         Config.save('TOP_H', cfg.TOP_H);
-        topOv.height = cfg.TOP_H;
-        topHInp.max = cfg.TOP_H;
-        const vid = $('#topVid');
-        if (vid && vid.parentElement) vid.parentElement.style.height = cfg.TOP_H + 'px';
-        commitTop();
+        // No live resize; refresh to apply.
       });
       selA.addEventListener('change', e => {
         cfg.teamA = e.target.value;
@@ -255,17 +249,18 @@
     let videoTop;
     async function init(){
       videoTop = $('#topVid');
+      // Request camera with LONGER side as width (simple ideal; no extras).
+      const longer  = Math.max(cfg.TOP_W, cfg.TOP_H);
+      const shorter = Math.min(cfg.TOP_W, cfg.TOP_H);
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio:false,
-        video:{ width:{ exact: cfg.TOP_W }, height:{ exact: cfg.TOP_H }, facingMode:'user', frameRate:{ideal:60,max:120} }
+        audio: false,
+        video: { width: { ideal: longer }, height: { ideal: shorter }, facingMode: 'user' }
       });
       videoTop.srcObject = stream;
       await videoTop.play();
-      const parent = videoTop.parentElement;
-      if (parent) {
-        parent.style.width = cfg.TOP_W + 'px';
-        parent.style.height = cfg.TOP_H + 'px';
-      }
+      // Size the video element via attributes to stored dimensions (CSS controls layout).
+      videoTop.width  = cfg.TOP_W;
+      videoTop.height = cfg.TOP_H;
     }
     return { init, top: ()=>videoTop };
   })();
