@@ -11,15 +11,15 @@ export default async (req: Request, _context: Context) => {
   const base = 'room/default'
   const peer = role === 'a' ? 'b' : 'a'
 
-  const offer  = await store.getJSON(`${base}/offer.json`)
-  const answer = await store.getJSON(`${base}/answer.json`)
+  const offer  = await store.get(`${base}/offer.json`,  { type: 'json' })
+  const answer = await store.get(`${base}/answer.json`, { type: 'json' })
 
   const list = await store.list({ prefix: `${base}/candidates-${peer}/` })
   const candidates: any[] = []
   for (const { key } of list.blobs) {
-    const c = await store.getJSON(key)
+    const c = await store.get(key, { type: 'json' })
     if (c) candidates.push(c)
-    await store.delete(key)
+    await store.delete(key) // pop after read
   }
 
   return new Response(JSON.stringify({ offer, answer, candidates }), {
