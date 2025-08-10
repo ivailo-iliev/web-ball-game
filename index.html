@@ -31,53 +31,22 @@
     </div>
   </div>
     <script src="screen.js"></script>
+    <script src="webrtc-ab.js"></script>
     <script>
-const F = '/.netlify/functions';
 let dc;
 const stateEl = document.getElementById('state');
-function handleLog(msg){ stateEl.textContent = msg; }
-async function write(kind, role, data){
-  const rW = await fetch(`${F}/signal-write?_=${Date.now()}`, {
-    method:'POST', headers:{'content-type':'application/json'},
-    body: JSON.stringify({ kind, role, data })
-  });
-  if(!rW.ok) handleLog('write failed '+rW.status);
-}
-async function poll(role){
-  const r = await fetch(`${F}/signal-read?role=${role}&_=${Date.now()}`, { cache:'no-store' });
-  if(!r.ok){ handleLog('read failed '+r.status); return { offer:null, answer:null, candidates:[] }; }
-  return r.json();
-}
-async function startB(){
-  const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
-  pc.oniceconnectionstatechange = ()=> handleLog('ice: '+pc.iceConnectionState);
-  pc.onicecandidate = e=>{ if(e.candidate) write('candidate','b', e.candidate); };
-  pc.ondatachannel = e=>{
+function log(msg){ stateEl.textContent = msg; }
+StartB().then(ctrl => {
+  const pc = ctrl.pc;
+  if(!pc){ log('no offer found — open A first'); return; }
+  pc.ondatachannel = e => {
     dc = e.channel;
-    dc.onopen = ()=>{ handleLog('connected'); window.handleOpen && handleOpen(); };
-    dc.onmessage = m=> console.log('msg:', m.data);
+    log('connected');
+    dc.onmessage = ev => console.log('msg:', ev.data);
+    if(window.handleOpen) handleOpen();
   };
-  const t = setInterval(async ()=>{
-    const { offer, candidates } = await poll('b');
-    if(offer && !pc.currentRemoteDescription){
-      await pc.setRemoteDescription(offer);
-      handleLog('got offer');
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await write('answer','b', answer);
-      handleLog('sent answer');
-    }
-    for(const c of candidates||[]){
-      await pc.addIceCandidate(c);
-    }
-    if(pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'){
-      clearInterval(t);
-      handleLog('connected');
-    }
-  },800);
-}
-startB().catch(err=>handleLog('ERR: '+(err&&(err.stack||err))));
-function sendBit(bit){ if(dc&&dc.readyState==='open') dc.send(bit); }
+}).catch(err => log('ERR: '+(err && (err.stack || err))));
+function sendBit(bit){ if(dc && dc.readyState === 'open') dc.send(bit); }
 window.sendBit = sendBit;
     </script>
     <script src="app.js"></script>
