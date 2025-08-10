@@ -35,39 +35,43 @@ bonjour().publish({ name:'p2p-ws', type:'ws', host:'p2p.local', port:PORT });
 
 // ---------- minimal signalling bridge ----------
 const wss = new WebSocketServer({ server });   // share same port
-let waiting = null;
+let offerer  = null;
+let answerer = null;
 
 wss.on('connection', ws => {
+  console.log('WS: new connection');
+
   // ------- relay hooks (install immediately) -------
-  console.log('WS: new connection; waiting slot empty?', waiting === null);
   ws.on('message', (msg, isBinary) => {
     // always turn Buffers into strings before forwarding
     const data = isBinary ? msg.toString() : msg;
     console.log('WS ←', data);
-    if (ws.partner?.readyState === ws.OPEN) {
+    const target = ws === offerer ? answerer : offerer;
+    if (target?.readyState === ws.OPEN) {
       console.log('WS → partner:', data);
-      ws.partner.send(data);
+      target.send(data);
     }
   });
   ws.on('close', () => {
     console.log('WS: connection closed');
-    if (waiting === ws) waiting = null;
+    if (ws === offerer)  offerer  = null;
+    if (ws === answerer) answerer = null;
   });
 
-  if (!waiting) {            // first visitor: park and wait (will be the offerer)
-    waiting  = ws;
-    ws.role  = 'offerer';
+  if (!offerer) {            // first visitor: park and wait (will be the offerer)
+    offerer = ws;
     return;                  // don't send the role yet ⇒ no early offer to lose
   }
 
-  // second visitor: complete the pair
-  ws.role         = 'answerer';
-  ws.partner      = waiting;
-  waiting.partner = ws;
+  if (!answerer) {           // second visitor: complete the pair
+    answerer = ws;
 
-  // now both have partners — send the role messages
-  ws.send(      JSON.stringify({ type:'role', role:'answerer' }));
-  waiting.send( JSON.stringify({ type:'role', role:'offerer' }));
+    // now both have partners — send the role messages
+    offerer.send( JSON.stringify({ type:'role', role:'offerer' }));
+    answerer.send(JSON.stringify({ type:'role', role:'answerer' }));
+    return;
+  }
 
-  waiting = null;            // reset for the next pair
+  // more than two participants are not supported
+  ws.close();
 });
