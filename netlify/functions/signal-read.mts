@@ -1,12 +1,11 @@
 import { getStore } from '@netlify/blobs'
-import type { Handler } from '@netlify/functions'
+import type { Context } from '@netlify/functions'
 
-export const handler: Handler = async (event) => {
-  if (event.httpMethod !== 'GET') {
-    return { statusCode: 405, body: 'Method Not Allowed' }
-  }
-  const role = event.queryStringParameters?.role
-  if (!(role === 'a' || role === 'b')) return { statusCode: 400, body: 'Bad role' }
+export default async (req: Request, _context: Context) => {
+  if (req.method !== 'GET') return new Response('Method Not Allowed', { status: 405 })
+  const url = new URL(req.url)
+  const role = url.searchParams.get('role')
+  if (!(role === 'a' || role === 'b')) return new Response('Bad role', { status: 400 })
 
   const store = getStore({ name: 'webrtc', consistency: 'strong' })
   const base = 'room/default'
@@ -20,12 +19,10 @@ export const handler: Handler = async (event) => {
   for (const { key } of list.blobs) {
     const c = await store.getJSON(key)
     if (c) candidates.push(c)
-    await store.delete(key) // pop after read
+    await store.delete(key)
   }
 
-  return {
-    statusCode: 200,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-    body: JSON.stringify({ offer, answer, candidates }),
-  }
+  return new Response(JSON.stringify({ offer, answer, candidates }), {
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
+  })
 }
