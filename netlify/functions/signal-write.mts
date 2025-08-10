@@ -1,15 +1,14 @@
 import { getStore } from '@netlify/blobs'
-import type { Handler } from '@netlify/functions'
+import type { Context } from '@netlify/functions'
 
-export const handler: Handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' }
-  }
+export default async (req: Request, _context: Context) => {
+  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
   const store = getStore({ name: 'webrtc', consistency: 'strong' })
   const base = 'room/default'
+
   try {
-    const { kind, role, data } = JSON.parse(event.body || '{}')
-    if (!kind || !data) return { statusCode: 400, body: 'Bad Request' }
+    const { kind, role, data } = await req.json() as { kind: string; role?: 'a'|'b'; data: any }
+    if (!kind || !data) return new Response('Bad Request', { status: 400 })
 
     if (kind === 'offer' || kind === 'answer') {
       await store.setJSON(`${base}/${kind}.json`, data)
@@ -17,15 +16,13 @@ export const handler: Handler = async (event) => {
       const id = crypto.randomUUID()
       await store.setJSON(`${base}/candidates-${role}/${id}.json`, data)
     } else {
-      return { statusCode: 400, body: 'Unknown kind' }
+      return new Response('Unknown kind', { status: 400 })
     }
 
-    return {
-      statusCode: 200,
-      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-      body: JSON.stringify({ ok: true }),
-    }
-  } catch (e) {
-    return { statusCode: 500, body: 'Error' }
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
+    })
+  } catch {
+    return new Response('Error', { status: 500 })
   }
 }
