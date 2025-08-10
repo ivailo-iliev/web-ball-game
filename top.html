@@ -37,7 +37,64 @@
       $('#b1').onclick = () => sendBit('1');
     }
   </script>
-  <script src="rtc-connect.js"></script>
+  <script>
+const F = '/.netlify/functions';
+let dc;
+async function reset(){
+  const r0 = await fetch(`${F}/signal-reset?_=${Date.now()}`, { method:'POST', cache:'no-store' });
+  if(!r0.ok){ handleLog('reset failed '+r0.status); throw new Error('reset failed'); }
+  handleLog('room: reset done');
+}
+async function write(kind, role, data){
+  const rW = await fetch(`${F}/signal-write?_=${Date.now()}`, {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({ kind, role, data })
+  });
+  if(!rW.ok) handleLog('write failed '+rW.status);
+}
+async function poll(role){
+  const r = await fetch(`${F}/signal-read?role=${role}&_=${Date.now()}`, { cache:'no-store' });
+  if(!r.ok){ handleLog('read failed '+r.status); return { offer:null, answer:null, candidates:[] }; }
+  return r.json();
+}
+async function startA(){
+  const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] });
+  const channel = pc.createDataChannel('chat');
+  dc = channel;
+  channel.onopen = ()=>{ handleLog('dc: open'); channel.send('hello from A'); window.handleOpen && handleOpen(); };
+  channel.onmessage = e=> console.log('msg:', e.data);
+  pc.oniceconnectionstatechange = ()=> handleLog('ice: '+pc.iceConnectionState);
+  pc.onicecandidate = e=>{ if(e.candidate) write('candidate','a', e.candidate); };
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await write('offer','a', offer);
+  handleLog('sent offer');
+  const t = setInterval(async ()=>{
+    const { answer, candidates } = await poll('a');
+    if(answer && !pc.currentRemoteDescription){
+      await pc.setRemoteDescription(answer);
+      handleLog('got answer');
+    }
+    for(const c of candidates||[]){
+      await pc.addIceCandidate(c);
+    }
+    if(pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'){
+      clearInterval(t);
+      handleLog('connected');
+    }
+  },800);
+}
+(async function main(){
+  try {
+    await reset();
+    await startA();
+  } catch(err){
+    handleLog('ERR: '+(err&&(err.stack||err)));
+  }
+})();
+function sendBit(bit){ if(dc&&dc.readyState==='open') dc.send(bit); }
+window.sendBit = sendBit;
+  </script>
   <script src="rtc-top.js"></script>
 </body>
 
