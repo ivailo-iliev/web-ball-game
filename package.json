@@ -1,18 +1,13 @@
 {
-  "name": "web-ball-game",
-  "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
-  "scripts": {
-    "test": "echo \"No tests\"",
-    "start": "node server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "webrtc-netlify-simple",
+  "version": "1.0.3",
+  "private": true,
   "type": "module",
   "dependencies": {
-    "bonjour": "^3.5.0",
-    "ws": "^8.18.0"
+    "@netlify/blobs": "^6.0.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.0.0",
+    "typescript": "^5.0.0"
   }
 }

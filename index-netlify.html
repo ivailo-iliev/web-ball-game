@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peer B (index.html)</title>
+  <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px} pre{background:#f6f6f6;padding:10px;overflow:auto}</style>
+</head>
+<body>
+  <h1>Peer B</h1>
+  <p>This page joins the single hardcoded room as <strong>B</strong>. Make sure <code>top.html</code> (A) is loaded first.</p>
+  <pre id="log"></pre>
+  <div style="margin-top:10px">
+    <button id="send1" disabled>Send "1"</button>
+  </div>
+  <div style="margin-top:10px">
+    <label>Inbox (received):</label><br/>
+    <textarea id="inbox" rows="8" cols="40" readonly></textarea>
+  </div>
+<script>
+const F = '/.netlify/functions'
+let chan = null
+const inbox = () => document.querySelector('#inbox')
+const sendBtn = () => document.querySelector('#send1')
+function pushMsg(t){ const ta=inbox(); ta.value += (ta.value?'\n':'') + t; ta.scrollTop = ta.scrollHeight }
+function log(...a){ const el=document.querySelector('#log'); el.textContent += a.join(' ')+'\n'; el.scrollTop = el.scrollHeight; }
+
+async function write(kind, role, data){
+  const rW = await fetch(`${F}/signal-write?_=${Date.now()}`, {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({ kind, role, data })
+  });
+  if(!rW.ok){ log('write failed', rW.status); }
+}
+async function poll(role){
+  const r = await fetch(`${F}/signal-read?role=${role}&_=${Date.now()}`, { cache:'no-store' })
+  if(!r.ok){ log('read failed', r.status); return { offer:null, answer:null, candidates:[] } }
+  return r.json()
+}
+
+async function startB(){
+  const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] })
+  pc.oniceconnectionstatechange = ()=> log('ice:', pc.iceConnectionState)
+  pc.onicecandidate = (e)=> { if (e.candidate) write('candidate','b', e.candidate) }
+  pc.ondatachannel = (e)=> {
+    const dc = e.channel
+    chan = dc
+    dc.onopen = ()=> { log('dc: open'); sendBtn().disabled = false }
+    dc.onmessage = (m)=> { log('msg:', m.data); pushMsg(String(m.data)) }
+  }
+
+  document.addEventListener('click', (ev)=>{
+    if(ev.target && ev.target.id === 'send1' && chan && chan.readyState==='open') {
+      chan.send('1'); log('sent: 1')
+    }
+  })
+
+  const t = setInterval(async ()=>{
+    const { offer, candidates } = await poll('b')
+    if (offer && !pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(offer)
+      log('got: offer')
+      const answer = await pc.createAnswer()
+      await pc.setLocalDescription(answer)
+      await write('answer','b', answer)
+      log('sent: answer')
+    }
+    for (const c of candidates||[]) {
+      await pc.addIceCandidate(c)
+      log('got: candidate from A')
+    }
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      clearInterval(t)
+      log('connected ✔︎')
+    }
+  }, 800)
+}
+
+startB().catch(err=>log('ERR:', err && (err.stack || err)))
+</script>
+</body>
+</html>

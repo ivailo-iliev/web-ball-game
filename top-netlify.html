@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peer A (top.html)</title>
+  <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;margin:20px} pre{background:#f6f6f6;padding:10px;overflow:auto}</style>
+</head>
+<body>
+  <h1>Peer A</h1>
+  <p>This page resets the single room and starts as <strong>A</strong>. Open <code>index.html</code> on the second iPhone afterwards.</p>
+  <pre id="log"></pre>
+  <div style="margin-top:10px">
+    <button id="send1" disabled>Send "1"</button>
+  </div>
+  <div style="margin-top:10px">
+    <label>Inbox (received):</label><br/>
+    <textarea id="inbox" rows="8" cols="40" readonly></textarea>
+  </div>
+<script>
+const F = '/.netlify/functions'
+let chan = null
+const inbox = () => document.querySelector('#inbox')
+const sendBtn = () => document.querySelector('#send1')
+function pushMsg(t){ const ta=inbox(); ta.value += (ta.value?'\n':'') + t; ta.scrollTop = ta.scrollHeight }
+function log(...a){ const el=document.querySelector('#log'); el.textContent += a.join(' ')+'\n'; el.scrollTop = el.scrollHeight; }
+
+async function reset(){
+  const r0 = await fetch(`${F}/signal-reset?_=${Date.now()}`, { method:'POST', cache:'no-store' })
+  if(!r0.ok){ log('reset failed', r0.status); throw new Error('reset failed') }
+  log('room: reset done')
+}
+
+async function write(kind, role, data){
+  const rW = await fetch(`${F}/signal-write?_=${Date.now()}`, {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({ kind, role, data })
+  });
+  if(!rW.ok){ log('write failed', rW.status); }
+}
+
+async function poll(role){
+  const r = await fetch(`${F}/signal-read?role=${role}&_=${Date.now()}`, { cache:'no-store' })
+  if(!r.ok){ log('read failed', r.status); return { offer:null, answer:null, candidates:[] } }
+  return r.json()
+}
+
+async function startA(){
+  const pc = new RTCPeerConnection({ iceServers:[{urls:'stun:stun.l.google.com:19302'}] })
+  const dc = pc.createDataChannel('chat')
+  chan = dc
+  dc.onopen = ()=>{ log('dc: open'); sendBtn().disabled = false; dc.send('hello from A') }
+  dc.onmessage = (e)=> { log('msg:', e.data); pushMsg(String(e.data)) }
+
+  document.addEventListener('click', (ev)=>{
+    if(ev.target && ev.target.id === 'send1' && chan && chan.readyState==='open') {
+      chan.send('1'); log('sent: 1')
+    }
+  })
+
+  pc.oniceconnectionstatechange = ()=> log('ice:', pc.iceConnectionState)
+  pc.onicecandidate = (e)=> { if (e.candidate) write('candidate','a', e.candidate) }
+
+  const offer = await pc.createOffer()
+  await pc.setLocalDescription(offer)
+  await write('offer','a', offer)
+  log('sent: offer')
+
+  const t = setInterval(async ()=>{
+    const { answer, candidates } = await poll('a')
+    if (answer && !pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(answer)
+      log('got: answer')
+    }
+    for (const c of candidates||[]) {
+      await pc.addIceCandidate(c)
+      log('got: candidate from B')
+    }
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      clearInterval(t)
+      log('connected ✔︎')
+    }
+  }, 800)
+}
+
+(async function main(){
+  await reset()
+  await startA()
+})().catch(err=>log('ERR:', err && (err.stack || err)))
+</script>
+</body>
+</html>
