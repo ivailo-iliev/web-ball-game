@@ -308,7 +308,7 @@
   /* ---- Detect: WebGPU shader ---- */
   const Detect = (() => {
     const cfg = Config.get();
-    let device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop;
+    let device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop, blitCanvas, blit2d;
     const zero = new Uint32Array([0,0,0]);
     const uniformArrayBuffer = new ArrayBuffer(64);
     const uniformU16 = new Uint16Array(uniformArrayBuffer);
@@ -333,6 +333,11 @@
       const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
       const hasF16 = adapter.features.has('shader-f16');
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
+      // Normalize video frames via a 2D draw to avoid RGBA/BGRA mismatches on Android
+      const W = cfg.topResW, H = cfg.topResH;
+      blitCanvas = (typeof OffscreenCanvas !== 'undefined') ? new OffscreenCanvas(W, H) : document.createElement('canvas');
+      blitCanvas.width = W; blitCanvas.height = H;
+      blit2d = blitCanvas.getContext('2d', { willReadFrequently: false });
       // Use the platform-preferred color format (often 'bgra8unorm' on Android)
       const frameFormat = navigator.gpu.getPreferredCanvasFormat();
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
@@ -355,10 +360,12 @@
     async function runTopDetection(preview){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
+      // Draw the current video frame into a normalized RGBA canvas first
+      blit2d.drawImage(Feeds.top(), 0, 0, cfg.topResW, cfg.topResH);
       device.queue.copyExternalImageToTexture(
-        {source: Feeds.top()},
-        {texture: frameTex1},
-        [cfg.topResW,cfg.topResH]
+        { source: blitCanvas },
+        { texture: frameTex1 },
+        [cfg.topResW, cfg.topResH]
       );
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
