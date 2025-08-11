@@ -162,8 +162,8 @@ input {
 #configScreen.onlyFront #topCam,
 #configScreen.onlyTop   #frontCam { display: none; }
 
-#configScreen.onlyFront label[for^="team"],
-#configScreen.onlyTop   label[for^="team"] { display: none; }
+/* #configScreen.onlyFront label[for^="team"],
+#configScreen.onlyTop   label[for^="team"] { display: none; } */
 
 #configScreen label[for^="top"],
 #configScreen label[for^="front"] { display: none; }

@@ -26,7 +26,7 @@
       </div>
       <div class="cam" id="topCam">
         <video id="topVid" autoplay playsinline></video>
-        <canvas id="topTex"></canvas>
+        <canvas id="topTex" style="display: none;"></canvas>
         <canvas id="topOv" class="overlay"></canvas>
       </div>
     </div>
@@ -42,7 +42,7 @@
       $('#b1').onclick = () => sendBit('1');
     }
   </script>
-  <script src="webrtc-ab.js"></script>
+  <script src="webrtc.js"></script>
   <script>
     let dc;
     StartA().then(ctrl => {
@@ -58,7 +58,7 @@
     function sendBit(bit) { if (dc && dc.readyState === 'open') dc.send(bit); }
     window.sendBit = sendBit;
   </script>
-  <script src="rtc-top.js"></script>
+  <script src="top.js"></script>
 </body>
 
 </html>
