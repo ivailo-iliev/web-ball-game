@@ -198,6 +198,16 @@
       topRoiWInp.value = topROI.w;
       selA.value = cfg.teamA;
       selB.value = cfg.teamB;
+      if (selA.selectedIndex === -1) {
+        selA.selectedIndex = 0;
+        cfg.teamA = selA.value;
+        Config.save('teamA', cfg.teamA);
+      }
+      if (selB.selectedIndex === -1) {
+        selB.selectedIndex = 0;
+        cfg.teamB = selB.value;
+        Config.save('teamB', cfg.teamB);
+      }
 
       topMinInp.addEventListener('input', e => {
         cfg.topMinArea = Math.max(0, +e.target.value);
