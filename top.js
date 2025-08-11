@@ -109,7 +109,8 @@
         const c = $('#topTex');
         if (c) {
           ctxTopGPU = c.getContext('webgpu');
-          ctxTopGPU.configure({ device, format: 'rgba8unorm' });
+          const format = navigator.gpu.getPreferredCanvasFormat();
+          ctxTopGPU.configure({ device, format });
         }
       }
     }
@@ -334,10 +335,10 @@
       const hasF16 = adapter.features.has('shader-f16');
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
       // Use the platform-preferred color format (often 'bgra8unorm' on Android)
-      const frameFormat = navigator.gpu.getPreferredCanvasFormat();
+      const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      frameTex1 = device.createTexture({ size:[cfg.topResW,cfg.topResH], format: frameFormat, usage: texUsage1 });
+      frameTex1 = device.createTexture({ size:[cfg.topResW,cfg.topResH], format: canvasFormat, usage: texUsage1 });
       maskTex1  = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:maskUsage });
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -348,11 +349,11 @@
       const code = await fetch('shader.wgsl').then(r=>r.text());
       const mod = device.createShaderModule({code});
       pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
-      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format:'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
+      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format: canvasFormat}]}, primitive:{topology:'triangle-list'} });
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
     }
-    async function runTopDetection(preview){
+    async function runTopDetection(){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
       device.queue.copyExternalImageToTexture(
@@ -362,7 +363,7 @@
       );
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
-      const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+      const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
       writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectTop(), flagsTop);
       let cp = enc.beginComputePass();
       cp.setPipeline(pipeC);
@@ -371,9 +372,7 @@
       cp.end();
       enc.copyBufferToBuffer(statsA,0,readA,0,12);
       enc.copyBufferToBuffer(statsB,0,readB,0,12);
-      if (preview) {
-        PreviewGfx.drawMask(enc, pipeQ, bgR, device);
-      }
+      PreviewGfx.drawMask(enc, pipeQ, bgR, device);
       device.queue.submit([enc.finish()]);
       await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
       const [cntA] = new Uint32Array(readA.getMappedRange());
@@ -390,7 +389,7 @@
   const Controller = (() => {
     const cfg = Config.get();
     async function topLoop(){
-      const { detected, cntA, cntB } = await Detect.runTopDetection(true);
+      const { detected, cntA, cntB } = await Detect.runTopDetection();
       if (detected) {
         const a = cntA > cfg.topMinArea;
         const b = cntB > cfg.topMinArea;
