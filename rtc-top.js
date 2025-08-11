@@ -292,9 +292,11 @@
       const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
       const hasF16 = adapter.features.has('shader-f16');
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
+      // Use the platform-preferred color format (often 'bgra8unorm' on Android)
+      const frameFormat = navigator.gpu.getPreferredCanvasFormat();
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      frameTex1 = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:texUsage1 });
+      frameTex1 = device.createTexture({ size:[cfg.topResW,cfg.topResH], format: frameFormat, usage: texUsage1 });
       maskTex1  = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:maskUsage });
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
