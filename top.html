@@ -15,23 +15,27 @@
 </head>
 
 <body>
-  <div id="configScreen onlyTop">
-    <div id="cfg">
-      <pre id=state>Connecting...</pre><button id=b0 disabled>Send 0</button>
-      <button id=b1 disabled>Send 1</button>
-    </div>
-    <div class="cam" id="topCam">
-      <video id="topVid" autoplay playsinline></video>
-      <canvas id="topOv" class="overlay"></canvas>
+  <div id="container">
+    <div id="configScreen" class="onlyTop">
+      <div id="cfg">
+        <label>
+          <pre id=state>Connecting...</pre>
+          <button id=b0 disabled>Send 0</button>
+          <button id=b1 disabled>Send 1</button>
+        </label>
+      </div>
+      <div class="cam" id="topCam">
+        <video id="topVid" autoplay playsinline></video>
+        <canvas id="topOv" class="overlay"></canvas>
+      </div>
     </div>
   </div>
-
 
   <script>
     const $ = sel => document.querySelector(sel);
     function handleLog(msg) { $('#state').textContent = msg; }
     function handleOpen() {
-      handleLog('Channel open - tap a button');
+      handleLog('Connected');
       $('#b0').disabled = $('#b1').disabled = false;
       $('#b0').onclick = () => sendBit('0');
       $('#b1').onclick = () => sendBit('1');
@@ -39,19 +43,19 @@
   </script>
   <script src="webrtc-ab.js"></script>
   <script>
-let dc;
-StartA().then(ctrl => {
-  dc = ctrl.channel;
-  if(!dc){ handleLog('No data channel'); return; }
-  dc.onopen = () => {
-    handleLog('dc: open');
-    dc.send('hello from A');
-    handleOpen();
-  };
-  dc.onmessage = (e) => console.log('msg:', e.data);
-}).catch(err => handleLog('ERR: '+(err && (err.stack || err))));
-function sendBit(bit){ if(dc && dc.readyState === 'open') dc.send(bit); }
-window.sendBit = sendBit;
+    let dc;
+    StartA().then(ctrl => {
+      dc = ctrl.channel;
+      if (!dc) { handleLog('No data channel'); return; }
+      dc.onopen = () => {
+        handleLog('dc: open');
+        dc.send('hello from A');
+        handleOpen();
+      };
+      dc.onmessage = (e) => console.log('msg:', e.data);
+    }).catch(err => handleLog('ERR: ' + (err && (err.stack || err))));
+    function sendBit(bit) { if (dc && dc.readyState === 'open') dc.send(bit); }
+    window.sendBit = sendBit;
   </script>
   <script src="rtc-top.js"></script>
 </body>

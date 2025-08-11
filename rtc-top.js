@@ -139,9 +139,6 @@
       topOv.width = cfg.topResW;
       topOv.height = cfg.topResH;
 
-      const topCam = $('#topCam');
-      if (topCam) topCam.style.height = cfg.topResH + 'px';
-
       const topROI = { x: 0, w: cfg.topRoiW };
       function commitTop(){
         topROI.x = Math.min(Math.max(0, topROI.x), cfg.topResW - topROI.w);
