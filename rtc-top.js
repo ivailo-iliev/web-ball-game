@@ -45,6 +45,7 @@
   }
 
   // Detection flag bits (subset from app.js)
+  const FLAG_PREVIEW = 1;
   const FLAG_TEAM_A_ACTIVE = 2;
   const FLAG_TEAM_B_ACTIVE = 4;
 
@@ -97,10 +98,22 @@
   /* ---- Preview graphics for ROI ---- */
   const PreviewGfx = (() => {
     const cfg = Config.get();
-    let ctxTop2d;
+    let ctxTop2d, ctxTopGPU;
+
     function ensure2d(){
       if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
     }
+
+    function ensureGPU(device){
+      if (!ctxTopGPU) {
+        const c = $('#topTex');
+        if (c) {
+          ctxTopGPU = c.getContext('webgpu');
+          ctxTopGPU.configure({ device, format: 'rgba8unorm' });
+        }
+      }
+    }
+
     function drawROI(poly, color){
       ensure2d();
       if (!ctxTop2d) return;
@@ -114,7 +127,20 @@
       ctxTop2d.closePath();
       ctxTop2d.stroke();
     }
-    return { drawROI };
+
+    function drawMask(enc, pipe, bg, device){
+      ensureGPU(device);
+      if (!ctxTopGPU) return;
+      const rp = enc.beginRenderPass({
+        colorAttachments:[{ view: ctxTopGPU.getCurrentTexture().createView(), loadOp:'clear', storeOp:'store' }]
+      });
+      rp.setPipeline(pipe);
+      rp.setBindGroup(0, bg);
+      rp.draw(3);
+      rp.end();
+    }
+
+    return { drawROI, drawMask };
   })();
 
   /* ---- Setup: ROI gestures and config inputs ---- */
@@ -138,6 +164,11 @@
       const topOv = $('#topOv');
       topOv.width = cfg.topResW;
       topOv.height = cfg.topResH;
+      const topTex = $('#topTex');
+      if (topTex) {
+        topTex.width = cfg.topResW;
+        topTex.height = cfg.topResH;
+      }
 
       const topROI = { x: 0, w: cfg.topRoiW };
       function commitTop(){
@@ -321,7 +352,7 @@
       );
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
-      const flagsTop = FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+      const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
       writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectTop(), flagsTop);
       let cp = enc.beginComputePass();
       cp.setPipeline(pipeC);
@@ -330,6 +361,9 @@
       cp.end();
       enc.copyBufferToBuffer(statsA,0,readA,0,12);
       enc.copyBufferToBuffer(statsB,0,readB,0,12);
+      if (preview) {
+        PreviewGfx.drawMask(enc, pipeQ, bgR, device);
+      }
       device.queue.submit([enc.finish()]);
       await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
       const [cntA] = new Uint32Array(readA.getMappedRange());
@@ -346,7 +380,7 @@
   const Controller = (() => {
     const cfg = Config.get();
     async function topLoop(){
-      const { detected, cntA, cntB } = await Detect.runTopDetection(false);
+      const { detected, cntA, cntB } = await Detect.runTopDetection(true);
       if (detected) {
         const a = cntA > cfg.topMinArea;
         const b = cntB > cfg.topMinArea;
