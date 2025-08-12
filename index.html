@@ -31,10 +31,10 @@
     </div>
   </div>
     <script src="screen.js"></script>
-    <script src="webrtc-ab.js"></script>
+    <script src="webrtc.js"></script>
     <script>
 let dc;
-const stateEl = document.getElementById('state');
+const stateEl = $('#state');
 function log(msg){ stateEl.textContent = msg; }
 StartB().then(ctrl => {
   const pc = ctrl.pc;
