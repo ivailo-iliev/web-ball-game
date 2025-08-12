@@ -274,8 +274,7 @@ const Setup = (() => {
       inp.addEventListener('input', e => {
         const base = TEAM_INDICES[cfg.teamA] * 6 + i;
         COLOR_TABLE[base] = parseFloat(e.target.value);
-        localStorage.setItem('COLOR_TABLE',
-          JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
+        localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
         cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
       });
     }
@@ -288,7 +287,7 @@ const Setup = (() => {
     initNumberSpinners();
     function updateThreshInputs() {
       const base = TEAM_INDICES[cfg.teamA] * 6;
-      for (let i = 0; i < 6; i++) thInputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
+      for (let i = 0; i < 6; i++) thInputs[i].value = COLOR_TABLE[base + i];
     }
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
