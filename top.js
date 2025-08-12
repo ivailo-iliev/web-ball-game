@@ -338,7 +338,11 @@
       const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
-      frameTex1 = device.createTexture({ size:[cfg.topResW,cfg.topResH], format: canvasFormat, usage: texUsage1 });
+      frameTex1 = device.createTexture({
+        size: [cfg.topResW, cfg.topResH],
+        format: 'rgba8unorm', // use explicit RGBA format instead of platform canvas format
+        usage: texUsage1
+      });
       maskTex1  = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:maskUsage });
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
