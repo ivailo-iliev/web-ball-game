@@ -109,8 +109,7 @@
         const c = $('#topTex');
         if (c) {
           ctxTopGPU = c.getContext('webgpu');
-          const format = navigator.gpu.getPreferredCanvasFormat();
-          ctxTopGPU.configure({ device, format });
+          ctxTopGPU.configure({ device, format: 'rgba8unorm' });
         }
       }
     }
@@ -334,13 +333,12 @@
       const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
       const hasF16 = adapter.features.has('shader-f16');
       device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
-      // Use the platform-preferred color format (often 'bgra8unorm' on Android)
-      const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+      // Use explicit RGBA color format for textures and render targets
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
       frameTex1 = device.createTexture({
         size: [cfg.topResW, cfg.topResH],
-        format: 'rgba8unorm', // use explicit RGBA format instead of platform canvas format
+        format: 'rgba8unorm', // explicit RGBA format
         usage: texUsage1
       });
       maskTex1  = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:maskUsage });
@@ -353,7 +351,7 @@
       const code = await fetch('shader.wgsl').then(r=>r.text());
       const mod = device.createShaderModule({code});
       pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
-      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format: canvasFormat}]}, primitive:{topology:'triangle-list'} });
+      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format: 'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
     }
