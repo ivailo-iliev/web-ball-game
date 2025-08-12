@@ -35,6 +35,7 @@
       opt.body = JSON.stringify(body);
     }
     const r = await fetch(u.toString(), opt);
+    if (r.status === 404) return null;
     if (!r.ok) throw new Error(`${name} ${r.status}`);
     const ct = r.headers.get('content-type') || '';
     return ct.includes('application/json') ? r.json() : r.text();
@@ -99,11 +100,17 @@
 
     // cleanup on start
     try {
-      await resetRoom(base);
+      const r = await resetRoom(base);
+      if (r == null) {
+        console.log('missing Netlify functions');
+        return;
+      }
       log('room: reset done');
     } catch (e) {
-      log('reset failed:', e.message);
-      throw e;
+      const msg = `reset failed: ${e.message}`;
+      log(msg);
+      console.log(msg);
+      return;
     }
 
     // PC + DC
@@ -117,11 +124,14 @@
     try {
       await pc.setLocalDescription(await pc.createOffer());
       await waitIceComplete(pc);
-      await write(base, 'offer', 'a', pc.localDescription);
+      const w = await write(base, 'offer', 'a', pc.localDescription);
+      if (w == null) throw new Error('signal-write missing');
       log('sent: offer (batched ICE)');
     } catch (e) {
-      log('offer/SDP failed:', e.message);
-      return makeController({ pc, channel, log, offFns, cancelFlag });
+      const msg = `offer/SDP failed: ${e.message}`;
+      log(msg);
+      console.log(msg);
+      return;
     }
 
     // wait for answer with adaptive backoff (stops when answer set or timeout)
@@ -133,14 +143,20 @@
       try {
         const r = await readRole(base, 'a');
         answer = r && r.answer;
-      } catch (e) { log('read answer error:', e.message); }
+      } catch (e) {
+        const msg = `read answer error: ${e.message}`;
+        log(msg);
+        console.log(msg);
+      }
 
       if (answer && !pc.currentRemoteDescription) {
         try {
           await pc.setRemoteDescription(answer);
           log('got: answer (Peer B joined)');
         } catch (e) {
-          log('setRemoteDescription failed:', e.message);
+          const msg = `setRemoteDescription failed: ${e.message}`;
+          log(msg);
+          console.log(msg);
         }
         break;
       }
@@ -160,9 +176,15 @@
     let initial;
     try {
       initial = await readRole(base, 'b');
+      if (initial == null) {
+        console.log('missing Netlify functions');
+        return;
+      }
     } catch (e) {
-      log('read offer error:', e.message);
-      return { status: 'error', pc: null, channel: null, send: () => false, stop: () => {} };
+      const msg = `read offer error: ${e.message}`;
+      log(msg);
+      console.log(msg);
+      return;
     }
     const offer = initial && initial.offer;
     if (!offer) {
@@ -185,10 +207,14 @@
       log('got: offer');
       await pc.setLocalDescription(await pc.createAnswer());
       await waitIceComplete(pc);
-      await write(base, 'answer', 'b', pc.localDescription);
+      const w = await write(base, 'answer', 'b', pc.localDescription);
+      if (w == null) throw new Error('signal-write missing');
       log('sent: answer (batched ICE)');
     } catch (e) {
-      log('answer/SDP failed:', e.message);
+      const msg = `answer/SDP failed: ${e.message}`;
+      log(msg);
+      console.log(msg);
+      return;
     }
 
     return makeController({ pc, channel:null, log, offFns, cancelFlag });
