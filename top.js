@@ -195,6 +195,7 @@
       topMinInp.value = cfg.topMinArea;
       topResWInp.value = cfg.topResW;
       topResHInp.value = cfg.topResH;
+      topRoiWInp.max = cfg.topResW;
       topRoiWInp.value = topROI.w;
       selA.value = cfg.teamA;
       selB.value = cfg.teamB;
@@ -289,16 +290,29 @@
     let videoTop;
     async function init(){
       videoTop = $('#topVid');
-      // Request camera with LONGER side as width (simple ideal; no extras).
-      const longer  = Math.max(cfg.topResW, cfg.topResH);
-      const shorter = Math.min(cfg.topResW, cfg.topResH);
+      // Hide the raw video element and mirror front-camera behaviour
+      // where frames are drawn onto a canvas instead of being shown
+      // directly.
+      if (videoTop) videoTop.style.display = 'none';
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { width: { ideal: longer }, height: { ideal: shorter }, facingMode: 'user' }
+        video: {
+          width:  { exact: cfg.topResW },
+          height: { exact: cfg.topResH },
+          facingMode: 'user'
+        }
       });
+
       videoTop.srcObject = stream;
+
+      // Wait for the video to start so actual dimensions are known.
       await videoTop.play();
-      // Size the video element via attributes to stored dimensions (CSS controls layout).
+      // Capture the stream's actual resolution for runtime use only.
+      cfg.topResW = videoTop.videoWidth;
+      cfg.topResH = videoTop.videoHeight;
+
+      // Match element dimensions to the real stream size.
       videoTop.width  = cfg.topResW;
       videoTop.height = cfg.topResH;
     }
@@ -404,8 +418,8 @@
       Feeds.top().requestVideoFrameCallback(topLoop);
     }
     async function start(){
-      Setup.bind();
       await Feeds.init();
+      Setup.bind();
       await Detect.init();
       Feeds.top().requestVideoFrameCallback(topLoop);
     }
