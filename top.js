@@ -105,22 +105,34 @@
   /* ---- Preview graphics for ROI ---- */
   const PreviewGfx = (() => {
     const cfg = Config.get();
-    let ctxTop2d, ctxTopGPU;
+    let ctxTop2d, ctxTopGPU, lastW = 0, lastH = 0;
 
     function ensure2d(){
       if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
     }
 
     function ensureGPU(device){
-      if (ctxTopGPU || !device) return;
-      const c = $('#topTex');
-      if (!c || typeof c.getContext !== 'function') return;
-      try {
+      const c = document.querySelector('#topTex');
+      if (!c || !device) return;
+
+      if (!ctxTopGPU) {
+        // First time: create the context
         ctxTopGPU = c.getContext('webgpu');
-        ctxTopGPU?.configure({ device, format: CANVAS_FORMAT, alphaMode: 'premultiplied' });
-      } catch (err) {
-        console.log('WebGPU canvas init failed', err);
-        ctxTopGPU = null;
+        if (!ctxTopGPU) return;
+      }
+
+      // Reconfigure whenever the backing size could have changed.
+      // (Portrait on iOS Safari often needs this right after the video sizes the canvas.)
+      const w = Math.max(1, c.width|0);
+      const h = Math.max(1, c.height|0);
+      if (w !== lastW || h !== lastH) {
+        ctxTopGPU.configure({
+          device,
+          format: CANVAS_FORMAT,
+          alphaMode: 'premultiplied'
+          // or: alphaMode: 'opaque'
+        });
+        lastW = w; lastH = h;
       }
     }
 
