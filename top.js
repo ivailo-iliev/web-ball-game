@@ -441,17 +441,22 @@
   const Controller = (() => {
     const cfg = Config.get();
     async function topLoop(){
-      const { detected, cntA, cntB } = await Detect.runTopDetection();
-      if (detected) {
-        const a = cntA > cfg.topMinArea;
-        const b = cntB > cfg.topMinArea;
-        let bit;
-        if (a && b) bit = 2;
-        else if (a) bit = 0;
-        else if (b) bit = 1;
-        if (bit !== undefined) window.sendBit && window.sendBit(String(bit));
+      try {
+        const { detected, cntA, cntB } = await Detect.runTopDetection();
+        if (detected) {
+          const a = cntA > cfg.topMinArea;
+          const b = cntB > cfg.topMinArea;
+          let bit;
+          if (a && b) bit = 2;
+          else if (a) bit = 0;
+          else if (b) bit = 1;
+          if (bit !== undefined) window.sendBit && window.sendBit(String(bit));
+        }
+      } catch (e) {
+        console.log('topLoop:', e);
+      } finally {
+        Feeds.top().requestVideoFrameCallback(topLoop);
       }
-      Feeds.top().requestVideoFrameCallback(topLoop);
     }
     async function start(){
       if (!await Feeds.init()) return;
