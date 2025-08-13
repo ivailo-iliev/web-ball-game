@@ -5,6 +5,11 @@
 
   const $ = sel => document.querySelector(sel);
 
+  // Use the browser-preferred swapchain format for the WebGPU canvas
+  const CANVAS_FORMAT = (navigator.gpu && navigator.gpu.getPreferredCanvasFormat)
+    ? navigator.gpu.getPreferredCanvasFormat()
+    : 'bgra8unorm';
+
   /* ---- Color tables and helpers copied from app.js ---- */
   const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
   const COLOR_TABLE = new Float32Array([
@@ -112,7 +117,7 @@
       if (!c || typeof c.getContext !== 'function') return;
       try {
         ctxTopGPU = c.getContext('webgpu');
-        ctxTopGPU?.configure({ device, format: 'rgba8unorm' });
+        ctxTopGPU?.configure({ device, format: CANVAS_FORMAT, alphaMode: 'premultiplied' });
       } catch (err) {
         console.log('WebGPU canvas init failed', err);
         ctxTopGPU = null;
@@ -316,6 +321,19 @@
       videoTop.srcObject = stream;
       try {
         await videoTop.play();
+        // Wait until the video has non-zero intrinsic dimensions
+        await new Promise(resolve => {
+          if (videoTop.videoWidth && videoTop.videoHeight) return resolve();
+          const onReady = () => {
+            if (videoTop.videoWidth && videoTop.videoHeight) {
+              videoTop.removeEventListener('loadedmetadata', onReady);
+              videoTop.removeEventListener('resize', onReady);
+              resolve();
+            }
+          };
+          videoTop.addEventListener('loadedmetadata', onReady);
+          videoTop.addEventListener('resize', onReady);
+        });
       } catch (err) {
         console.log('Top video play failed', err);
         return false;
@@ -400,7 +418,7 @@
       const code = await fetch('shader.wgsl').then(r=>r.text());
       const mod = device.createShaderModule({code});
       pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
-      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format: 'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
+      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{ format: CANVAS_FORMAT }] }, primitive:{ topology:'triangle-list' } });
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
       return true;
@@ -409,7 +427,7 @@
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
       device.queue.copyExternalImageToTexture(
-        {source: Feeds.top()},
+        {source: Feeds.top(), flipY: true},
         {texture: frameTex1},
         [topVideoW,topVideoH]
       );
