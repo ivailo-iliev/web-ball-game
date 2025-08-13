@@ -95,6 +95,8 @@
   })();
   Config.load();
 
+  let topVideoW = 0, topVideoH = 0;
+
   /* ---- Preview graphics for ROI ---- */
   const PreviewGfx = (() => {
     const cfg = Config.get();
@@ -154,7 +156,7 @@
     const detectionUI = `
       <label for=topResWInp>W <input id=topResWInp type=number min=1 step=1 style="width:5ch"></label>
       <label for=topResHInp>H <input id=topResHInp type=number min=1 step=1 style="width:5ch"></label>
-      <label for=topRoiWInp>↔️ <input id=topRoiWInp type=number min=10 max=${cfg.topResW} step=1></label>
+      <label for=topRoiWInp>↔️ <input id=topRoiWInp type=number min=10 step=1></label>
       <label for=topMinInp>⚫ <input id=topMinInp type=number min=0 step=25 style="width:6ch"></label>
       <label for=teamA>🅰️ <select id=teamA>${options}</select></label>
       <label for=teamB>🅱️ <select id=teamB>${options}</select></label>
@@ -163,21 +165,22 @@
     function bind(){
       const cfgEl = $('#cfg');
       cfgEl.insertAdjacentHTML('beforeend', detectionUI);
+      cfgEl.insertAdjacentHTML('beforeend', `<div id="vidResDisplay">Video: ${topVideoW}×${topVideoH}</div>`);
 
       const topOv = $('#topOv');
-      topOv.width = cfg.topResW;
-      topOv.height = cfg.topResH;
+      topOv.width = topVideoW;
+      topOv.height = topVideoH;
       const topTex = $('#topTex');
       if (topTex) {
-        topTex.width = cfg.topResW;
-        topTex.height = cfg.topResH;
+        topTex.width = topVideoW;
+        topTex.height = topVideoH;
       }
 
-      const topROI = { x: 0, w: cfg.topRoiW };
+      const topROI = { x: 0, w: Math.min(cfg.topRoiW, topVideoW) };
       function commitTop(){
-        topROI.x = Math.min(Math.max(0, topROI.x), cfg.topResW - topROI.w);
+        topROI.x = Math.min(Math.max(0, topROI.x), topVideoW - topROI.w);
         const { x, w } = topROI;
-        cfg.polyT = [[x, 0], [x + w, 0], [x + w, cfg.topResH], [x, cfg.topResH]];
+        cfg.polyT = [[x, 0], [x + w, 0], [x + w, topVideoH], [x, topVideoH]];
         Config.save('polyT', cfg.polyT);
         PreviewGfx.drawROI(cfg.polyT, 'lime');
       }
@@ -198,7 +201,7 @@
       topMinInp.value = cfg.topMinArea;
       topResWInp.value = cfg.topResW;
       topResHInp.value = cfg.topResH;
-      topRoiWInp.max = cfg.topResW;
+      topRoiWInp.max = topVideoW;
       topRoiWInp.value = topROI.w;
       selA.value = cfg.teamA;
       selB.value = cfg.teamB;
@@ -220,14 +223,13 @@
       topResWInp.addEventListener('input', e => {
         cfg.topResW = Math.max(1, +e.target.value);
         Config.save('topResW', cfg.topResW);
-        topRoiWInp.max = cfg.topResW;
       });
       topResHInp.addEventListener('input', e => {
         cfg.topResH = Math.max(1, +e.target.value);
         Config.save('topResH', cfg.topResH);
       });
       topRoiWInp.addEventListener('input', e => {
-        topROI.w = Math.max(10, Math.min(cfg.topResW, +e.target.value));
+        topROI.w = Math.max(10, Math.min(topVideoW, +e.target.value));
         Config.save('topRoiW', topROI.w);
         commitTop();
       });
@@ -269,13 +271,13 @@
       let dragX = null;
       topOv.addEventListener('pointerdown', e => {
         const r = topOv.getBoundingClientRect();
-        dragX = (e.clientX - r.left) * cfg.topResW / r.width;
+        dragX = (e.clientX - r.left) * topVideoW / r.width;
         topOv.setPointerCapture(e.pointerId);
       });
       topOv.addEventListener('pointermove', e => {
         if (dragX == null) return;
         const r = topOv.getBoundingClientRect();
-        const curX = (e.clientX - r.left) * cfg.topResW / r.width;
+        const curX = (e.clientX - r.left) * topVideoW / r.width;
         topROI.x += curX - dragX;
         dragX = curX;
         commitTop();
@@ -318,10 +320,11 @@
         console.log('Top video play failed', err);
         return false;
       }
-      cfg.topResW = videoTop.videoWidth;
-      cfg.topResH = videoTop.videoHeight;
-      videoTop.width  = cfg.topResW;
-      videoTop.height = cfg.topResH;
+      topVideoW = videoTop.videoWidth;
+      topVideoH = videoTop.videoHeight;
+      videoTop.width  = topVideoW;
+      videoTop.height = topVideoH;
+      videoTop.style.opacity = '0.1';
       return true;
     }
     return { init, top: ()=>videoTop };
@@ -349,7 +352,7 @@
     }
     function rectTop(){
       const xs = cfg.polyT.map(p=>p[0]);
-      return {min:[Math.min(...xs), 0], max:[Math.max(...xs), cfg.topResH]};
+      return {min:[Math.min(...xs), 0], max:[Math.max(...xs), topVideoH]};
     }
     async function init(){
       if (!('gpu' in navigator)) {
@@ -383,11 +386,11 @@
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
       frameTex1 = device.createTexture({
-        size: [cfg.topResW, cfg.topResH],
+        size: [topVideoW, topVideoH],
         format: 'rgba8unorm', // explicit RGBA format
         usage: texUsage1
       });
-      maskTex1  = device.createTexture({ size:[cfg.topResW,cfg.topResH], format:'rgba8unorm', usage:maskUsage });
+      maskTex1  = device.createTexture({ size:[topVideoW,topVideoH], format:'rgba8unorm', usage:maskUsage });
       sampler   = device.createSampler();
       uni   = device.createBuffer({ size:64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       statsA= device.createBuffer({ size:12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
@@ -408,7 +411,7 @@
       device.queue.copyExternalImageToTexture(
         {source: Feeds.top()},
         {texture: frameTex1},
-        [cfg.topResW,cfg.topResH]
+        [topVideoW,topVideoH]
       );
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
@@ -417,7 +420,7 @@
       let cp = enc.beginComputePass();
       cp.setPipeline(pipeC);
       cp.setBindGroup(0,bgTop);
-      cp.dispatchWorkgroups(Math.ceil(cfg.topResW/8), Math.ceil(cfg.topResH/32));
+      cp.dispatchWorkgroups(Math.ceil(topVideoW/8), Math.ceil(topVideoH/32));
       cp.end();
       enc.copyBufferToBuffer(statsA,0,readA,0,12);
       enc.copyBufferToBuffer(statsB,0,readB,0,12);
