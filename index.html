@@ -32,23 +32,6 @@
   </div>
     <script src="screen.js"></script>
     <script src="webrtc.js"></script>
-    <script>
-let dc;
-const stateEl = $('#state');
-function log(msg){ stateEl.textContent = msg; }
-StartB().then(ctrl => {
-  const pc = ctrl.pc;
-  if(!pc){ log('no offer found — open A first'); return; }
-  pc.ondatachannel = e => {
-    dc = e.channel;
-    log('connected');
-    dc.onmessage = ev => console.log('msg:', ev.data);
-    if(window.handleOpen) handleOpen();
-  };
-}).catch(err => log('ERR: '+(err && (err.stack || err))));
-function sendBit(bit){ if(dc && dc.readyState === 'open') dc.send(bit); }
-window.sendBit = sendBit;
-    </script>
     <script src="app.js"></script>
     <script src="game-engine.js"></script>
     <script src="games/emoji.js"></script>
