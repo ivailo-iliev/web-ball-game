@@ -5,6 +5,34 @@
 
   const $ = sel => document.querySelector(sel);
 
+  // --- BLIT SHADER (inline) -----------------------------------------------
+  // Samples the HTMLVideoElement as a texture_external and writes into frameTex1.
+  // Kept inline so we don't touch shader.wgsl.
+  const BLIT_WGSL = /* wgsl */`
+  struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>; };
+  @vertex
+  fn vs_blit(@builtin(vertex_index) i : u32) -> VSOut {
+    var p = array<vec2<f32>,3>(
+      vec2<f32>(-1.0,-1.0), vec2<f32>( 3.0,-1.0), vec2<f32>(-1.0, 3.0)
+    );
+    var uv = array<vec2<f32>,3>(
+      vec2<f32>(0.0,0.0), vec2<f32>(2.0,0.0), vec2<f32>(0.0,2.0)
+    );
+    var o: VSOut;
+    o.pos = vec4<f32>(p[i], 0.0, 1.0);
+    o.uv  = uv[i];
+    return o;
+  }
+  @group(0) @binding(0) var videoExt : texture_external;
+  @fragment
+  fn fs_blit(in: VSOut) -> @location(0) vec4<f32> {
+    // You already flip Y in your main preview shader; match that here
+    let uv = vec2<f32>(in.uv.x, 1.0 - in.uv.y);
+    return textureSampleBaseClampToEdge(videoExt, uv);
+  }
+  `;
+  // ------------------------------------------------------------------------
+
   // Use the browser-preferred swapchain format for the WebGPU canvas
   const CANVAS_FORMAT = (navigator.gpu && navigator.gpu.getPreferredCanvasFormat)
     ? navigator.gpu.getPreferredCanvasFormat()
@@ -371,7 +399,7 @@
   /* ---- Detect: WebGPU shader ---- */
   const Detect = (() => {
     const cfg = Config.get();
-    let adapter, device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop;
+    let adapter, device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop, blitModule, blitPipe;
     const zero = new Uint32Array([0,0,0]);
     const uniformArrayBuffer = new ArrayBuffer(64);
     const uniformU16 = new Uint16Array(uniformArrayBuffer);
@@ -423,6 +451,15 @@
         console.log('Device request failed', err);
         return false;
       }
+      // Create the tiny blit pipeline (external video -> frameTex1)
+      try {
+        blitModule = device.createShaderModule({ code: BLIT_WGSL });
+        blitPipe   = device.createRenderPipeline({
+          layout: 'auto',
+          vertex:   { module: blitModule, entryPoint: 'vs_blit' },
+          fragment: { module: blitModule, entryPoint: 'fs_blit', targets: [{ format: 'rgba8unorm' }] }
+        });
+      } catch (err) { console.log('Blit pipeline init failed', err); }
       // Use explicit RGBA color format for textures and render targets
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
@@ -449,12 +486,28 @@
     async function runTopDetection(){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
-      device.queue.copyExternalImageToTexture(
-        {source: Feeds.top(), flipY: false},
-        {texture: frameTex1},
-        [topVideoW,topVideoH]
-      );
       const enc = device.createCommandEncoder();
+      // GPU blit: HTMLVideoElement -> frameTex1 via texture_external
+      try {
+        const ext = device.importExternalTexture({ source: Feeds.top() });
+        const rpBlit = enc.beginRenderPass({
+          colorAttachments: [{
+            view: frameTex1.createView(),
+            loadOp: 'dontcare',
+            storeOp: 'store'
+          }]
+        });
+        const bgBlit = device.createBindGroup({
+          layout: blitPipe.getBindGroupLayout(0),
+          entries: [{ binding: 0, resource: ext }]
+        });
+        rpBlit.setPipeline(blitPipe);
+        rpBlit.setBindGroup(0, bgBlit);
+        rpBlit.draw(3);
+        rpBlit.end();
+      } catch (err) {
+        console.log('Blit pass failed', err);
+      }
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
       const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
       writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectTop(), flagsTop);
