@@ -543,19 +543,35 @@ const Setup = (() => {
 
 const Feeds = (() => {
   const cfg = Config.get();
-  let videoTop, videoFront, track;
+  let videoTop, videoFront, track, dc;
 
-  function initRTC() {
-    const bind = () => {
-      if (typeof dc === 'undefined') return;
-      dc.onmessage = e => {
-        const bit = parseInt(e.data, 10);
-        if (isNaN(bit)) return;
-        Controller.handleBit(bit);
+  async function initRTC() {
+    const stateEl = $('#state');
+    const log = msg => { if (stateEl) stateEl.textContent = msg; };
+    log('Connecting…');
+
+    let ctrl;
+    try {
+      ctrl = await StartB({ log });
+    } catch (err) {
+      log('ERR: ' + (err && (err.stack || err)));
+      return false;
+    }
+
+    const pc = ctrl && ctrl.pc;
+    if (!pc) { log('no offer found — open A first'); return false; }
+
+    pc.ondatachannel = e => {
+      dc = e.channel;
+      log('connected');
+      dc.onmessage = ev => {
+        const bit = parseInt(ev.data, 10);
+        if (!isNaN(bit)) Controller.handleBit(bit);
       };
     };
-    if (typeof dc !== 'undefined' && dc.readyState === 'open') bind();
-    else window.handleOpen = bind;
+
+    window.sendBit = bit => { if (dc && dc.readyState === 'open') dc.send(bit); };
+    return true;
   }
 
   async function init() {
@@ -573,8 +589,11 @@ const Feeds = (() => {
         console.log('Failed to load top camera feed', err);
         return false;
       }
+    } else if (cfg.topMode === TOP_MODE_WEBRTC) {
+      if (!await initRTC()) return false;
     } else {
-      initRTC();
+      console.log('Unknown topMode', cfg.topMode);
+      return false;
     }
 
     if (!navigator.mediaDevices?.getUserMedia) {
