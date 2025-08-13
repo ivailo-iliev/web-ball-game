@@ -105,12 +105,15 @@
     }
 
     function ensureGPU(device){
-      if (!ctxTopGPU) {
-        const c = $('#topTex');
-        if (c) {
-          ctxTopGPU = c.getContext('webgpu');
-          ctxTopGPU.configure({ device, format: 'rgba8unorm' });
-        }
+      if (ctxTopGPU || !device) return;
+      const c = $('#topTex');
+      if (!c || typeof c.getContext !== 'function') return;
+      try {
+        ctxTopGPU = c.getContext('webgpu');
+        ctxTopGPU?.configure({ device, format: 'rgba8unorm' });
+      } catch (err) {
+        console.log('WebGPU canvas init failed', err);
+        ctxTopGPU = null;
       }
     }
 
@@ -290,31 +293,37 @@
     let videoTop;
     async function init(){
       videoTop = $('#topVid');
-      // Hide the raw video element and mirror front-camera behaviour
-      // where frames are drawn onto a canvas instead of being shown
-      // directly.
       if (videoTop) videoTop.style.display = 'none';
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          width:  { exact: cfg.topResW },
-          height: { exact: cfg.topResH },
-          facingMode: 'user'
-        }
-      });
-
+      if (!navigator.mediaDevices?.getUserMedia) {
+        console.log('getUserMedia not supported');
+        return false;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            width:  { exact: cfg.topResW },
+            height: { exact: cfg.topResH },
+            facingMode: 'user'
+          }
+        });
+      } catch (err) {
+        console.log('Top camera init failed', err);
+        return false;
+      }
       videoTop.srcObject = stream;
-
-      // Wait for the video to start so actual dimensions are known.
-      await videoTop.play();
-      // Capture the stream's actual resolution for runtime use only.
+      try {
+        await videoTop.play();
+      } catch (err) {
+        console.log('Top video play failed', err);
+        return false;
+      }
       cfg.topResW = videoTop.videoWidth;
       cfg.topResH = videoTop.videoHeight;
-
-      // Match element dimensions to the real stream size.
       videoTop.width  = cfg.topResW;
       videoTop.height = cfg.topResH;
+      return true;
     }
     return { init, top: ()=>videoTop };
   })();
@@ -344,9 +353,33 @@
       return {min:[Math.min(...xs), 0], max:[Math.max(...xs), cfg.topResH]};
     }
     async function init(){
-      const adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
-      const hasF16 = adapter.features.has('shader-f16');
-      device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
+      if (!('gpu' in navigator)) {
+        console.log('WebGPU not supported');
+        return false;
+      }
+      let adapter;
+      try {
+        adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+      } catch (err) {
+        console.log('Adapter request failed', err);
+        return false;
+      }
+      if (!adapter) {
+        console.log('No WebGPU adapter');
+        return false;
+      }
+      let hasF16 = false;
+      try {
+        hasF16 = adapter.features?.has && adapter.features.has('shader-f16');
+      } catch (err) {
+        console.log('f16 check failed', err);
+      }
+      try {
+        device = await adapter.requestDevice({requiredFeatures: hasF16?['shader-f16']:[]});
+      } catch (err) {
+        console.log('Device request failed', err);
+        return false;
+      }
       // Use explicit RGBA color format for textures and render targets
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
@@ -368,6 +401,7 @@
       pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format: 'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
+      return true;
     }
     async function runTopDetection(){
       device.queue.writeBuffer(statsA,0,zero);
@@ -418,10 +452,11 @@
       Feeds.top().requestVideoFrameCallback(topLoop);
     }
     async function start(){
-      await Feeds.init();
+      if (!await Feeds.init()) return;
       Setup.bind();
-      await Detect.init();
-      Feeds.top().requestVideoFrameCallback(topLoop);
+      if (!await Detect.init()) return;
+      const t = Feeds.top();
+      t && t.requestVideoFrameCallback(topLoop);
     }
     return { start };
   })();
