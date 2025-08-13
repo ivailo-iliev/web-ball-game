@@ -293,7 +293,6 @@
     let videoTop;
     async function init(){
       videoTop = $('#topVid');
-      if (videoTop) videoTop.style.display = 'none';
       if (!navigator.mediaDevices?.getUserMedia) {
         console.log('getUserMedia not supported');
         return false;
