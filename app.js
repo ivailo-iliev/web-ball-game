@@ -151,18 +151,29 @@ const PreviewGfx = (() => {
   }
 
   function ensureGPU(device) {
+    if (!device) return;
     if (!ctxTopGPU) {
       const c = $('#topTex');
-      if (c) {
-        ctxTopGPU = c.getContext('webgpu');
-        ctxTopGPU.configure({ device, format: 'rgba8unorm' });
+      if (c && typeof c.getContext === 'function') {
+        try {
+          ctxTopGPU = c.getContext('webgpu');
+          ctxTopGPU?.configure({ device, format: 'rgba8unorm' });
+        } catch (err) {
+          console.log('Top canvas WebGPU init failed', err);
+          ctxTopGPU = null;
+        }
       }
     }
     if (!ctxFrontGPU) {
       const c = $('#frontTex');
-      if (c) {
-        ctxFrontGPU = c.getContext('webgpu');
-        ctxFrontGPU.configure({ device, format: 'rgba8unorm' });
+      if (c && typeof c.getContext === 'function') {
+        try {
+          ctxFrontGPU = c.getContext('webgpu');
+          ctxFrontGPU?.configure({ device, format: 'rgba8unorm' });
+        } catch (err) {
+          console.log('Front canvas WebGPU init failed', err);
+          ctxFrontGPU = null;
+        }
       }
     }
   }
@@ -559,21 +570,32 @@ const Feeds = (() => {
         await videoTop.decode();
       } catch (err) {
         if (urlWarnEl) urlWarnEl.textContent = '⚠️';
-        throw new Error('Failed to load top camera feed');
+        console.log('Failed to load top camera feed', err);
+        return false;
       }
     } else {
       initRTC();
     }
 
-    const frontStream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        width: { exact: cfg.FRONT_W },
-        height: { exact: cfg.FRONT_H },
-        facingMode: 'environment',
-        frameRate: { ideal: 60, max: 120 }
-      }
-    });
+    if (!navigator.mediaDevices?.getUserMedia) {
+      console.log('getUserMedia not supported');
+      return false;
+    }
+    let frontStream;
+    try {
+      frontStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          width: { exact: cfg.FRONT_W },
+          height: { exact: cfg.FRONT_H },
+          facingMode: 'environment',
+          frameRate: { ideal: 60, max: 120 }
+        }
+      });
+    } catch (err) {
+      console.log('Front camera init failed', err);
+      return false;
+    }
 
     videoFront.srcObject = frontStream;
     track = frontStream.getVideoTracks()[0];
@@ -600,12 +622,17 @@ const Feeds = (() => {
         try {
           await track.applyConstraints({ advanced: [{ zoom: z }] });
         } catch (err) {
-          console.error('Zoom apply failed:', err);
+          console.log('Zoom apply failed:', err);
         }
       });
     }
 
-    await videoFront.play();
+    try {
+      await videoFront.play();
+    } catch (err) {
+      console.log('Front video play failed', err);
+      return false;
+    }
     if (
       cap.exposureMode &&
       cap.exposureMode.includes('manual') &&
@@ -640,9 +667,10 @@ const Feeds = (() => {
         await new Promise((r) => setTimeout(r, 1500));
         await track.applyConstraints({ advanced: advConstraints });
       } catch (err) {
-        console.error('Advanced constraints apply failed:', err);
+        console.log('Advanced constraints apply failed:', err);
       }
     }
+    return true;
   }
 
   return {
@@ -697,9 +725,33 @@ const Detect = (() => {
 
   async function init() {
 
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-    const hasF16 = adapter.features.has("shader-f16");
-    device = await adapter.requestDevice({ requiredFeatures: hasF16 ? ["shader-f16"] : [] });
+    if (!('gpu' in navigator)) {
+      console.log('WebGPU not supported');
+      return false;
+    }
+    let adapter;
+    try {
+      adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    } catch (err) {
+      console.log('Adapter request failed', err);
+      return false;
+    }
+    if (!adapter) {
+      console.log('No WebGPU adapter');
+      return false;
+    }
+    let hasF16 = false;
+    try {
+      hasF16 = adapter.features?.has && adapter.features.has("shader-f16");
+    } catch (err) {
+      console.log('f16 check failed', err);
+    }
+    try {
+      device = await adapter.requestDevice({ requiredFeatures: hasF16 ? ["shader-f16"] : [] });
+    } catch (err) {
+      console.log('Device request failed', err);
+      return false;
+    }
     console.log("shader-f16:", hasF16);
 
     const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
@@ -756,6 +808,7 @@ const Detect = (() => {
         { binding: 6, resource: { buffer: uni } }
       ]
     });
+    return true;
   }
 
   async function runTopDetection(preview) {
@@ -909,13 +962,8 @@ const Controller = (() => {
 
   async function start() {
     Setup.bind();
-    try {
-      await Feeds.init();
-    } catch (err) {
-      console.error('Feed initialization failed:', err);
-      return;
-    }
-    await Detect.init();
+    if (!await Feeds.init()) return;
+    if (!await Detect.init()) return;
     lastTop = 0;
     if (cfg.topMode === TOP_MODE_MJPEG) {
       requestAnimationFrame(topLoop);
