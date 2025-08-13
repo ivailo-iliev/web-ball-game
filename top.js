@@ -105,35 +105,40 @@
   /* ---- Preview graphics for ROI ---- */
   const PreviewGfx = (() => {
     const cfg = Config.get();
-    let ctxTop2d, ctxTopGPU, lastW = 0, lastH = 0;
+    let ctxTop2d, ctxTopGPU;
+    let lastW = 0, lastH = 0; // track configured backing size
 
     function ensure2d(){
       if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
     }
 
     function ensureGPU(device){
-      const c = document.querySelector('#topTex');
-      if (!c || !device) return;
-
-      if (!ctxTopGPU) {
-        // First time: create the context
-        ctxTopGPU = c.getContext('webgpu');
-        if (!ctxTopGPU) return;
-      }
-
-      // Reconfigure whenever the backing size could have changed.
-      // (Portrait on iOS Safari often needs this right after the video sizes the canvas.)
-      const w = Math.max(1, c.width|0);
-      const h = Math.max(1, c.height|0);
+      const c = $('#topTex');
+      if (!device || !c || typeof c.getContext !== 'function') return;
+      if (!ctxTopGPU) ctxTopGPU = c.getContext('webgpu');
+      if (!ctxTopGPU) return;
+      // Reconfigure whenever the canvas backing size changes (common in iOS portrait)
+      const w = Math.max(1, c.width|0), h = Math.max(1, c.height|0);
       if (w !== lastW || h !== lastH) {
-        ctxTopGPU.configure({
-          device,
-          format: CANVAS_FORMAT,
-          alphaMode: 'premultiplied'
-          // or: alphaMode: 'opaque'
-        });
+        ctxTopGPU.configure({ device, format: CANVAS_FORMAT, alphaMode: 'premultiplied' });
         lastW = w; lastH = h;
       }
+    }
+
+    function forcePresent(device, clearValue = { r:0, g:1, b:0, a:1 }){
+      ensureGPU(device);
+      if (!ctxTopGPU) return;
+      const enc = device.createCommandEncoder();
+      const rp = enc.beginRenderPass({
+        colorAttachments: [{
+          view: ctxTopGPU.getCurrentTexture().createView(),
+          loadOp: 'clear',
+          clearValue,
+          storeOp: 'store'
+        }]
+      });
+      rp.end();
+      device.queue.submit([enc.finish()]);
     }
 
     function drawROI(poly, color){
@@ -162,7 +167,7 @@
       rp.end();
     }
 
-    return { drawROI, drawMask };
+    return { drawROI, ensure2d, ensureGPU, drawMask, forcePresent };
   })();
 
   /* ---- Setup: ROI gestures and config inputs ---- */
@@ -192,6 +197,9 @@
         topTex.width = topVideoW;
         topTex.height = topVideoH;
       }
+      // Force a composition *immediately* after sizing (avoid waiting for RTC/orientation)
+      // Use rAF so layout applies before we grab the current texture.
+      requestAnimationFrame(() => Detect.presentOnce());
 
       const topROI = { x: 0, w: Math.min(cfg.topRoiW, topVideoW) };
       function commitTop(){
@@ -363,7 +371,7 @@
   /* ---- Detect: WebGPU shader ---- */
   const Detect = (() => {
     const cfg = Config.get();
-    let device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop;
+    let adapter, device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop;
     const zero = new Uint32Array([0,0,0]);
     const uniformArrayBuffer = new ArrayBuffer(64);
     const uniformU16 = new Uint16Array(uniformArrayBuffer);
@@ -384,12 +392,15 @@
       const xs = cfg.polyT.map(p=>p[0]);
       return {min:[Math.min(...xs), 0], max:[Math.max(...xs), topVideoH]};
     }
+    function presentOnce(){
+      if (device) PreviewGfx.forcePresent(device);
+    }
+
     async function init(){
       if (!('gpu' in navigator)) {
         console.log('WebGPU not supported');
         return false;
       }
-      let adapter;
       try {
         adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
       } catch (err) {
@@ -439,7 +450,7 @@
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
       device.queue.copyExternalImageToTexture(
-        {source: Feeds.top(), flipY: true},
+        {source: Feeds.top(), flipY: false},
         {texture: frameTex1},
         [topVideoW,topVideoH]
       );
@@ -464,7 +475,7 @@
       const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
       return { detected: topDetected, cntA, cntB };
     }
-    return { init, runTopDetection };
+    return { init, presentOnce, runTopDetection };
   })();
 
   /* ---- Controller: run detection loop and send bit ---- */
