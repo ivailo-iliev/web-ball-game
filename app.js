@@ -836,7 +836,7 @@ const Detect = (() => {
 
     const srcY = Math.floor((Feeds.top().naturalHeight - cfg.TOP_H) / 2);
     device.queue.copyExternalImageToTexture(
-      { source: Feeds.top(), origin: { x: 0, y: srcY } },
+      { source: Feeds.top(), origin: { x: 0, y: srcY }, flipY: true },
       { texture: frameTex1 },
       [cfg.TOP_W, cfg.TOP_H]
     );

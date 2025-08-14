@@ -152,7 +152,7 @@ fn vs(@builtin(vertex_index) idx: u32) -> VSOut {
 @fragment
 fn fs(in: VSOut) -> @location(0) vec4<f32> {
     // Flip Y so texture space matches screen space (top-left origin)
-    let uv       = vec2<f32>(in.uv.x, 1.0 - in.uv.y);
+    let uv       = vec2<f32>(in.uv.x, in.uv.y);
     let videoCol = textureSample(frame, samp, uv);
 
     // sample both mask channels for team A (r) and team B (b)
