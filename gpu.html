@@ -192,24 +192,41 @@
         //    We transfer the camera track to the worker; it posts VideoFrames back to main.
         const workerSrc = /* js */`
           self.onmessage = async (e) => {
-            const { op, track } = e.data || {};
-            if (op !== 'init' || !track) return;
-            // Create MSTP in worker and stream frames to main
-            const processor = new MediaStreamTrackProcessor({ track });
-            const reader = processor.readable.getReader();
-            for (;;) {
-              const { value: frame, done } = await reader.read();
-              if (done || !frame) break;
-              // Transfer ownership of the VideoFrame to main thread
-              self.postMessage(frame, [frame]);
-            }
+            const { op } = e.data || {};
+            if (op === 'init-track') {
+              const { track } = e.data;
+              if (!track) return;
+              // Create MSTP in worker and stream frames to main
+              const processor = new MediaStreamTrackProcessor({ track });
+              const reader = processor.readable.getReader();
+              for (;;) {
+                const { value: frame, done } = await reader.read();
+                if (done || !frame) break;
+                self.postMessage(frame, [frame]); // transfer ownership
+              }
+            } else if (op === 'init-stream') {
+              const { stream } = e.data;
+              if (!stream) return;
+              const reader = stream.getReader();
+              for (;;) {
+                const { value: frame, done } = await reader.read();
+                if (done || !frame) break;
+                self.postMessage(frame, [frame]); // transfer ownership
+              }
+            } // else ignore
           };
         `;
         const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
         const videoWorker = new Worker(workerURL, { type: 'module' });
         URL.revokeObjectURL(workerURL);
-        // Transfer the MediaStreamTrack to the worker (track becomes detached from main)
-        videoWorker.postMessage({ op: 'init', track }, [track]);
+        // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
+        // If this throws (e.g., Chrome Windows), fall back to sending a ReadableStream.
+        try {
+          videoWorker.postMessage({ op: 'init-track', track }, [track]);
+        } catch (e) {
+          const processor = new MediaStreamTrackProcessor({ track });
+          videoWorker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
+        }
 
         // 6) Main-thread pump: receive VideoFrames and run CEITT → compute → blit
         videoWorker.onmessage = async (ev) => {
