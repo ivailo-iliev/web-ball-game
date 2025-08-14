@@ -171,6 +171,15 @@ input {
 #configScreen.onlyTop   label[for^="top"],
 #configScreen.onlyFront label[for^="front"] { display: initial; }
 
+label[for=topUrl] {
+  display: none;
+}
+
+/* Show it only when MJPEG is selected */
+label:has(#topMode option[value="mjpeg"]:checked) + label[for=topUrl] {
+  display: initial;
+}
+
 /* ---- Scoreboard ---- */
 #scoreboard {
   position: absolute;

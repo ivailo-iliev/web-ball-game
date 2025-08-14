@@ -2,23 +2,58 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WebGPU video → compute(f16) → display (mobile-optimized)</title>
+  <link rel="icon" href="/favicon.png" sizes="any" type="image/png">
+  <meta name="viewport" content="width=device-width,
+               initial-scale=1,
+               maximum-scale=1,
+               user-scalable=no,
+               viewport-fit=cover">
+  <title>WebGPU video</title>
   <style>
-    html, body { margin:0; height:100%; background:#000; color:#fff; font:14px system-ui, sans-serif; }
-    #wrap { display:grid; place-items:center; gap:12px; height:100%; }
-    #gfx { width: min(100vw, 100vh * 9/16); height: auto; image-rendering: pixelated; background:#000; }
+html, body { margin:0; height:100%; background:#000; color:#fff; font:14px system-ui, sans-serif; }
+
+#wrap {
+  height:100%;           /* match the viewport */
+  overflow:hidden;
+}
+
+/* Canvas: preserve aspect ratio automatically */
+#gfx {
+  position: fixed;              /* ignore the page flow */
+  top: 50%;
+  left: 50%;
+
+  /* make a viewport-sized box so the bitmap can scale inside it */
+  width: 100dvw;
+  height: 100dvh;
+
+  /* keep the canvas bitmap’s intrinsic aspect ratio */
+  object-fit: contain;
+  transform-origin: center;
+
+  /* center the element’s box, then we can add rotation in portrait */
+  transform: translate(-50%, -50%);
+
+  image-rendering: pixelated;
+  background: #000;
+}
+
+/* PORTRAIT: rotate and instead fill height, cap by width — preserves ratio */
+@media (orientation: portrait) {
+  #gfx { 
+    transform:  translate(-50%, -50%) rotate(90deg);
+        width: 100dvh;             /* 👈 swap */
+    height: 100dvw;            /* 👈 swap */
+   }
+}
     button { padding:10px 16px; font-weight:600; }
-    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    @media (orientation: portrait) {
-      #gfx { transform: rotate(90deg) translateZ(0); }
-    }
+    .row { position: fixed; top: 0; left: 0; right: 0; bottom: auto; display:flex; gap:12px; align-items:center; flex-wrap:wrap; width:100%; }
     input { width: 6ch; }
   </style>
 </head>
 <body>
-  <div id="wrap">
     <canvas id="gfx"></canvas>
+  <div id="wrap">
     <div class="row">
       <button id="start">Start</button>
       <button id="b0" disabled>Send 0</button>
