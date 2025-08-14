@@ -5,6 +5,39 @@
 
   const $ = sel => document.querySelector(sel);
 
+  // --- BLIT SHADER (inline) -----------------------------------------------
+  // Samples the HTMLVideoElement as a texture_external and writes into frameTex1.
+  // Kept inline so we don't touch shader.wgsl.
+  const BLIT_WGSL = /* wgsl */`
+  struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>; };
+  @vertex
+  fn vs_blit(@builtin(vertex_index) i : u32) -> VSOut {
+    var p = array<vec2<f32>,3>(
+      vec2<f32>(-1.0,-1.0), vec2<f32>( 3.0,-1.0), vec2<f32>(-1.0, 3.0)
+    );
+    var uv = array<vec2<f32>,3>(
+      vec2<f32>(0.0,0.0), vec2<f32>(2.0,0.0), vec2<f32>(0.0,2.0)
+    );
+    var o: VSOut;
+    o.pos = vec4<f32>(p[i], 0.0, 1.0);
+    o.uv  = uv[i];
+    return o;
+  }
+  @group(0) @binding(0) var videoExt : texture_external;
+  @fragment
+  fn fs_blit(in: VSOut) -> @location(0) vec4<f32> {
+    // You already flip Y in your main preview shader; match that here
+    let uv = vec2<f32>(in.uv.x, 1.0 - in.uv.y);
+    return textureSampleBaseClampToEdge(videoExt, uv);
+  }
+  `;
+  // ------------------------------------------------------------------------
+
+  // Use the browser-preferred swapchain format for the WebGPU canvas
+  const CANVAS_FORMAT = (navigator.gpu && navigator.gpu.getPreferredCanvasFormat)
+    ? navigator.gpu.getPreferredCanvasFormat()
+    : 'bgra8unorm';
+
   /* ---- Color tables and helpers copied from app.js ---- */
   const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
   const COLOR_TABLE = new Float32Array([
@@ -101,22 +134,39 @@
   const PreviewGfx = (() => {
     const cfg = Config.get();
     let ctxTop2d, ctxTopGPU;
+    let lastW = 0, lastH = 0; // track configured backing size
 
     function ensure2d(){
       if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
     }
 
     function ensureGPU(device){
-      if (ctxTopGPU || !device) return;
       const c = $('#topTex');
-      if (!c || typeof c.getContext !== 'function') return;
-      try {
-        ctxTopGPU = c.getContext('webgpu');
-        ctxTopGPU?.configure({ device, format: 'rgba8unorm' });
-      } catch (err) {
-        console.log('WebGPU canvas init failed', err);
-        ctxTopGPU = null;
+      if (!device || !c || typeof c.getContext !== 'function') return;
+      if (!ctxTopGPU) ctxTopGPU = c.getContext('webgpu');
+      if (!ctxTopGPU) return;
+      // Reconfigure whenever the canvas backing size changes (common in iOS portrait)
+      const w = Math.max(1, c.width|0), h = Math.max(1, c.height|0);
+      if (w !== lastW || h !== lastH) {
+        ctxTopGPU.configure({ device, format: CANVAS_FORMAT, alphaMode: 'premultiplied' });
+        lastW = w; lastH = h;
       }
+    }
+
+    function forcePresent(device, clearValue = { r:0, g:1, b:0, a:1 }){
+      ensureGPU(device);
+      if (!ctxTopGPU) return;
+      const enc = device.createCommandEncoder();
+      const rp = enc.beginRenderPass({
+        colorAttachments: [{
+          view: ctxTopGPU.getCurrentTexture().createView(),
+          loadOp: 'clear',
+          clearValue,
+          storeOp: 'store'
+        }]
+      });
+      rp.end();
+      device.queue.submit([enc.finish()]);
     }
 
     function drawROI(poly, color){
@@ -145,7 +195,7 @@
       rp.end();
     }
 
-    return { drawROI, drawMask };
+    return { drawROI, ensure2d, ensureGPU, drawMask, forcePresent };
   })();
 
   /* ---- Setup: ROI gestures and config inputs ---- */
@@ -175,6 +225,9 @@
         topTex.width = topVideoW;
         topTex.height = topVideoH;
       }
+      // Force a composition *immediately* after sizing (avoid waiting for RTC/orientation)
+      // Use rAF so layout applies before we grab the current texture.
+      requestAnimationFrame(() => Detect.presentOnce());
 
       const topROI = { x: 0, w: Math.min(cfg.topRoiW, topVideoW) };
       function commitTop(){
@@ -316,6 +369,19 @@
       videoTop.srcObject = stream;
       try {
         await videoTop.play();
+        // Wait until the video has non-zero intrinsic dimensions
+        await new Promise(resolve => {
+          if (videoTop.videoWidth && videoTop.videoHeight) return resolve();
+          const onReady = () => {
+            if (videoTop.videoWidth && videoTop.videoHeight) {
+              videoTop.removeEventListener('loadedmetadata', onReady);
+              videoTop.removeEventListener('resize', onReady);
+              resolve();
+            }
+          };
+          videoTop.addEventListener('loadedmetadata', onReady);
+          videoTop.addEventListener('resize', onReady);
+        });
       } catch (err) {
         console.log('Top video play failed', err);
         return false;
@@ -333,7 +399,7 @@
   /* ---- Detect: WebGPU shader ---- */
   const Detect = (() => {
     const cfg = Config.get();
-    let device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop;
+    let adapter, device, frameTex1, maskTex1, sampler, uni, statsA, statsB, readA, readB, pipeC, pipeQ, bgR, bgTop, blitModule, blitPipe;
     const zero = new Uint32Array([0,0,0]);
     const uniformArrayBuffer = new ArrayBuffer(64);
     const uniformU16 = new Uint16Array(uniformArrayBuffer);
@@ -354,12 +420,15 @@
       const xs = cfg.polyT.map(p=>p[0]);
       return {min:[Math.min(...xs), 0], max:[Math.max(...xs), topVideoH]};
     }
+    function presentOnce(){
+      if (device) PreviewGfx.forcePresent(device);
+    }
+
     async function init(){
       if (!('gpu' in navigator)) {
         console.log('WebGPU not supported');
         return false;
       }
-      let adapter;
       try {
         adapter = await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
       } catch (err) {
@@ -382,6 +451,15 @@
         console.log('Device request failed', err);
         return false;
       }
+      // Create the tiny blit pipeline (external video -> frameTex1)
+      try {
+        blitModule = device.createShaderModule({ code: BLIT_WGSL });
+        blitPipe   = device.createRenderPipeline({
+          layout: 'auto',
+          vertex:   { module: blitModule, entryPoint: 'vs_blit' },
+          fragment: { module: blitModule, entryPoint: 'fs_blit', targets: [{ format: 'rgba8unorm' }] }
+        });
+      } catch (err) { console.log('Blit pipeline init failed', err); }
       // Use explicit RGBA color format for textures and render targets
       const texUsage1 = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
       const maskUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST;
@@ -400,7 +478,7 @@
       const code = await fetch('shader.wgsl').then(r=>r.text());
       const mod = device.createShaderModule({code});
       pipeC = device.createComputePipeline({ layout:'auto', compute:{ module:mod, entryPoint:'main' } });
-      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{format: 'rgba8unorm'}]}, primitive:{topology:'triangle-list'} });
+      pipeQ = device.createRenderPipeline({ layout:'auto', vertex:{ module:mod, entryPoint:'vs' }, fragment:{ module:mod, entryPoint:'fs', targets:[{ format: CANVAS_FORMAT }] }, primitive:{ topology:'triangle-list' } });
       bgR = device.createBindGroup({ layout: pipeQ.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:4, resource: maskTex1.createView()}, {binding:5, resource: sampler} ] });
       bgTop = device.createBindGroup({ layout: pipeC.getBindGroupLayout(0), entries:[ {binding:0, resource: frameTex1.createView()}, {binding:1, resource: maskTex1.createView()}, {binding:2, resource:{buffer:statsA}}, {binding:3, resource:{buffer:statsB}}, {binding:6, resource:{buffer:uni}} ] });
       return true;
@@ -408,12 +486,28 @@
     async function runTopDetection(){
       device.queue.writeBuffer(statsA,0,zero);
       device.queue.writeBuffer(statsB,0,zero);
-      device.queue.copyExternalImageToTexture(
-        {source: Feeds.top()},
-        {texture: frameTex1},
-        [topVideoW,topVideoH]
-      );
       const enc = device.createCommandEncoder();
+      // GPU blit: HTMLVideoElement -> frameTex1 via texture_external
+      try {
+        const ext = device.importExternalTexture({ source: Feeds.top() });
+        const rpBlit = enc.beginRenderPass({
+          colorAttachments: [{
+            view: frameTex1.createView(),
+            loadOp: 'dontcare',
+            storeOp: 'store'
+          }]
+        });
+        const bgBlit = device.createBindGroup({
+          layout: blitPipe.getBindGroupLayout(0),
+          entries: [{ binding: 0, resource: ext }]
+        });
+        rpBlit.setPipeline(blitPipe);
+        rpBlit.setBindGroup(0, bgBlit);
+        rpBlit.draw(3);
+        rpBlit.end();
+      } catch (err) {
+        console.log('Blit pass failed', err);
+      }
       enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
       const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
       writeUniform(uni, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rectTop(), flagsTop);
@@ -434,7 +528,7 @@
       const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
       return { detected: topDetected, cntA, cntB };
     }
-    return { init, runTopDetection };
+    return { init, presentOnce, runTopDetection };
   })();
 
   /* ---- Controller: run detection loop and send bit ---- */
