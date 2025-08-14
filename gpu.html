@@ -8,7 +8,6 @@
     html, body { margin:0; height:100%; background:#000; color:#fff; font:14px system-ui, sans-serif; }
     #wrap { display:grid; place-items:center; gap:12px; height:100%; }
     #gfx { width: min(100vw, 100vh * 9/16); height: auto; image-rendering: pixelated; background:#000; }
-    #cam { opacity:0.1; } /* we don't show the <video> */
     button { padding:10px 16px; font-weight:600; }
     .row { display:flex; gap:12px; align-items:center; }
   </style>
@@ -20,14 +19,12 @@
       <button id="start">Start</button>
       <span id="info"></span>
     </div>
-    <video id="cam" playsinline muted autoplay></video>
   </div>
 
   <script type="module">
     const $ = s => document.querySelector(s);
     const info = $('#info');
     const start = $('#start');
-    const video = $('#cam');
     const canvas = $('#gfx');
 
     // WGSL — compute (f16), 1:1 loads, red checker overlay
@@ -93,22 +90,11 @@
     start.addEventListener('click', async () => {
       start.disabled = true;
       try {
-        // 1) Camera (single constraint set; no branching)
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' },
-          audio: false
-        });
-        video.srcObject = stream;
-        await video.play();
-        await new Promise(r => {
-          if (video.readyState >= 1) r();
-          else video.onloadedmetadata = r;
-        });
-
-        const width  = video.videoWidth | 0;
-        const height = video.videoHeight | 0;
-        canvas.width = width;
-        canvas.height = height;
+        // 1) Camera → WebCodecs VideoFrame (no <video> element)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        const track = stream.getVideoTracks()[0];
+        const processor = new MediaStreamTrackProcessor({ track });
+        const reader = processor.readable.getReader();
 
         // 2) WebGPU (require f16; no fallbacks)
         if (!('gpu' in navigator)) throw new Error('WebGPU not available');
@@ -120,41 +106,23 @@
         const format = navigator.gpu.getPreferredCanvasFormat();
         ctx.configure({ device, format, alphaMode: 'opaque' });
 
-        // 3) Textures & buffers
-        const srcTex = device.createTexture({
-          size: { width, height },
-          format: 'rgba8unorm',
-          usage:
-            GPUTextureUsage.TEXTURE_BINDING |
-            GPUTextureUsage.COPY_DST |
-            GPUTextureUsage.RENDER_ATTACHMENT, // required for CEITT on video sources
-        });
-
-        const outTex = device.createTexture({
-          size: { width, height },
-          format: 'rgba8unorm',
-          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
-        });
+        // 3) Buffers (textures are created lazily from first VideoFrame)
+        let srcTex, outTex;
+        let width = 0, height = 0;
+        let xGroups = 0, yGroups = 0;
+        let computeBG, blitBundle;
+        const WG = 8;
 
         const paramsBuf = device.createBuffer({
           size: 16, // vec2<u32> + padding
           usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
-        device.queue.writeBuffer(paramsBuf, 0, new Uint32Array([width, height, 0, 0]));
 
         // 4) Pipelines (auto layouts)
         const computeMod = device.createShaderModule({ code: computeWGSL });
         const computePipeline = device.createComputePipeline({
           layout: 'auto',
           compute: { module: computeMod, entryPoint: 'main' }
-        });
-        const computeBG = device.createBindGroup({
-          layout: computePipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: srcTex.createView() },
-            { binding: 1, resource: outTex.createView() },
-            { binding: 2, resource: { buffer: paramsBuf } },
-          ]
         });
 
         const blitMod = device.createShaderModule({ code: blitWGSL });
@@ -164,63 +132,98 @@
           fragment: { module: blitMod, entryPoint: 'fs', targets: [{ format }] },
           primitive: { topology: 'triangle-list' },
         });
-        const blitBG = device.createBindGroup({
-          layout: blitPipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' }) },
-            { binding: 1, resource: outTex.createView() },
-          ]
-        });
+        // Helper to (re)create textures/bind groups/bundle from a VideoFrame's coded size
+        async function ensureTextures(frame) {
+          const w = frame.codedWidth, h = frame.codedHeight;
+          if (srcTex && w === width && h === height) return;
 
-        // 5) Pre-encode the blit as a render bundle (cuts per-frame JS/driver cost)
-        const bundleEnc = device.createRenderBundleEncoder({ colorFormats: [format] });
-        bundleEnc.setPipeline(blitPipeline);
-        bundleEnc.setBindGroup(0, blitBG);
-        bundleEnc.draw(3);
-        const blitBundle = bundleEnc.finish();
+          width = w; height = h;
+          canvas.width = frame.displayWidth;
+          canvas.height = frame.displayHeight;
 
-        // 6) Fixed dispatch sizes (no conditionals)
-        const WG = 8;
-        const xGroups = Math.ceil(width / WG);
-        const yGroups = Math.ceil(height / WG);
+          srcTex?.destroy?.();
+          outTex?.destroy?.();
 
-        // 7) Frame loop at video cadence
-        let cbId = 0;
-        const tick = () => {
-          // Upload the current decoded frame into srcTex
-          device.queue.copyExternalImageToTexture(
-            { source: video, flipY: true },
-            { texture: srcTex },
-            { width, height }
-          );
+          srcTex = device.createTexture({
+            size: { width, height },
+            format: 'rgba8unorm',
+            usage:
+              GPUTextureUsage.TEXTURE_BINDING |
+              GPUTextureUsage.COPY_DST |
+              GPUTextureUsage.RENDER_ATTACHMENT
+          });
 
-          const enc = device.createCommandEncoder();
+          outTex = device.createTexture({
+            size: { width, height },
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
+          });
 
-          // Compute: process into outTex
-          {
-            const pass = enc.beginComputePass();
-            pass.setPipeline(computePipeline);
-            pass.setBindGroup(0, computeBG);
-            pass.dispatchWorkgroups(xGroups, yGroups);
-            pass.end();
+          device.queue.writeBuffer(paramsBuf, 0, new Uint32Array([width, height, 0, 0]));
+          xGroups = Math.ceil(width / WG);
+          yGroups = Math.ceil(height / WG);
+
+          computeBG = device.createBindGroup({
+            layout: computePipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: srcTex.createView() },
+              { binding: 1, resource: outTex.createView() },
+              { binding: 2, resource: { buffer: paramsBuf } },
+            ]
+          });
+
+          const blitBG = device.createBindGroup({
+            layout: blitPipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' }) },
+              { binding: 1, resource: outTex.createView() },
+            ]
+          });
+
+          const bundleEnc = device.createRenderBundleEncoder({ colorFormats: [format] });
+          bundleEnc.setPipeline(blitPipeline);
+          bundleEnc.setBindGroup(0, blitBG);
+          bundleEnc.draw(3);
+          blitBundle = bundleEnc.finish();
+
+          info.textContent = `Running ${width}×${height}, f16 compute + bundle blit (VideoFrame).`;
+        }
+        // 5) Decode-paced pump: read VideoFrames and push them through CEITT → compute → blit
+        (async function pump() {
+          for (;;) {
+            const { value: frame, done } = await reader.read();
+            if (done || !frame) break;
+            try {
+              await ensureTextures(frame);
+
+              device.queue.copyExternalImageToTexture(
+                { source: frame  , flipY:true  },
+                { texture: srcTex, colorSpace: 'srgb' },
+                { width, height }
+              );
+
+              const enc = device.createCommandEncoder();
+              {
+                const pass = enc.beginComputePass();
+                pass.setPipeline(computePipeline);
+                pass.setBindGroup(0, computeBG);
+                pass.dispatchWorkgroups(xGroups, yGroups);
+                pass.end();
+              }
+              {
+                const colorView = ctx.getCurrentTexture().createView();
+                const pass = enc.beginRenderPass({
+                  colorAttachments: [{ view: colorView, loadOp: 'load', storeOp: 'store' }]
+                });
+                pass.executeBundles([blitBundle]);
+                pass.end();
+              }
+              device.queue.submit([enc.finish()]);
+            } finally {
+              frame.close();
+            }
           }
-
-          // Render: blit outTex → canvas
-          {
-            const colorView = ctx.getCurrentTexture().createView();
-            const pass = enc.beginRenderPass({
-              colorAttachments: [{ view: colorView, loadOp: 'load', storeOp: 'store' }]
-            });
-            pass.executeBundles([blitBundle]);
-            pass.end();
-          }
-
-          device.queue.submit([enc.finish()]);
-          cbId = video.requestVideoFrameCallback(() => tick());
-        };
-
-        video.requestVideoFrameCallback(() => tick());
-        info.textContent = `Running ${width}×${height}, f16 compute + bundle blit.`;
+        })();
 
       } catch (err) {
         info.textContent = (err && err.message) ? err.message : String(err);
