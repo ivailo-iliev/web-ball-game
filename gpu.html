@@ -4,11 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <link rel="icon" href="/favicon.png" sizes="any" type="image/png">
-  <meta name="viewport" content="width=device-width,
-               initial-scale=1,
-               maximum-scale=1,
-               user-scalable=no,
-               viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <title>WebGPU video</title>
   <style>
     html,
@@ -95,20 +91,20 @@
     <fieldset id="teamAThresh"></fieldset>
     <span id="info"></span>
   </div>
-  </div>
 
-  <script>
-    const $ = sel => document.querySelector(sel);
-    function handleLog(msg) { $('#state').textContent = msg; }
+  <script src="webrtc.js" defer></script>
+  <script type="module">
+    const $ = id => document.getElementById(id);
+    const state = $('state');
+    const b0 = $('b0');
+
+    function handleLog(msg) { state.textContent = msg; }
     function handleOpen() {
       handleLog('Connected');
-      const btn = $('#b0');
-      btn.disabled = false;
-      btn.onclick = () => sendBit('0');
+      b0.disabled = false;
+      b0.onclick = () => sendBit('0');
     }
-  </script>
-  <script src="webrtc.js"></script>
-  <script>
+
     let dc;
     StartA().then(ctrl => {
       dc = ctrl.channel;
@@ -118,8 +114,9 @@
         dc.send('hello from A');
         handleOpen();
       };
-      dc.onmessage = (e) => console.log('msg:', e.data);
+      dc.onmessage = e => console.log('msg:', e.data);
     }).catch(err => handleLog('ERR: ' + (err && (err.stack || err))));
+
     function sendBit(bit) {
       if (dc && dc.readyState === 'open') {
         dc.send(bit);
@@ -127,18 +124,16 @@
       }
     }
     window.sendBit = sendBit;
-  </script>
 
-  <script type="module">
-    const info = $('#info');
-    const start = $('#start');
-    const canvas = $('#gfx');
-    const widthInput = $('#videoWidth');
-    const heightInput = $('#videoHeight');
-    const minAreaInput = $('#minArea');
-    const selA = $('#teamA');
-    const selB = $('#teamB');
-    const thCont = $('#teamAThresh');
+    const info = $('info');
+    const start = $('start');
+    const canvas = $('gfx');
+    const widthInput = $('videoWidth');
+    const heightInput = $('videoHeight');
+    const minAreaInput = $('minArea');
+    const selA = $('teamA');
+    const selB = $('teamB');
+    const thCont = $('teamAThresh');
 
     const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
     const COLOR_TABLE = new Float32Array([
