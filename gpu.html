@@ -93,8 +93,6 @@
         // 1) Camera → WebCodecs VideoFrame (no <video> element)
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
         const track = stream.getVideoTracks()[0];
-        const processor = new MediaStreamTrackProcessor({ track });
-        const reader = processor.readable.getReader();
 
         // 2) WebGPU (require f16; no fallbacks)
         if (!('gpu' in navigator)) throw new Error('WebGPU not available');
@@ -188,42 +186,61 @@
 
           info.textContent = `Running ${width}×${height}, f16 compute + bundle blit (VideoFrame).`;
         }
-        // 5) Decode-paced pump: read VideoFrames and push them through CEITT → compute → blit
-        (async function pump() {
-          for (;;) {
-            const { value: frame, done } = await reader.read();
-            if (done || !frame) break;
-            try {
-              await ensureTextures(frame);
-
-              device.queue.copyExternalImageToTexture(
-                { source: frame  , flipY:true  },
-                { texture: srcTex, colorSpace: 'srgb' },
-                { width, height }
-              );
-
-              const enc = device.createCommandEncoder();
-              {
-                const pass = enc.beginComputePass();
-                pass.setPipeline(computePipeline);
-                pass.setBindGroup(0, computeBG);
-                pass.dispatchWorkgroups(xGroups, yGroups);
-                pass.end();
-              }
-              {
-                const colorView = ctx.getCurrentTexture().createView();
-                const pass = enc.beginRenderPass({
-                  colorAttachments: [{ view: colorView, loadOp: 'load', storeOp: 'store' }]
-                });
-                pass.executeBundles([blitBundle]);
-                pass.end();
-              }
-              device.queue.submit([enc.finish()]);
-            } finally {
-              frame.close();
+        // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
+        //    We transfer the camera track to the worker; it posts VideoFrames back to main.
+        const workerSrc = /* js */`
+          self.onmessage = async (e) => {
+            const { op, track } = e.data || {};
+            if (op !== 'init' || !track) return;
+            // Create MSTP in worker and stream frames to main
+            const processor = new MediaStreamTrackProcessor({ track });
+            const reader = processor.readable.getReader();
+            for (;;) {
+              const { value: frame, done } = await reader.read();
+              if (done || !frame) break;
+              // Transfer ownership of the VideoFrame to main thread
+              self.postMessage(frame, [frame]);
             }
+          };
+        `;
+        const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+        const videoWorker = new Worker(workerURL, { type: 'module' });
+        URL.revokeObjectURL(workerURL);
+        // Transfer the MediaStreamTrack to the worker (track becomes detached from main)
+        videoWorker.postMessage({ op: 'init', track }, [track]);
+
+        // 6) Main-thread pump: receive VideoFrames and run CEITT → compute → blit
+        videoWorker.onmessage = async (ev) => {
+          const frame = ev.data; // VideoFrame (transferred)
+          if (!frame) return;
+          try {
+            await ensureTextures(frame);
+            device.queue.copyExternalImageToTexture(
+              { source: frame , flipY:true },
+              { texture: srcTex, colorSpace: 'srgb' },
+              { width, height }
+            );
+            const enc = device.createCommandEncoder();
+            {
+              const pass = enc.beginComputePass();
+              pass.setPipeline(computePipeline);
+              pass.setBindGroup(0, computeBG);
+              pass.dispatchWorkgroups(xGroups, yGroups);
+              pass.end();
+            }
+            {
+              const colorView = ctx.getCurrentTexture().createView();
+              const pass = enc.beginRenderPass({
+                colorAttachments: [{ view: colorView, loadOp: 'load', storeOp: 'store' }]
+              });
+              pass.executeBundles([blitBundle]);
+              pass.end();
+            }
+            device.queue.submit([enc.finish()]);
+          } finally {
+            frame.close(); // always release
           }
-        })();
+        };
 
       } catch (err) {
         info.textContent = (err && err.message) ? err.message : String(err);
