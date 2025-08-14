@@ -877,7 +877,7 @@ const Detect = (() => {
     device.queue.writeBuffer(statsB, 0, zero);
 
     device.queue.copyExternalImageToTexture(
-      { source: Feeds.front() },
+      { source: Feeds.front(), flipY:true },
       { texture: frameTex2 },
       [cfg.FRONT_W, cfg.FRONT_H]
     );
