@@ -156,9 +156,11 @@
       const i = TEAM_INDICES[team] * 6;
       return COLOR_TABLE.subarray(i, i + 6);
     }
+    const _f32 = new Float32Array(1);
+    const _u32 = new Uint32Array(_f32.buffer);
     function float32ToFloat16(val) {
-      const f32 = new Float32Array([val]);
-      const u32 = new Uint32Array(f32.buffer)[0];
+      _f32[0] = val;
+      const u32 = _u32[0];
       const sign = (u32 >> 16) & 0x8000;
       let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
       let mant = u32 & 0x7FFFFF;
@@ -229,16 +231,22 @@
       Config.save('topMinArea', cfg.topMinArea);
     });
 
+    const fragA = document.createDocumentFragment();
+    const fragB = document.createDocumentFragment();
     for (const t of Object.keys(TEAM_INDICES)) {
-      const optA = document.createElement('option');
-      optA.value = t;
-      optA.textContent = COLOR_EMOJI[t];
-      selA.appendChild(optA);
-      const optB = document.createElement('option');
-      optB.value = t;
-      optB.textContent = COLOR_EMOJI[t];
-      selB.appendChild(optB);
+      const optA = Object.assign(document.createElement('option'), {
+        value: t,
+        textContent: COLOR_EMOJI[t]
+      });
+      fragA.appendChild(optA);
+      const optB = Object.assign(document.createElement('option'), {
+        value: t,
+        textContent: COLOR_EMOJI[t]
+      });
+      fragB.appendChild(optB);
     }
+    selA.appendChild(fragA);
+    selB.appendChild(fragB);
     selA.value = cfg.teamA;
     selB.value = cfg.teamB;
     if (selA.selectedIndex === -1) {
@@ -262,13 +270,17 @@
     });
 
     const thInputs = [];
+    const thFrag = document.createDocumentFragment();
     for (let i = 0; i < 6; i++) {
-      const inp = document.createElement('input');
-      inp.type = 'number';
-      inp.min = '0'; inp.max = '1'; inp.step = '0.05';
-      inp.style.width = '4ch';
-      thCont.appendChild(inp);
+      const inp = Object.assign(document.createElement('input'), {
+        type: 'number',
+        min: '0',
+        max: '1',
+        step: '0.05'
+      });
+      Object.assign(inp.style, { width: '4ch' });
       thInputs.push(inp);
+      thFrag.appendChild(inp);
       inp.addEventListener('input', e => {
         const base = TEAM_INDICES[cfg.teamA] * 6 + i;
         COLOR_TABLE[base] = parseFloat(e.target.value);
@@ -277,6 +289,7 @@
         cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
       });
     }
+    thCont.appendChild(thFrag);
     function updateThreshInputs() {
       const base = TEAM_INDICES[cfg.teamA] * 6;
       for (let i = 0; i < 6; i++) thInputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
@@ -310,6 +323,14 @@
 
         // 3) GPU resources (textures are created lazily from first VideoFrame)
         let frameTex1, maskTex1;
+        const maskPassDesc = { colorAttachments: [{ view: undefined, loadOp: 'clear', storeOp: 'store' }] };
+        const colorAttachment = {
+          view: undefined,
+          loadOp: 'clear',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          storeOp: 'store'
+        };
+        const colorPassDesc = { colorAttachments: [colorAttachment] };
         let width = 0, height = 0;
         let xGroups = 0, yGroups = 0;
         let bgTop, bgR;
@@ -330,16 +351,12 @@
         const uniformU32 = new Uint32Array(uniformArrayBuffer);
         function writeUniform(buf, hsvA6, hsvB6, rect, flags) {
           const u16 = uniformU16, f32 = uniformF32, u32 = uniformU32;
-          // hsvA (6 halfs) -> u16[0..2], u16[4..6]
-          for (let i = 0; i < 3; i++) u16[i] = hsvA6[i];
-          for (let i = 0; i < 3; i++) u16[4 + i] = hsvA6[i + 3];
-          // hsvB (6 halfs) -> u16[8..10], u16[12..14]
-          for (let i = 0; i < 3; i++) u16[8 + i] = hsvB6[i];
-          for (let i = 0; i < 3; i++) u16[12 + i] = hsvB6[i + 3];
-          // rect min/max (4 f32) -> f32[8..11]
-          f32[8] = rect.min[0]; f32[9] = rect.min[1];
-          f32[10] = rect.max[0]; f32[11] = rect.max[1];
-          // flags (u32) -> u32[12]
+          u16.set(hsvA6.subarray(0, 3), 0);
+          u16.set(hsvA6.subarray(3, 6), 4);
+          u16.set(hsvB6.subarray(0, 3), 8);
+          u16.set(hsvB6.subarray(3, 6), 12);
+          f32.set(rect.min, 8);
+          f32.set(rect.max, 10);
           u32[12] = flags;
           device.queue.writeBuffer(buf, 0, uniformArrayBuffer);
         }
@@ -383,6 +400,7 @@
             format: 'rgba8unorm',
             usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
           });
+          maskPassDesc.colorAttachments[0].view = maskTex1.createView();
 
           xGroups = Math.ceil(width / WG_X);
           yGroups = Math.ceil(height / WG_Y);
@@ -478,30 +496,23 @@
               flagsTop
             );
 
-            const enc = device.createCommandEncoder();
-            enc.beginRenderPass({ colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
-            {
-              const pass = enc.beginComputePass();
-              pass.setPipeline(computePipeline);
-              pass.setBindGroup(0, bgTop);
-              pass.dispatchWorkgroups(xGroups, yGroups);
-              pass.end();
-            }
-            {
-              const colorView = ctx.getCurrentTexture().createView();
-              const pass = enc.beginRenderPass({
-                colorAttachments: [{
-                  view: colorView,
-                  loadOp: 'clear',
-                  clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                  storeOp: 'store'
-                }]
-              });
-              pass.setPipeline(renderPipeline);
-              pass.setBindGroup(0, bgR);
-              pass.draw(3);
-              pass.end();
-            }
+              const enc = device.createCommandEncoder();
+              enc.beginRenderPass(maskPassDesc).end();
+              {
+                const pass = enc.beginComputePass();
+                pass.setPipeline(computePipeline);
+                pass.setBindGroup(0, bgTop);
+                pass.dispatchWorkgroups(xGroups, yGroups);
+                pass.end();
+              }
+              {
+                colorAttachment.view = ctx.getCurrentTexture().createView();
+                const pass = enc.beginRenderPass(colorPassDesc);
+                pass.setPipeline(renderPipeline);
+                pass.setBindGroup(0, bgR);
+                pass.draw(3);
+                pass.end();
+              }
             // optional: copy stats out (not displayed here)
             enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
             enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
