@@ -125,7 +125,9 @@
     }
     window.sendBit = sendBit;
 
-    const info = $('info');
+      const info = $('info');
+      let infoBase = '';
+      let lastFrameTS;
     const start = $('start');
     const canvas = $('gfx');
     const widthInput = $('videoWidth');
@@ -426,7 +428,8 @@
             ]
           });
 
-          info.textContent = `Running ${width}×${height}, shader.wgsl compute+render (VideoFrame).`;
+          infoBase = `Running ${width}×${height}, shader.wgsl compute+render (VideoFrame).`;
+          info.textContent = infoBase;
         }
 
         // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
@@ -471,13 +474,19 @@
         }
 
         // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
-        videoWorker.onmessage = async (ev) => {
-          const frame = ev.data; // VideoFrame (transferred)
-          if (!frame) return;
-          if (busy) { frame.close(); return; }
-          busy = true;
-          try {
-            await ensureTextures(frame);
+          videoWorker.onmessage = async (ev) => {
+            const frame = ev.data; // VideoFrame (transferred)
+            if (!frame) return;
+            if (busy) { frame.close(); return; }
+            const now = performance.now();
+            if (lastFrameTS !== undefined) {
+              const fps = 1000 / (now - lastFrameTS);
+              info.textContent = `${infoBase} ${fps.toFixed(1)} fps`;
+            }
+            lastFrameTS = now;
+            busy = true;
+            try {
+              await ensureTextures(frame);
 
             // Upload camera frame into frameTex1
             device.queue.copyExternalImageToTexture(
