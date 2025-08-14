@@ -21,261 +21,244 @@
     </div>
   </div>
 
-  <script type="module">
-    const $ = s => document.querySelector(s);
-    const info = $('#info');
-    const start = $('#start');
-    const canvas = $('#gfx');
+<script type="module">
+  const $ = s => document.querySelector(s);
+  const info = $('#info');
+  const start = $('#start');
+  const canvas = $('#gfx');
 
-    // WGSL — compute (f16), 1:1 loads, red checker overlay
-    const computeWGSL = /* wgsl */`
-      enable f16;
+  start.addEventListener('click', async () => {
+    start.disabled = true;
+    try {
+      // 1) Camera → WebCodecs VideoFrame (no <video> element)
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      const track = stream.getVideoTracks()[0];
 
-      struct Params {
-        size : vec2<u32>,
-        _pad : vec2<u32>,
-      };
+      // 2) WebGPU (require f16; no fallbacks)
+      if (!('gpu' in navigator)) throw new Error('WebGPU not available');
+      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+      if (!adapter) throw new Error('No GPU adapter');
+      const device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
 
-      @group(0) @binding(0) var src : texture_2d<f32>;
-      @group(0) @binding(1) var dst : texture_storage_2d<rgba8unorm, write>;
-      @group(0) @binding(2) var<uniform> params : Params;
+      const ctx = canvas.getContext('webgpu');
+      const format = navigator.gpu.getPreferredCanvasFormat();
+      ctx.configure({ device, format, alphaMode: 'opaque' });
 
-      @compute @workgroup_size(8, 8, 1)
-      fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
-        if (gid.x >= params.size.x || gid.y >= params.size.y) { return; }
+      const blitSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+      let busy = false; // drop frames when main thread is busy
 
-        // exact pixel fetch (no sampler/filtering)
-        let c = textureLoad(src, vec2<i32>(gid.xy), 0);
+      // 3) GPU resources (textures are created lazily from first VideoFrame)
+      let frameTex1, maskTex1;
+      let width = 0, height = 0;
+      let xGroups = 0, yGroups = 0;
+      let bgTop, bgR;
+      const WG_X = 8, WG_Y = 32;
 
-        // prove f16 path is active
-        var c16 = vec4<f16>(c);
+      // Uniform & stats buffers (match legacy/top.js layout)
+      const uni    = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      const statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      const readA  = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      const readB  = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+      const zeroU32 = new Uint32Array([0,0,0]);
 
-        // cheap, coherent branch: paint a red checker
-        if (((gid.x ^ gid.y) & 8u) == 0u) {
-          c16 = vec4<f16>(1.0h, 0.0h, 0.0h, 1.0h);
-        }
-
-        textureStore(dst, vec2<i32>(gid.xy), vec4<f32>(c16));
+      // Pack uniforms like top.js (f16 HSV ranges + ROI + flags)
+      const uniformArrayBuffer = new ArrayBuffer(64);
+      const uniformU16 = new Uint16Array(uniformArrayBuffer);
+      const uniformF32 = new Float32Array(uniformArrayBuffer);
+      const uniformU32 = new Uint32Array(uniformArrayBuffer);
+      function writeUniform(buf, hsvA6, hsvB6, rect, flags){
+        const u16=uniformU16, f32=uniformF32, u32=uniformU32;
+        // hsvA (6 halfs) -> u16[0..2], u16[4..6]
+        for(let i=0;i<3;i++) u16[i]=hsvA6[i];
+        for(let i=0;i<3;i++) u16[4+i]=hsvA6[i+3];
+        // hsvB (6 halfs) -> u16[8..10], u16[12..14]
+        for(let i=0;i<3;i++) u16[8+i]=hsvB6[i];
+        for(let i=0;i<3;i++) u16[12+i]=hsvB6[i+3];
+        // rect min/max (4 f32) -> f32[8..11]
+        f32[8]=rect.min[0]; f32[9]=rect.min[1];
+        f32[10]=rect.max[0]; f32[11]=rect.max[1];
+        // flags (u32) -> u32[12]
+        u32[12]=flags;
+        device.queue.writeBuffer(buf,0,uniformArrayBuffer);
       }
-    `;
+      // trivial default HSV half-precision ranges
+      const emptyHSV = new Uint16Array(6);
+      const FLAG_PREVIEW = 1, FLAG_TEAM_A_ACTIVE = 2, FLAG_TEAM_B_ACTIVE = 4;
 
-    // WGSL — fullscreen blit (render)
-    const blitWGSL = /* wgsl */`
-      struct VSOut {
-        @builtin(position) pos : vec4<f32>,
-        @location(0) uv : vec2<f32>,
-      };
+      // 4) Pipelines from shared shader.wgsl (compute: 'main', render: 'vs'/'fs')
+      const SHADER_CODE = await fetch('shader.wgsl').then(r=>r.text());
+      const sharedMod = device.createShaderModule({ code: SHADER_CODE });
+      const computePipeline = device.createComputePipeline({
+        layout: 'auto',
+        compute: { module: sharedMod, entryPoint: 'main' }
+      });
+      const renderPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex:   { module: sharedMod, entryPoint: 'vs' },
+        fragment: { module: sharedMod, entryPoint: 'fs', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' },
+      });
 
-      @vertex
-      fn vs(@builtin(vertex_index) vid : u32) -> VSOut {
-        var p = array<vec2<f32>, 3>(
-          vec2<f32>(-1.0, -1.0), vec2<f32>(-1.0,  3.0), vec2<f32>( 3.0, -1.0));
-        var t = array<vec2<f32>, 3>(
-          vec2<f32>( 0.0,  0.0), vec2<f32>( 0.0,  2.0), vec2<f32>( 2.0,  0.0));
-        var o: VSOut;
-        o.pos = vec4<f32>(p[vid], 0.0, 1.0);
-        o.uv  = t[vid];
-        return o;
-      }
+      // Helper to (re)create textures/bind groups from a VideoFrame's coded size
+      async function ensureTextures(frame) {
+        const w = frame.codedWidth, h = frame.codedHeight;
+        if (frameTex1 && w === width && h === height) return;
 
-      @group(0) @binding(0) var s   : sampler;
-      @group(0) @binding(1) var tex : texture_2d<f32>;
+        width = w; height = h;
+        canvas.width = frame.displayWidth;
+        canvas.height = frame.displayHeight;
 
-      @fragment
-      fn fs(i : VSOut) -> @location(0) vec4<f32> {
-        return textureSampleLevel(tex, s, i.uv, 0.0);
-      }
-    `;
+        frameTex1?.destroy?.();
+        maskTex1?.destroy?.();
 
-    start.addEventListener('click', async () => {
-      start.disabled = true;
-      try {
-        // 1) Camera → WebCodecs VideoFrame (no <video> element)
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        const track = stream.getVideoTracks()[0];
-
-        // 2) WebGPU (require f16; no fallbacks)
-        if (!('gpu' in navigator)) throw new Error('WebGPU not available');
-        const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-        if (!adapter) throw new Error('No GPU adapter');
-        const device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
-
-        const ctx = canvas.getContext('webgpu');
-        const format = navigator.gpu.getPreferredCanvasFormat();
-        ctx.configure({ device, format, alphaMode: 'opaque' });
-        const blitSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
-        let busy = false; // drop frames when main thread is busy
-
-        // 3) Buffers (textures are created lazily from first VideoFrame)
-        let srcTex, outTex;
-        let width = 0, height = 0;
-        let xGroups = 0, yGroups = 0;
-        let computeBG, blitBundle;
-        const WG = 8;
-
-        const paramsBuf = device.createBuffer({
-          size: 16, // vec2<u32> + padding
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        // camera frame (sampled/RT) + mask (storage/sampled/RT)
+        frameTex1 = device.createTexture({
+          size: { width, height },
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+        });
+        maskTex1 = device.createTexture({
+          size: { width, height },
+          format: 'rgba8unorm',
+          usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
         });
 
-        // 4) Pipelines (auto layouts)
-        const computeMod = device.createShaderModule({ code: computeWGSL });
-        const computePipeline = device.createComputePipeline({
-          layout: 'auto',
-          compute: { module: computeMod, entryPoint: 'main' }
+        xGroups = Math.ceil(width / WG_X);
+        yGroups = Math.ceil(height / WG_Y);
+
+        // compute BG: {0:frameTex1,1:maskTex1,2:statsA,3:statsB,6:uni}
+        bgTop = device.createBindGroup({
+          layout: computePipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: frameTex1.createView() },
+            { binding: 1, resource: maskTex1.createView() },
+            { binding: 2, resource: { buffer: statsA } },
+            { binding: 3, resource: { buffer: statsB } },
+            { binding: 6, resource: { buffer: uni } }
+          ]
+        });
+        // render BG: {0:frameTex1,4:maskTex1,5:sampler}
+        bgR = device.createBindGroup({
+          layout: renderPipeline.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: frameTex1.createView() },
+            { binding: 4, resource: maskTex1.createView() },
+            { binding: 5, resource: blitSampler }
+          ]
         });
 
-        const blitMod = device.createShaderModule({ code: blitWGSL });
-        const blitPipeline = device.createRenderPipeline({
-          layout: 'auto',
-          vertex:   { module: blitMod, entryPoint: 'vs' },
-          fragment: { module: blitMod, entryPoint: 'fs', targets: [{ format }] },
-          primitive: { topology: 'triangle-list' },
-        });
-        // Helper to (re)create textures/bind groups/bundle from a VideoFrame's coded size
-        async function ensureTextures(frame) {
-          const w = frame.codedWidth, h = frame.codedHeight;
-          if (srcTex && w === width && h === height) return;
+        info.textContent = `Running ${width}×${height}, shader.wgsl compute+render (VideoFrame).`;
+      }
 
-          width = w; height = h;
-          canvas.width = frame.displayWidth;
-          canvas.height = frame.displayHeight;
-
-          srcTex?.destroy?.();
-          outTex?.destroy?.();
-
-          srcTex = device.createTexture({
-            size: { width, height },
-            format: 'rgba8unorm',
-            usage:
-              GPUTextureUsage.TEXTURE_BINDING |
-              GPUTextureUsage.COPY_DST |
-              GPUTextureUsage.RENDER_ATTACHMENT
-          });
-
-          outTex = device.createTexture({
-            size: { width, height },
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
-          });
-
-          device.queue.writeBuffer(paramsBuf, 0, new Uint32Array([width, height, 0, 0]));
-          xGroups = Math.ceil(width / WG);
-          yGroups = Math.ceil(height / WG);
-
-          computeBG = device.createBindGroup({
-            layout: computePipeline.getBindGroupLayout(0),
-            entries: [
-              { binding: 0, resource: srcTex.createView() },
-              { binding: 1, resource: outTex.createView() },
-              { binding: 2, resource: { buffer: paramsBuf } },
-            ]
-          });
-
-          const blitBG = device.createBindGroup({
-            layout: blitPipeline.getBindGroupLayout(0),
-            entries: [
-              { binding: 0, resource: blitSampler },
-              { binding: 1, resource: outTex.createView() },
-            ]
-          });
-
-          const bundleEnc = device.createRenderBundleEncoder({ colorFormats: [format] });
-          bundleEnc.setPipeline(blitPipeline);
-          bundleEnc.setBindGroup(0, blitBG);
-          bundleEnc.draw(3);
-          blitBundle = bundleEnc.finish();
-
-          info.textContent = `Running ${width}×${height}, f16 compute + bundle blit (VideoFrame).`;
-        }
-        // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
-        //    We transfer the camera track to the worker; it posts VideoFrames back to main.
-        const workerSrc = /* js */`
-          self.onmessage = async (e) => {
-            const { op } = e.data || {};
-            if (op === 'init-track') {
-              const { track } = e.data;
-              if (!track) return;
-              // Create MSTP in worker and stream frames to main
-              const processor = new MediaStreamTrackProcessor({ track });
-              const reader = processor.readable.getReader();
-              for (;;) {
-                const { value: frame, done } = await reader.read();
-                if (done || !frame) break;
-                self.postMessage(frame, [frame]); // transfer ownership
-              }
-            } else if (op === 'init-stream') {
-              const { stream } = e.data;
-              if (!stream) return;
-              const reader = stream.getReader();
-              for (;;) {
-                const { value: frame, done } = await reader.read();
-                if (done || !frame) break;
-                self.postMessage(frame, [frame]); // transfer ownership
-              }
-            } // else ignore
-          };
-        `;
-        const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
-        const videoWorker = new Worker(workerURL, { type: 'module' });
-        URL.revokeObjectURL(workerURL);
-        // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
-        // If this throws (e.g., Chrome Windows), fall back to sending a ReadableStream.
-        try {
-          videoWorker.postMessage({ op: 'init-track', track }, [track]);
-        } catch (e) {
-          const processor = new MediaStreamTrackProcessor({ track });
-          videoWorker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
-        }
-
-        // 6) Main-thread pump: receive VideoFrames and run CEITT → compute → blit
-        videoWorker.onmessage = async (ev) => {
-          const frame = ev.data; // VideoFrame (transferred)
-          if (!frame) return;
-          if (busy) { frame.close(); return; }
-          busy = true;
-          try {
-            await ensureTextures(frame);
-            device.queue.copyExternalImageToTexture(
-              { source: frame , flipY:true },
-              { texture: srcTex, colorSpace: 'srgb' },
-              { width, height }
-            );
-            const enc = device.createCommandEncoder();
-            {
-              const pass = enc.beginComputePass();
-              pass.setPipeline(computePipeline);
-              pass.setBindGroup(0, computeBG);
-              pass.dispatchWorkgroups(xGroups, yGroups);
-              pass.end();
+      // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
+      //    We transfer the camera track to the worker; it posts VideoFrames back to main.
+      const workerSrc = /* js */`
+        self.onmessage = async (e) => {
+          const { op } = e.data || {};
+          if (op === 'init-track') {
+            const { track } = e.data;
+            if (!track) return;
+            // Create MSTP in worker and stream frames to main
+            const processor = new MediaStreamTrackProcessor({ track });
+            const reader = processor.readable.getReader();
+            for (;;) {
+              const { value: frame, done } = await reader.read();
+              if (done || !frame) break;
+              self.postMessage(frame, [frame]); // transfer ownership
             }
-            {
-              const colorView = ctx.getCurrentTexture().createView();
-              const pass = enc.beginRenderPass({
-                // Use 'clear' to avoid a tile load on mobile TBDR GPUs
-                colorAttachments: [{
-                  view: colorView,
-                  loadOp: 'clear',
-                  clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                  storeOp: 'store'
-                }]
-              });
-              pass.executeBundles([blitBundle]);
-              pass.end();
+          } else if (op === 'init-stream') {
+            const { stream } = e.data;
+            if (!stream) return;
+            const reader = stream.getReader();
+            for (;;) {
+              const { value: frame, done } = await reader.read();
+              if (done || !frame) break;
+              self.postMessage(frame, [frame]); // transfer ownership
             }
-            device.queue.submit([enc.finish()]);
-          } finally {
-            frame.close(); // always release
-            busy = false;
-          }
+          } // else ignore
         };
+      `;
+      const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+      const videoWorker = new Worker(workerURL, { type: 'module' });
+      URL.revokeObjectURL(workerURL);
 
-      } catch (err) {
-        info.textContent = (err && err.message) ? err.message : String(err);
-        start.disabled = false;
-        console.error(err);
+      // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
+      // If this throws (e.g., Chrome Windows), fall back to sending a ReadableStream.
+      try {
+        videoWorker.postMessage({ op: 'init-track', track }, [track]);
+      } catch (e) {
+        const processor = new MediaStreamTrackProcessor({ track });
+        videoWorker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
       }
-    });
-  </script>
+
+      // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
+      videoWorker.onmessage = async (ev) => {
+        const frame = ev.data; // VideoFrame (transferred)
+        if (!frame) return;
+        if (busy) { frame.close(); return; }
+        busy = true;
+        try {
+          await ensureTextures(frame);
+
+          // Upload camera frame into frameTex1
+          device.queue.copyExternalImageToTexture(
+            { source: frame , flipY:true },
+            { texture: frameTex1, colorSpace: 'srgb' },
+            { width, height }
+          );
+
+          // reset stats and write uniforms (full-frame ROI; preview+both teams flags)
+          device.queue.writeBuffer(statsA,0,zeroU32);
+          device.queue.writeBuffer(statsB,0,zeroU32);
+          writeUniform(
+            uni,
+            emptyHSV, emptyHSV,
+            {min:[0,0], max:[width,height]},
+            (FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE)
+          );
+
+          const enc = device.createCommandEncoder();
+          {
+            const pass = enc.beginComputePass();
+            pass.setPipeline(computePipeline);
+            pass.setBindGroup(0, bgTop);
+            pass.dispatchWorkgroups(xGroups, yGroups);
+            pass.end();
+          }
+          {
+            const colorView = ctx.getCurrentTexture().createView();
+            const pass = enc.beginRenderPass({
+              colorAttachments: [{
+                view: colorView,
+                loadOp: 'clear',
+                clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                storeOp: 'store'
+              }]
+            });
+            pass.setPipeline(renderPipeline);
+            pass.setBindGroup(0, bgR);
+            pass.draw(3);
+            pass.end();
+          }
+          // optional: copy stats out (not displayed here)
+          enc.copyBufferToBuffer(statsA,0,readA,0,12);
+          enc.copyBufferToBuffer(statsB,0,readB,0,12);
+
+          device.queue.submit([enc.finish()]);
+        } finally {
+          frame.close(); // always release
+          busy = false;
+        }
+      };
+
+    } catch (err) {
+      info.textContent = (err && err.message) ? err.message : String(err);
+      start.disabled = false;
+      console.error(err);
+    }
+  });
+</script>
+
 </body>
 </html>
