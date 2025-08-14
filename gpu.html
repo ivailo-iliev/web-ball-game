@@ -11,8 +11,9 @@
     button { padding:10px 16px; font-weight:600; }
     .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
     @media (orientation: portrait) {
-  #gfx { transform: rotate(90deg) translateZ(0); }
-}
+      #gfx { transform: rotate(90deg) translateZ(0); }
+    }
+    input { width: 6ch; }
   </style>
 </head>
 <body>
@@ -420,6 +421,7 @@
           );
 
           const enc = device.createCommandEncoder();
+          enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
           {
             const pass = enc.beginComputePass();
             pass.setPipeline(computePipeline);
@@ -459,7 +461,6 @@
           readB.unmap();
             const a = sumA > cfg.topMinArea;
             const b = sumB > cfg.topMinArea;
-            info.textContent = `${COLOR_EMOJI[cfg.teamA]}:${sumA} ${a?'✔':''} ${COLOR_EMOJI[cfg.teamB]}:${sumB} ${b?'✔':''}`;
             if (a || b) {
               let bit;
               if (a && b) bit = '2';
