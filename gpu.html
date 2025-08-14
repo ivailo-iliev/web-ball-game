@@ -24,6 +24,26 @@
       <input id="videoHeight" type="number" placeholder="height" value="720" />
       <span id="info"></span>
     </div>
+    <div class="row">
+      <label>Min area <input id="topMinInp" type="number" style="width:6ch" /></label>
+      <label>Team A
+        <select id="teamA">
+          <option value="red">🔴 red</option>
+          <option value="yellow">🟡 yellow</option>
+          <option value="green">🟢 green</option>
+          <option value="blue">🔵 blue</option>
+        </select>
+      </label>
+      <label>Team B
+        <select id="teamB">
+          <option value="red">🔴 red</option>
+          <option value="yellow">🟡 yellow</option>
+          <option value="green">🟢 green</option>
+          <option value="blue">🔵 blue</option>
+        </select>
+      </label>
+    </div>
+    <div class="row" id="teamAThresh"></div>
   </div>
 
 <script type="module">
@@ -33,6 +53,133 @@
   const canvas = $('#gfx');
   const widthInput = $('#videoWidth');
   const heightInput = $('#videoHeight');
+  const topMinInp = $('#topMinInp');
+  const selA = $('#teamA');
+  const selB = $('#teamB');
+  const thCont = $('#teamAThresh');
+
+  const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
+  const COLOR_TABLE = new Float32Array([
+    /* red    */ 0.00, 0.5, 0.7, 0.10, 1.00, 1.00,
+    /* yellow */ 0.10, 0.5, 0.5, 0.20, 1.00, 1.00,
+    /* blue   */ 0.50, 0.4, 0.4, 0.70, 1.00, 1.00,
+    /* green  */ 0.70, 0.2, 0.2, 0.90, 1.00, 1.00
+  ]);
+  const savedCT = localStorage.getItem('TOP_COLOR_TABLE');
+  if (savedCT) {
+    try {
+      const arr = JSON.parse(savedCT);
+      if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
+        COLOR_TABLE.set(arr.map(Number));
+      }
+    } catch(e){}
+  }
+  const COLOR_EMOJI = { red: '🔴', yellow: '🟡', green: '🟢', blue: '🔵' };
+  function hsvRange(team){
+    const i = TEAM_INDICES[team] * 6;
+    return COLOR_TABLE.subarray(i, i+6);
+  }
+  function float32ToFloat16(val){
+    const f32 = new Float32Array([val]);
+    const u32 = new Uint32Array(f32.buffer)[0];
+    const sign = (u32 >> 16) & 0x8000;
+    let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
+    let mant = u32 & 0x7FFFFF;
+    if (exp <= 0) return sign;
+    if (exp >= 0x1F) return sign | 0x7C00;
+    return sign | (exp << 10) | (mant >> 13);
+  }
+  function hsvRangeF16(team){
+    const src = hsvRange(team);
+    const dst = new Uint16Array(6);
+    for (let i=0;i<6;i++) dst[i] = float32ToFloat16(src[i]);
+    return dst;
+  }
+
+  const Config = (() => {
+    const DEFAULTS = {
+      topMinArea: 600,
+      teamA: 'green',
+      teamB: 'blue'
+    };
+    const PERSIST = {
+      topMinArea: 'topCamMinArea',
+      teamA: 'topTeamA',
+      teamB: 'topTeamB'
+    };
+    let cfg;
+    function load(){
+      cfg = {};
+      for (const [name, def] of Object.entries(DEFAULTS)) {
+        const raw = localStorage.getItem(PERSIST[name]);
+        cfg[name] = raw !== null ? JSON.parse(raw) : def;
+      }
+      cfg.f16Ranges = {};
+      for (const t of Object.keys(TEAM_INDICES)) {
+        cfg.f16Ranges[t] = hsvRangeF16(t);
+      }
+      return cfg;
+    }
+    function save(name,val){
+      if (PERSIST[name]) localStorage.setItem(PERSIST[name], JSON.stringify(val));
+      if (cfg) cfg[name] = val;
+    }
+    function get(){ return cfg; }
+    return { load, save, get };
+  })();
+  Config.load();
+  const cfg = Config.get();
+
+  topMinInp.value = cfg.topMinArea;
+  selA.value = cfg.teamA;
+  selB.value = cfg.teamB;
+  if (selA.selectedIndex === -1) {
+    selA.selectedIndex = 0;
+    cfg.teamA = selA.value;
+    Config.save('teamA', cfg.teamA);
+  }
+  if (selB.selectedIndex === -1) {
+    selB.selectedIndex = 0;
+    cfg.teamB = selB.value;
+    Config.save('teamB', cfg.teamB);
+  }
+  topMinInp.addEventListener('input', e => {
+    cfg.topMinArea = Math.max(0, +e.target.value);
+    Config.save('topMinArea', cfg.topMinArea);
+  });
+  selA.addEventListener('change', e => {
+    cfg.teamA = e.target.value;
+    Config.save('teamA', cfg.teamA);
+    updateThreshInputs();
+  });
+  selB.addEventListener('change', e => {
+    cfg.teamB = e.target.value;
+    Config.save('teamB', cfg.teamB);
+  });
+
+  const thInputs = [];
+  for (let i = 0; i < 6; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.min = '0';
+    inp.max = '1';
+    inp.step = '0.05';
+    inp.style.width = '4ch';
+    thCont.appendChild(inp);
+    thInputs.push(inp);
+    inp.addEventListener('input', e => {
+      const base = TEAM_INDICES[cfg.teamA] * 6 + i;
+      COLOR_TABLE[base] = parseFloat(e.target.value);
+      localStorage.setItem('TOP_COLOR_TABLE',
+        JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
+      cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+    });
+  }
+  function updateThreshInputs(){
+    const base = TEAM_INDICES[cfg.teamA] * 6;
+    for (let i = 0; i < 6; i++) thInputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
+  }
+  updateThreshInputs();
 
   start.addEventListener('click', async () => {
     start.disabled = true;
@@ -94,8 +241,6 @@
         u32[12]=flags;
         device.queue.writeBuffer(buf,0,uniformArrayBuffer);
       }
-      // trivial default HSV half-precision ranges
-      const emptyHSV = new Uint16Array(6);
       const FLAG_PREVIEW = 1, FLAG_TEAM_A_ACTIVE = 2, FLAG_TEAM_B_ACTIVE = 4;
 
       // 4) Pipelines from shared shader.wgsl (compute: 'main', render: 'vs'/'fs')
@@ -225,7 +370,8 @@
           device.queue.writeBuffer(statsB,0,zeroU32);
           writeUniform(
             uni,
-            emptyHSV, emptyHSV,
+            cfg.f16Ranges[cfg.teamA],
+            cfg.f16Ranges[cfg.teamB],
             {min:[0,0], max:[width,height]},
             (FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE)
           );
@@ -258,6 +404,14 @@
           enc.copyBufferToBuffer(statsB,0,readB,0,12);
 
           device.queue.submit([enc.finish()]);
+          await Promise.all([readA.mapAsync(GPUMapMode.READ), readB.mapAsync(GPUMapMode.READ)]);
+          const [cntA] = new Uint32Array(readA.getMappedRange());
+          readA.unmap();
+          const [cntB] = new Uint32Array(readB.getMappedRange());
+          readB.unmap();
+          const a = cntA > cfg.topMinArea;
+          const b = cntB > cfg.topMinArea;
+          info.textContent = `${COLOR_EMOJI[cfg.teamA]}:${cntA} ${a?'✓':''} ${COLOR_EMOJI[cfg.teamB]}:${cntB} ${b?'✓':''}`;
         } finally {
           frame.close(); // always release
           busy = false;
