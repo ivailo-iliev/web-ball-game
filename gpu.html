@@ -20,6 +20,8 @@
     <canvas id="gfx"></canvas>
     <div class="row">
       <button id="start">Start</button>
+      <button id="b0" disabled>Send 0</button>
+      <pre id="state">Connecting...</pre>
       <input id="videoWidth" type="number" placeholder="width" />
       <input id="videoHeight" type="number" placeholder="height" />
       <input id="minArea" type="number" placeholder="min area" />
@@ -29,6 +31,38 @@
       <span id="info"></span>
     </div>
   </div>
+
+<script>
+  const $ = sel => document.querySelector(sel);
+  function handleLog(msg) { $('#state').textContent = msg; }
+  function handleOpen() {
+    handleLog('Connected');
+    const btn = $('#b0');
+    btn.disabled = false;
+    btn.onclick = () => sendBit('0');
+  }
+</script>
+<script src="webrtc.js"></script>
+<script>
+  let dc;
+  StartA().then(ctrl => {
+    dc = ctrl.channel;
+    if (!dc) { handleLog('No data channel'); return; }
+    dc.onopen = () => {
+      handleLog('dc: open');
+      dc.send('hello from A');
+      handleOpen();
+    };
+    dc.onmessage = (e) => console.log('msg:', e.data);
+  }).catch(err => handleLog('ERR: ' + (err && (err.stack || err))));
+  function sendBit(bit) {
+    if (dc && dc.readyState === 'open') {
+      dc.send(bit);
+      console.log(`[${new Date().toISOString()}] sent hit ${bit}`);
+    }
+  }
+  window.sendBit = sendBit;
+</script>
 
 <script type="module">
   const $ = s => document.querySelector(s);
@@ -423,9 +457,16 @@
           const sumB = cntB[0]+cntB[1]+cntB[2];
           readA.unmap();
           readB.unmap();
-          const a = sumA > cfg.topMinArea;
-          const b = sumB > cfg.topMinArea;
-          info.textContent = `${COLOR_EMOJI[cfg.teamA]}:${sumA} ${a?'✔':''} ${COLOR_EMOJI[cfg.teamB]}:${sumB} ${b?'✔':''}`;
+            const a = sumA > cfg.topMinArea;
+            const b = sumB > cfg.topMinArea;
+            info.textContent = `${COLOR_EMOJI[cfg.teamA]}:${sumA} ${a?'✔':''} ${COLOR_EMOJI[cfg.teamB]}:${sumB} ${b?'✔':''}`;
+            if (a || b) {
+              let bit;
+              if (a && b) bit = '2';
+              else if (a) bit = '0';
+              else if (b) bit = '1';
+              if (bit !== undefined && window.sendBit) window.sendBit(bit);
+            }
         } finally {
           frame.close(); // always release
           busy = false;
