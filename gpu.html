@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <link rel="icon" href="/favicon.png" sizes="any" type="image/png">
@@ -10,386 +11,413 @@
                viewport-fit=cover">
   <title>WebGPU video</title>
   <style>
-html, body { margin:0; height:100%; background:#000; color:#fff; font:14px system-ui, sans-serif; }
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font: 14px system-ui, sans-serif;
+    }
 
-#wrap {
-  height:100%;           /* match the viewport */
-  overflow:hidden;
-}
+    /* Canvas: preserve aspect ratio automatically */
+    #gfx {
+      position: fixed;
+      /* ignore the page flow */
+      top: 50%;
+      left: 50%;
 
-/* Canvas: preserve aspect ratio automatically */
-#gfx {
-  position: fixed;              /* ignore the page flow */
-  top: 50%;
-  left: 50%;
+      /* make a viewport-sized box so the bitmap can scale inside it */
+      width: 100dvw;
+      height: 100dvh;
 
-  /* make a viewport-sized box so the bitmap can scale inside it */
-  width: 100dvw;
-  height: 100dvh;
+      /* keep the canvas bitmap’s intrinsic aspect ratio */
+      object-fit: contain;
+      transform-origin: center;
 
-  /* keep the canvas bitmap’s intrinsic aspect ratio */
-  object-fit: contain;
-  transform-origin: center;
+      /* center the element’s box, then we can add rotation in portrait */
+      transform: translate(-50%, -50%);
 
-  /* center the element’s box, then we can add rotation in portrait */
-  transform: translate(-50%, -50%);
+      image-rendering: pixelated;
+      background: #000;
+    }
 
-  image-rendering: pixelated;
-  background: #000;
-}
+    /* PORTRAIT: rotate and instead fill height, cap by width — preserves ratio */
+    @media (orientation: portrait) {
+      #gfx {
+        transform: translate(-50%, -50%) rotate(90deg);
+        width: 100dvh;
+        /* 👈 swap */
+        height: 100dvw;
+        /* 👈 swap */
+      }
+    }
 
-/* PORTRAIT: rotate and instead fill height, cap by width — preserves ratio */
-@media (orientation: portrait) {
-  #gfx { 
-    transform:  translate(-50%, -50%) rotate(90deg);
-        width: 100dvh;             /* 👈 swap */
-    height: 100dvw;            /* 👈 swap */
-   }
-}
-    button { padding:10px 16px; font-weight:600; }
-    .row { position: fixed; top: 0; left: 0; right: 0; bottom: auto; display:flex; gap:12px; align-items:center; flex-wrap:wrap; width:100%; }
-    input { width: 6ch; }
+    #config {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: auto;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    fieldset { border: 0; padding: 0; }
+
+    input {
+      width: 6ch;
+    }
   </style>
 </head>
+
 <body>
-    <canvas id="gfx"></canvas>
-  <div id="wrap">
-    <div class="row">
-      <button id="start">Start</button>
-      <button id="b0" disabled>Send 0</button>
+  <canvas id="gfx"></canvas>
+  <div id="config">
+    <fieldset>
       <pre id="state">Connecting...</pre>
+      <button id="b0" disabled>Send 0</button>
+    </fieldset>
+    <fieldset>
+      <button id="start">Start</button>
       <input id="videoWidth" type="number" placeholder="width" />
       <input id="videoHeight" type="number" placeholder="height" />
-      <input id="minArea" type="number" placeholder="min area" />
+    </fieldset>
+    <fieldset>
       <select id="teamA"></select>
       <select id="teamB"></select>
-      <span id="teamAThresh"></span>
-      <span id="info"></span>
-    </div>
+      <input id="minArea" type="number" placeholder="min area" />
+    </fieldset>
+    <fieldset id="teamAThresh"></fieldset>
+    <span id="info"></span>
+  </div>
   </div>
 
-<script>
-  const $ = sel => document.querySelector(sel);
-  function handleLog(msg) { $('#state').textContent = msg; }
-  function handleOpen() {
-    handleLog('Connected');
-    const btn = $('#b0');
-    btn.disabled = false;
-    btn.onclick = () => sendBit('0');
-  }
-</script>
-<script src="webrtc.js"></script>
-<script>
-  let dc;
-  StartA().then(ctrl => {
-    dc = ctrl.channel;
-    if (!dc) { handleLog('No data channel'); return; }
-    dc.onopen = () => {
-      handleLog('dc: open');
-      dc.send('hello from A');
-      handleOpen();
-    };
-    dc.onmessage = (e) => console.log('msg:', e.data);
-  }).catch(err => handleLog('ERR: ' + (err && (err.stack || err))));
-  function sendBit(bit) {
-    if (dc && dc.readyState === 'open') {
-      dc.send(bit);
-      console.log(`[${new Date().toISOString()}] sent hit ${bit}`);
+  <script>
+    const $ = sel => document.querySelector(sel);
+    function handleLog(msg) { $('#state').textContent = msg; }
+    function handleOpen() {
+      handleLog('Connected');
+      const btn = $('#b0');
+      btn.disabled = false;
+      btn.onclick = () => sendBit('0');
     }
-  }
-  window.sendBit = sendBit;
-</script>
-
-<script type="module">
-  const info = $('#info');
-  const start = $('#start');
-  const canvas = $('#gfx');
-  const widthInput = $('#videoWidth');
-  const heightInput = $('#videoHeight');
-  const minAreaInput = $('#minArea');
-  const selA = $('#teamA');
-  const selB = $('#teamB');
-  const thCont = $('#teamAThresh');
-
-  const TEAM_INDICES = { red:0, yellow:1, blue:2, green:3 };
-  const COLOR_TABLE = new Float32Array([
-  /* 🔴 */ 0.00 , 0.6 , 0.35 , 0.1 , 1 , 1 ,
-  /* 🟡 */ 0.05 , 0.7 , 0.40 , 0.2 , 1 , 1 ,
-  /* 🔵 */ 0.50 , 0.3 , 0.20 , 0.7 , 1 , 1 ,
-  /* 🟢 */ 0.70 , 0.6 , 0.25 , 0.9 , 1 , 1 
-  ]);
-  const savedCT = localStorage.getItem('TOP_COLOR_TABLE');
-  if (savedCT) {
-    try {
-      const arr = JSON.parse(savedCT);
-      if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
-        COLOR_TABLE.set(arr.map(Number));
+  </script>
+  <script src="webrtc.js"></script>
+  <script>
+    let dc;
+    StartA().then(ctrl => {
+      dc = ctrl.channel;
+      if (!dc) { handleLog('No data channel'); return; }
+      dc.onopen = () => {
+        handleLog('dc: open');
+        dc.send('hello from A');
+        handleOpen();
+      };
+      dc.onmessage = (e) => console.log('msg:', e.data);
+    }).catch(err => handleLog('ERR: ' + (err && (err.stack || err))));
+    function sendBit(bit) {
+      if (dc && dc.readyState === 'open') {
+        dc.send(bit);
+        console.log(`[${new Date().toISOString()}] sent hit ${bit}`);
       }
-    } catch(e){}
-  }
-  const COLOR_EMOJI = { red:'🔴', yellow:'🟡', blue:'🔵', green:'🟢' };
-  function hsvRange(team){
-    const i = TEAM_INDICES[team]*6;
-    return COLOR_TABLE.subarray(i,i+6);
-  }
-  function float32ToFloat16(val){
-    const f32 = new Float32Array([val]);
-    const u32 = new Uint32Array(f32.buffer)[0];
-    const sign = (u32 >> 16) & 0x8000;
-    let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
-    let mant = u32 & 0x7FFFFF;
-    if (exp <= 0) return sign;
-    if (exp >= 0x1F) return sign | 0x7C00;
-    return sign | (exp << 10) | (mant >> 13);
-  }
-  function hsvRangeF16(team){
-    const src = hsvRange(team);
-    const dst = new Uint16Array(6);
-    for (let i=0;i<6;i++) dst[i] = float32ToFloat16(src[i]);
-    return dst;
-  }
-
-  const Config = (() => {
-    const DEFAULTS = {
-      topResW: 1280,
-      topResH: 720,
-      topMinArea: 600,
-      teamA: 'green',
-      teamB: 'blue'
-    };
-    const PERSIST = {
-      topResW: 'topWidth',
-      topResH: 'topHeight',
-      topMinArea: 'topCamMinArea',
-      teamA: 'topTeamA',
-      teamB: 'topTeamB'
-    };
-    let cfg;
-    function load(){
-      cfg = {};
-      for (const [name, def] of Object.entries(DEFAULTS)){
-        if (PERSIST[name]) {
-          const raw = localStorage.getItem(PERSIST[name]);
-          cfg[name] = raw !== null ? JSON.parse(raw) : def;
-        } else cfg[name] = def;
-      }
-      cfg.f16Ranges = {};
-      for (const t of Object.keys(TEAM_INDICES)) {
-        cfg.f16Ranges[t] = hsvRangeF16(t);
-      }
-      return cfg;
     }
-    function save(name,val){
-      if (PERSIST[name]) localStorage.setItem(PERSIST[name], JSON.stringify(val));
-      if (cfg) cfg[name]=val;
+    window.sendBit = sendBit;
+  </script>
+
+  <script type="module">
+    const info = $('#info');
+    const start = $('#start');
+    const canvas = $('#gfx');
+    const widthInput = $('#videoWidth');
+    const heightInput = $('#videoHeight');
+    const minAreaInput = $('#minArea');
+    const selA = $('#teamA');
+    const selB = $('#teamB');
+    const thCont = $('#teamAThresh');
+
+    const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
+    const COLOR_TABLE = new Float32Array([
+  /* 🔴 */ 0.00, 0.6, 0.35, 0.1, 1, 1,
+  /* 🟡 */ 0.05, 0.7, 0.40, 0.2, 1, 1,
+  /* 🔵 */ 0.50, 0.3, 0.20, 0.7, 1, 1,
+  /* 🟢 */ 0.70, 0.6, 0.25, 0.9, 1, 1
+    ]);
+    const savedCT = localStorage.getItem('TOP_COLOR_TABLE');
+    if (savedCT) {
+      try {
+        const arr = JSON.parse(savedCT);
+        if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
+          COLOR_TABLE.set(arr.map(Number));
+        }
+      } catch (e) { }
     }
-    function get(){ return cfg; }
-    return {load, save, get};
-  })();
-  Config.load();
-  const cfg = Config.get();
+    const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
+    function hsvRange(team) {
+      const i = TEAM_INDICES[team] * 6;
+      return COLOR_TABLE.subarray(i, i + 6);
+    }
+    function float32ToFloat16(val) {
+      const f32 = new Float32Array([val]);
+      const u32 = new Uint32Array(f32.buffer)[0];
+      const sign = (u32 >> 16) & 0x8000;
+      let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
+      let mant = u32 & 0x7FFFFF;
+      if (exp <= 0) return sign;
+      if (exp >= 0x1F) return sign | 0x7C00;
+      return sign | (exp << 10) | (mant >> 13);
+    }
+    function hsvRangeF16(team) {
+      const src = hsvRange(team);
+      const dst = new Uint16Array(6);
+      for (let i = 0; i < 6; i++) dst[i] = float32ToFloat16(src[i]);
+      return dst;
+    }
 
-  widthInput.value = cfg.topResW;
-  heightInput.value = cfg.topResH;
-  minAreaInput.value = cfg.topMinArea;
-  widthInput.addEventListener('input', e => {
-    cfg.topResW = Math.max(1, +e.target.value);
-    Config.save('topResW', cfg.topResW);
-  });
-  heightInput.addEventListener('input', e => {
-    cfg.topResH = Math.max(1, +e.target.value);
-    Config.save('topResH', cfg.topResH);
-  });
-  minAreaInput.addEventListener('input', e => {
-    cfg.topMinArea = Math.max(0, +e.target.value);
-    Config.save('topMinArea', cfg.topMinArea);
-  });
+    const Config = (() => {
+      const DEFAULTS = {
+        topResW: 1280,
+        topResH: 720,
+        topMinArea: 600,
+        teamA: 'green',
+        teamB: 'blue'
+      };
+      const PERSIST = {
+        topResW: 'topWidth',
+        topResH: 'topHeight',
+        topMinArea: 'topCamMinArea',
+        teamA: 'topTeamA',
+        teamB: 'topTeamB'
+      };
+      let cfg;
+      function load() {
+        cfg = {};
+        for (const [name, def] of Object.entries(DEFAULTS)) {
+          if (PERSIST[name]) {
+            const raw = localStorage.getItem(PERSIST[name]);
+            cfg[name] = raw !== null ? JSON.parse(raw) : def;
+          } else cfg[name] = def;
+        }
+        cfg.f16Ranges = {};
+        for (const t of Object.keys(TEAM_INDICES)) {
+          cfg.f16Ranges[t] = hsvRangeF16(t);
+        }
+        return cfg;
+      }
+      function save(name, val) {
+        if (PERSIST[name]) localStorage.setItem(PERSIST[name], JSON.stringify(val));
+        if (cfg) cfg[name] = val;
+      }
+      function get() { return cfg; }
+      return { load, save, get };
+    })();
+    Config.load();
+    const cfg = Config.get();
 
-  for (const t of Object.keys(TEAM_INDICES)) {
-    const optA = document.createElement('option');
-    optA.value = t;
-    optA.textContent = COLOR_EMOJI[t];
-    selA.appendChild(optA);
-    const optB = document.createElement('option');
-    optB.value = t;
-    optB.textContent = COLOR_EMOJI[t];
-    selB.appendChild(optB);
-  }
-  selA.value = cfg.teamA;
-  selB.value = cfg.teamB;
-  if (selA.selectedIndex === -1) {
-    selA.selectedIndex = 0;
-    cfg.teamA = selA.value;
-    Config.save('teamA', cfg.teamA);
-  }
-  if (selB.selectedIndex === -1) {
-    selB.selectedIndex = 0;
-    cfg.teamB = selB.value;
-    Config.save('teamB', cfg.teamB);
-  }
-  selA.addEventListener('change', e => {
-    cfg.teamA = e.target.value;
-    Config.save('teamA', cfg.teamA);
-    updateThreshInputs();
-  });
-  selB.addEventListener('change', e => {
-    cfg.teamB = e.target.value;
-    Config.save('teamB', cfg.teamB);
-  });
-
-  const thInputs = [];
-  for (let i=0;i<6;i++){
-    const inp = document.createElement('input');
-    inp.type='number';
-    inp.min='0'; inp.max='1'; inp.step='0.05';
-    inp.style.width='4ch';
-    thCont.appendChild(inp);
-    thInputs.push(inp);
-    inp.addEventListener('input', e => {
-      const base = TEAM_INDICES[cfg.teamA]*6 + i;
-      COLOR_TABLE[base] = parseFloat(e.target.value);
-      localStorage.setItem('TOP_COLOR_TABLE',
-        JSON.stringify(Array.from(COLOR_TABLE, v=>+v.toFixed(2))));
-      cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+    widthInput.value = cfg.topResW;
+    heightInput.value = cfg.topResH;
+    minAreaInput.value = cfg.topMinArea;
+    widthInput.addEventListener('input', e => {
+      cfg.topResW = Math.max(1, +e.target.value);
+      Config.save('topResW', cfg.topResW);
     });
-  }
-  function updateThreshInputs(){
-    const base = TEAM_INDICES[cfg.teamA]*6;
-    for (let i=0;i<6;i++) thInputs[i].value = (+COLOR_TABLE[base+i].toFixed(2));
-  }
-  updateThreshInputs();
+    heightInput.addEventListener('input', e => {
+      cfg.topResH = Math.max(1, +e.target.value);
+      Config.save('topResH', cfg.topResH);
+    });
+    minAreaInput.addEventListener('input', e => {
+      cfg.topMinArea = Math.max(0, +e.target.value);
+      Config.save('topMinArea', cfg.topMinArea);
+    });
 
-  start.addEventListener('click', async () => {
-    start.disabled = true;
-    try {
-      // 1) Camera → WebCodecs VideoFrame (no <video> element)
-      const videoConstraints = { facingMode: 'user', frameRate: { ideal: 60 } };
-      const w = parseInt(widthInput.value, 10);
-      if (!isNaN(w)) videoConstraints.width = { ideal: w };
-      const h = parseInt(heightInput.value, 10);
-      if (!isNaN(h)) videoConstraints.height = { ideal: h };
-      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
-      const track = stream.getVideoTracks()[0];
+    for (const t of Object.keys(TEAM_INDICES)) {
+      const optA = document.createElement('option');
+      optA.value = t;
+      optA.textContent = COLOR_EMOJI[t];
+      selA.appendChild(optA);
+      const optB = document.createElement('option');
+      optB.value = t;
+      optB.textContent = COLOR_EMOJI[t];
+      selB.appendChild(optB);
+    }
+    selA.value = cfg.teamA;
+    selB.value = cfg.teamB;
+    if (selA.selectedIndex === -1) {
+      selA.selectedIndex = 0;
+      cfg.teamA = selA.value;
+      Config.save('teamA', cfg.teamA);
+    }
+    if (selB.selectedIndex === -1) {
+      selB.selectedIndex = 0;
+      cfg.teamB = selB.value;
+      Config.save('teamB', cfg.teamB);
+    }
+    selA.addEventListener('change', e => {
+      cfg.teamA = e.target.value;
+      Config.save('teamA', cfg.teamA);
+      updateThreshInputs();
+    });
+    selB.addEventListener('change', e => {
+      cfg.teamB = e.target.value;
+      Config.save('teamB', cfg.teamB);
+    });
 
-      // 2) WebGPU (require f16; no fallbacks)
-      if (!('gpu' in navigator)) throw new Error('WebGPU not available');
-      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-      if (!adapter) throw new Error('No GPU adapter');
-      const device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
-
-      const ctx = canvas.getContext('webgpu');
-      const format = navigator.gpu.getPreferredCanvasFormat();
-      ctx.configure({ device, format, alphaMode: 'opaque' });
-
-      const blitSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
-      let busy = false; // drop frames when main thread is busy
-
-      // 3) GPU resources (textures are created lazily from first VideoFrame)
-      let frameTex1, maskTex1;
-      let width = 0, height = 0;
-      let xGroups = 0, yGroups = 0;
-      let bgTop, bgR;
-      const WG_X = 8, WG_Y = 32;
-
-      // Uniform & stats buffers (match legacy/top.js layout)
-      const uni    = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-      const statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-      const readA  = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-      const readB  = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-      const zeroU32 = new Uint32Array([0,0,0]);
-
-      // Pack uniforms like top.js (f16 HSV ranges + ROI + flags)
-      const uniformArrayBuffer = new ArrayBuffer(64);
-      const uniformU16 = new Uint16Array(uniformArrayBuffer);
-      const uniformF32 = new Float32Array(uniformArrayBuffer);
-      const uniformU32 = new Uint32Array(uniformArrayBuffer);
-      function writeUniform(buf, hsvA6, hsvB6, rect, flags){
-        const u16=uniformU16, f32=uniformF32, u32=uniformU32;
-        // hsvA (6 halfs) -> u16[0..2], u16[4..6]
-        for(let i=0;i<3;i++) u16[i]=hsvA6[i];
-        for(let i=0;i<3;i++) u16[4+i]=hsvA6[i+3];
-        // hsvB (6 halfs) -> u16[8..10], u16[12..14]
-        for(let i=0;i<3;i++) u16[8+i]=hsvB6[i];
-        for(let i=0;i<3;i++) u16[12+i]=hsvB6[i+3];
-        // rect min/max (4 f32) -> f32[8..11]
-        f32[8]=rect.min[0]; f32[9]=rect.min[1];
-        f32[10]=rect.max[0]; f32[11]=rect.max[1];
-        // flags (u32) -> u32[12]
-        u32[12]=flags;
-        device.queue.writeBuffer(buf,0,uniformArrayBuffer);
-      }
-      const FLAG_PREVIEW = 1, FLAG_TEAM_A_ACTIVE = 2, FLAG_TEAM_B_ACTIVE = 4;
-      const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-
-      // 4) Pipelines from shared shader.wgsl (compute: 'main', render: 'vs'/'fs')
-      const SHADER_CODE = await fetch('shader.wgsl').then(r=>r.text());
-      const sharedMod = device.createShaderModule({ code: SHADER_CODE });
-      const computePipeline = device.createComputePipeline({
-        layout: 'auto',
-        compute: { module: sharedMod, entryPoint: 'main' }
+    const thInputs = [];
+    for (let i = 0; i < 6; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = '0'; inp.max = '1'; inp.step = '0.05';
+      inp.style.width = '4ch';
+      thCont.appendChild(inp);
+      thInputs.push(inp);
+      inp.addEventListener('input', e => {
+        const base = TEAM_INDICES[cfg.teamA] * 6 + i;
+        COLOR_TABLE[base] = parseFloat(e.target.value);
+        localStorage.setItem('TOP_COLOR_TABLE',
+          JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
+        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
       });
-      const renderPipeline = device.createRenderPipeline({
-        layout: 'auto',
-        vertex:   { module: sharedMod, entryPoint: 'vs' },
-        fragment: { module: sharedMod, entryPoint: 'fs', targets: [{ format }] },
-        primitive: { topology: 'triangle-list' },
-      });
+    }
+    function updateThreshInputs() {
+      const base = TEAM_INDICES[cfg.teamA] * 6;
+      for (let i = 0; i < 6; i++) thInputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
+    }
+    updateThreshInputs();
 
-      // Helper to (re)create textures/bind groups from a VideoFrame's coded size
-      async function ensureTextures(frame) {
-        const w = frame.codedWidth, h = frame.codedHeight;
-        if (frameTex1 && w === width && h === height) return;
+    start.addEventListener('click', async () => {
+      start.disabled = true;
+      try {
+        // 1) Camera → WebCodecs VideoFrame (no <video> element)
+        const videoConstraints = { facingMode: 'user', frameRate: { ideal: 60 } };
+        const w = parseInt(widthInput.value, 10);
+        if (!isNaN(w)) videoConstraints.width = { ideal: w };
+        const h = parseInt(heightInput.value, 10);
+        if (!isNaN(h)) videoConstraints.height = { ideal: h };
+        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+        const track = stream.getVideoTracks()[0];
 
-        width = w; height = h;
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
+        // 2) WebGPU (require f16; no fallbacks)
+        if (!('gpu' in navigator)) throw new Error('WebGPU not available');
+        const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+        if (!adapter) throw new Error('No GPU adapter');
+        const device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
 
-        frameTex1?.destroy?.();
-        maskTex1?.destroy?.();
+        const ctx = canvas.getContext('webgpu');
+        const format = navigator.gpu.getPreferredCanvasFormat();
+        ctx.configure({ device, format, alphaMode: 'opaque' });
 
-        // camera frame (sampled/RT) + mask (storage/sampled/RT)
-        frameTex1 = device.createTexture({
-          size: { width, height },
-          format: 'rgba8unorm',
-          usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+        const blitSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+        let busy = false; // drop frames when main thread is busy
+
+        // 3) GPU resources (textures are created lazily from first VideoFrame)
+        let frameTex1, maskTex1;
+        let width = 0, height = 0;
+        let xGroups = 0, yGroups = 0;
+        let bgTop, bgR;
+        const WG_X = 8, WG_Y = 32;
+
+        // Uniform & stats buffers (match legacy/top.js layout)
+        const uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+        const statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+        const readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+        const readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+        const zeroU32 = new Uint32Array([0, 0, 0]);
+
+        // Pack uniforms like top.js (f16 HSV ranges + ROI + flags)
+        const uniformArrayBuffer = new ArrayBuffer(64);
+        const uniformU16 = new Uint16Array(uniformArrayBuffer);
+        const uniformF32 = new Float32Array(uniformArrayBuffer);
+        const uniformU32 = new Uint32Array(uniformArrayBuffer);
+        function writeUniform(buf, hsvA6, hsvB6, rect, flags) {
+          const u16 = uniformU16, f32 = uniformF32, u32 = uniformU32;
+          // hsvA (6 halfs) -> u16[0..2], u16[4..6]
+          for (let i = 0; i < 3; i++) u16[i] = hsvA6[i];
+          for (let i = 0; i < 3; i++) u16[4 + i] = hsvA6[i + 3];
+          // hsvB (6 halfs) -> u16[8..10], u16[12..14]
+          for (let i = 0; i < 3; i++) u16[8 + i] = hsvB6[i];
+          for (let i = 0; i < 3; i++) u16[12 + i] = hsvB6[i + 3];
+          // rect min/max (4 f32) -> f32[8..11]
+          f32[8] = rect.min[0]; f32[9] = rect.min[1];
+          f32[10] = rect.max[0]; f32[11] = rect.max[1];
+          // flags (u32) -> u32[12]
+          u32[12] = flags;
+          device.queue.writeBuffer(buf, 0, uniformArrayBuffer);
+        }
+        const FLAG_PREVIEW = 1, FLAG_TEAM_A_ACTIVE = 2, FLAG_TEAM_B_ACTIVE = 4;
+        const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
+
+        // 4) Pipelines from shared shader.wgsl (compute: 'main', render: 'vs'/'fs')
+        const SHADER_CODE = await fetch('shader.wgsl').then(r => r.text());
+        const sharedMod = device.createShaderModule({ code: SHADER_CODE });
+        const computePipeline = device.createComputePipeline({
+          layout: 'auto',
+          compute: { module: sharedMod, entryPoint: 'main' }
         });
-        maskTex1 = device.createTexture({
-          size: { width, height },
-          format: 'rgba8unorm',
-          usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
+        const renderPipeline = device.createRenderPipeline({
+          layout: 'auto',
+          vertex: { module: sharedMod, entryPoint: 'vs' },
+          fragment: { module: sharedMod, entryPoint: 'fs', targets: [{ format }] },
+          primitive: { topology: 'triangle-list' },
         });
 
-        xGroups = Math.ceil(width / WG_X);
-        yGroups = Math.ceil(height / WG_Y);
+        // Helper to (re)create textures/bind groups from a VideoFrame's coded size
+        async function ensureTextures(frame) {
+          const w = frame.codedWidth, h = frame.codedHeight;
+          if (frameTex1 && w === width && h === height) return;
 
-        // compute BG: {0:frameTex1,1:maskTex1,2:statsA,3:statsB,6:uni}
-        bgTop = device.createBindGroup({
-          layout: computePipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: frameTex1.createView() },
-            { binding: 1, resource: maskTex1.createView() },
-            { binding: 2, resource: { buffer: statsA } },
-            { binding: 3, resource: { buffer: statsB } },
-            { binding: 6, resource: { buffer: uni } }
-          ]
-        });
-        // render BG: {0:frameTex1,4:maskTex1,5:sampler}
-        bgR = device.createBindGroup({
-          layout: renderPipeline.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: frameTex1.createView() },
-            { binding: 4, resource: maskTex1.createView() },
-            { binding: 5, resource: blitSampler }
-          ]
-        });
+          width = w; height = h;
+          canvas.width = frame.displayWidth;
+          canvas.height = frame.displayHeight;
 
-        info.textContent = `Running ${width}×${height}, shader.wgsl compute+render (VideoFrame).`;
-      }
+          frameTex1?.destroy?.();
+          maskTex1?.destroy?.();
 
-      // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
-      //    We transfer the camera track to the worker; it posts VideoFrames back to main.
-      const workerSrc = /* js */`
+          // camera frame (sampled/RT) + mask (storage/sampled/RT)
+          frameTex1 = device.createTexture({
+            size: { width, height },
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+          });
+          maskTex1 = device.createTexture({
+            size: { width, height },
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
+          });
+
+          xGroups = Math.ceil(width / WG_X);
+          yGroups = Math.ceil(height / WG_Y);
+
+          // compute BG: {0:frameTex1,1:maskTex1,2:statsA,3:statsB,6:uni}
+          bgTop = device.createBindGroup({
+            layout: computePipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: frameTex1.createView() },
+              { binding: 1, resource: maskTex1.createView() },
+              { binding: 2, resource: { buffer: statsA } },
+              { binding: 3, resource: { buffer: statsB } },
+              { binding: 6, resource: { buffer: uni } }
+            ]
+          });
+          // render BG: {0:frameTex1,4:maskTex1,5:sampler}
+          bgR = device.createBindGroup({
+            layout: renderPipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: frameTex1.createView() },
+              { binding: 4, resource: maskTex1.createView() },
+              { binding: 5, resource: blitSampler }
+            ]
+          });
+
+          info.textContent = `Running ${width}×${height}, shader.wgsl compute+render (VideoFrame).`;
+        }
+
+        // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
+        //    We transfer the camera track to the worker; it posts VideoFrames back to main.
+        const workerSrc = /* js */`
         self.onmessage = async (e) => {
           const { op } = e.data || {};
           if (op === 'init-track') {
@@ -415,84 +443,84 @@ html, body { margin:0; height:100%; background:#000; color:#fff; font:14px syste
           } // else ignore
         };
       `;
-      const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
-      const videoWorker = new Worker(workerURL, { type: 'module' });
-      URL.revokeObjectURL(workerURL);
+        const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+        const videoWorker = new Worker(workerURL, { type: 'module' });
+        URL.revokeObjectURL(workerURL);
 
-      // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
-      // If this throws (e.g., Chrome Windows), fall back to sending a ReadableStream.
-      try {
-        videoWorker.postMessage({ op: 'init-track', track }, [track]);
-      } catch (e) {
-        const processor = new MediaStreamTrackProcessor({ track });
-        videoWorker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
-      }
-
-      // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
-      videoWorker.onmessage = async (ev) => {
-        const frame = ev.data; // VideoFrame (transferred)
-        if (!frame) return;
-        if (busy) { frame.close(); return; }
-        busy = true;
+        // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
+        // If this throws (e.g., Chrome Windows), fall back to sending a ReadableStream.
         try {
-          await ensureTextures(frame);
+          videoWorker.postMessage({ op: 'init-track', track }, [track]);
+        } catch (e) {
+          const processor = new MediaStreamTrackProcessor({ track });
+          videoWorker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
+        }
 
-          // Upload camera frame into frameTex1
-          device.queue.copyExternalImageToTexture(
-            { source: frame , flipY:true },
-            { texture: frameTex1, colorSpace: 'srgb' },
-            { width, height }
-          );
+        // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
+        videoWorker.onmessage = async (ev) => {
+          const frame = ev.data; // VideoFrame (transferred)
+          if (!frame) return;
+          if (busy) { frame.close(); return; }
+          busy = true;
+          try {
+            await ensureTextures(frame);
 
-          // reset stats and write uniforms (full-frame ROI; preview+both teams flags)
-          device.queue.writeBuffer(statsA,0,zeroU32);
-          device.queue.writeBuffer(statsB,0,zeroU32);
-          writeUniform(
-            uni,
-            cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB],
-            {min:[0,0], max:[width,height]},
-            flagsTop
-          );
+            // Upload camera frame into frameTex1
+            device.queue.copyExternalImageToTexture(
+              { source: frame, flipY: true },
+              { texture: frameTex1, colorSpace: 'srgb' },
+              { width, height }
+            );
 
-          const enc = device.createCommandEncoder();
-          enc.beginRenderPass({ colorAttachments:[{ view: maskTex1.createView(), loadOp:'clear', storeOp:'store' }] }).end();
-          {
-            const pass = enc.beginComputePass();
-            pass.setPipeline(computePipeline);
-            pass.setBindGroup(0, bgTop);
-            pass.dispatchWorkgroups(xGroups, yGroups);
-            pass.end();
-          }
-          {
-            const colorView = ctx.getCurrentTexture().createView();
-            const pass = enc.beginRenderPass({
-              colorAttachments: [{
-                view: colorView,
-                loadOp: 'clear',
-                clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                storeOp: 'store'
-              }]
-            });
-            pass.setPipeline(renderPipeline);
-            pass.setBindGroup(0, bgR);
-            pass.draw(3);
-            pass.end();
-          }
-          // optional: copy stats out (not displayed here)
-          enc.copyBufferToBuffer(statsA,0,readA,0,12);
-          enc.copyBufferToBuffer(statsB,0,readB,0,12);
+            // reset stats and write uniforms (full-frame ROI; preview+both teams flags)
+            device.queue.writeBuffer(statsA, 0, zeroU32);
+            device.queue.writeBuffer(statsB, 0, zeroU32);
+            writeUniform(
+              uni,
+              cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB],
+              { min: [0, 0], max: [width, height] },
+              flagsTop
+            );
 
-          device.queue.submit([enc.finish()]);
-          await Promise.all([
-            readA.mapAsync(GPUMapMode.READ),
-            readB.mapAsync(GPUMapMode.READ)
-          ]);
-          const cntA = new Uint32Array(readA.getMappedRange());
-          const cntB = new Uint32Array(readB.getMappedRange());
-          const sumA = cntA[0]+cntA[1]+cntA[2];
-          const sumB = cntB[0]+cntB[1]+cntB[2];
-          readA.unmap();
-          readB.unmap();
+            const enc = device.createCommandEncoder();
+            enc.beginRenderPass({ colorAttachments: [{ view: maskTex1.createView(), loadOp: 'clear', storeOp: 'store' }] }).end();
+            {
+              const pass = enc.beginComputePass();
+              pass.setPipeline(computePipeline);
+              pass.setBindGroup(0, bgTop);
+              pass.dispatchWorkgroups(xGroups, yGroups);
+              pass.end();
+            }
+            {
+              const colorView = ctx.getCurrentTexture().createView();
+              const pass = enc.beginRenderPass({
+                colorAttachments: [{
+                  view: colorView,
+                  loadOp: 'clear',
+                  clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                  storeOp: 'store'
+                }]
+              });
+              pass.setPipeline(renderPipeline);
+              pass.setBindGroup(0, bgR);
+              pass.draw(3);
+              pass.end();
+            }
+            // optional: copy stats out (not displayed here)
+            enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
+            enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
+
+            device.queue.submit([enc.finish()]);
+            await Promise.all([
+              readA.mapAsync(GPUMapMode.READ),
+              readB.mapAsync(GPUMapMode.READ)
+            ]);
+            const cntA = new Uint32Array(readA.getMappedRange());
+            const cntB = new Uint32Array(readB.getMappedRange());
+            const sumA = cntA[0] + cntA[1] + cntA[2];
+            const sumB = cntB[0] + cntB[1] + cntB[2];
+            readA.unmap();
+            readB.unmap();
             const a = sumA > cfg.topMinArea;
             const b = sumB > cfg.topMinArea;
             if (a || b) {
@@ -502,19 +530,20 @@ html, body { margin:0; height:100%; background:#000; color:#fff; font:14px syste
               else if (b) bit = '1';
               if (bit !== undefined && window.sendBit) window.sendBit(bit);
             }
-        } finally {
-          frame.close(); // always release
-          busy = false;
-        }
-      };
+          } finally {
+            frame.close(); // always release
+            busy = false;
+          }
+        };
 
-    } catch (err) {
-      info.textContent = (err && err.message) ? err.message : String(err);
-      start.disabled = false;
-      console.error(err);
-    }
-  });
-</script>
+      } catch (err) {
+        info.textContent = (err && err.message) ? err.message : String(err);
+        start.disabled = false;
+        console.error(err);
+      }
+    });
+  </script>
 
 </body>
+
 </html>
