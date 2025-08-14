@@ -17,6 +17,8 @@
     <canvas id="gfx"></canvas>
     <div class="row">
       <button id="start">Start</button>
+      <input id="videoWidth" type="number" placeholder="width" value="1280" />
+      <input id="videoHeight" type="number" placeholder="height" value="720" />
       <span id="info"></span>
     </div>
   </div>
@@ -26,12 +28,19 @@
   const info = $('#info');
   const start = $('#start');
   const canvas = $('#gfx');
+  const widthInput = $('#videoWidth');
+  const heightInput = $('#videoHeight');
 
   start.addEventListener('click', async () => {
     start.disabled = true;
     try {
       // 1) Camera → WebCodecs VideoFrame (no <video> element)
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      const videoConstraints = { facingMode: 'user', frameRate: { ideal: 60 } };
+      const w = parseInt(widthInput.value, 10);
+      if (!isNaN(w)) videoConstraints.width = { ideal: w };
+      const h = parseInt(heightInput.value, 10);
+      if (!isNaN(h)) videoConstraints.height = { ideal: h };
+      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
       const track = stream.getVideoTracks()[0];
 
       // 2) WebGPU (require f16; no fallbacks)
