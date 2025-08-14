@@ -103,6 +103,8 @@
         const ctx = canvas.getContext('webgpu');
         const format = navigator.gpu.getPreferredCanvasFormat();
         ctx.configure({ device, format, alphaMode: 'opaque' });
+        const blitSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+        let busy = false; // drop frames when main thread is busy
 
         // 3) Buffers (textures are created lazily from first VideoFrame)
         let srcTex, outTex;
@@ -173,7 +175,7 @@
           const blitBG = device.createBindGroup({
             layout: blitPipeline.getBindGroupLayout(0),
             entries: [
-              { binding: 0, resource: device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' }) },
+              { binding: 0, resource: blitSampler },
               { binding: 1, resource: outTex.createView() },
             ]
           });
@@ -213,6 +215,8 @@
         videoWorker.onmessage = async (ev) => {
           const frame = ev.data; // VideoFrame (transferred)
           if (!frame) return;
+          if (busy) { frame.close(); return; }
+          busy = true;
           try {
             await ensureTextures(frame);
             device.queue.copyExternalImageToTexture(
@@ -231,7 +235,13 @@
             {
               const colorView = ctx.getCurrentTexture().createView();
               const pass = enc.beginRenderPass({
-                colorAttachments: [{ view: colorView, loadOp: 'load', storeOp: 'store' }]
+                // Use 'clear' to avoid a tile load on mobile TBDR GPUs
+                colorAttachments: [{
+                  view: colorView,
+                  loadOp: 'clear',
+                  clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                  storeOp: 'store'
+                }]
               });
               pass.executeBundles([blitBundle]);
               pass.end();
@@ -239,6 +249,7 @@
             device.queue.submit([enc.finish()]);
           } finally {
             frame.close(); // always release
+            busy = false;
           }
         };
 
