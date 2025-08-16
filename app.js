@@ -193,104 +193,123 @@ function createThreshInputs(container, handler) {
   return inputs;
 }
 
-const TopROI = {
-  y: 0,
-  h: 0,
-  setHeight(h) {
-    const cfg = Config.get();
-    this.h = clampInt(h, 10, cfg.topResH);
-    cfg.topH = this.h;
-    Config.save('topH', cfg.topH);
-    this.commit();
-  },
-  commit() {
-    const cfg = Config.get();
-    this.y = clampInt(this.y, 0, cfg.topResH - this.h);
-    const y = this.y, h = this.h;
-    cfg.polyT = [[0, y], [cfg.topResW, y], [cfg.topResW, y + h], [0, y + h]];
-    Config.save('polyT', cfg.polyT);
-    PreviewGfx.drawROI(cfg.polyT, 'lime', 'top');
-  },
-  attach(canvas) {
-    const cfg = Config.get();
-    const self = this;
-    let dragY = null;
-    canvas.style.touchAction = 'none';
-    canvas.addEventListener('pointerdown', function (e) {
-      if (!Controller.isPreview()) return;
-      const r = canvas.getBoundingClientRect();
-      dragY = (e.clientY - r.top) * cfg.topResH / r.height;
-      canvas.setPointerCapture(e.pointerId);
-    });
-    canvas.addEventListener('pointermove', function (e) {
-      if (dragY == null || !Controller.isPreview()) return;
-      const r = canvas.getBoundingClientRect();
-      const curY = (e.clientY - r.top) * cfg.topResH / r.height;
-      self.y += curY - dragY;
-      dragY = curY;
-      self.commit();
-    });
-    function lift() { dragY = null; }
-    canvas.addEventListener('pointerup', lift);
-    canvas.addEventListener('pointercancel', lift);
-    self.commit();
+class ROI {
+  constructor(opts) {
+    this.x = 0;
+    this.y = 0;
+    this.w = 0;
+    this.h = 0;
+    this.which = opts.which;
+    this.color = opts.color;
+    this.allowX = opts.allowX;
+    this.maintainAspect = opts.maintainAspect;
+    this.keys = opts.keys; // { resW, resH, poly, height }
   }
-};
 
-const FrontROI = {
-  x: 0, y: 0, w: 0, h: 0,
   setHeight(h) {
     const cfg = Config.get();
-    const aspect = cfg.frontResW / cfg.frontResH;
-    this.h = clampInt(h, 10, cfg.frontResH);
-    this.w = this.h * aspect;
-    cfg.frontH = this.h;
-    Config.save('frontH', cfg.frontH);
+    const resH = cfg[this.keys.resH];
+    this.h = clampInt(h, 10, resH);
+    if (this.maintainAspect) {
+      const resW = cfg[this.keys.resW];
+      this.w = this.h * (resW / resH);
+    } else {
+      this.w = cfg[this.keys.resW];
+      this.x = 0;
+    }
+    cfg[this.keys.height] = this.h;
+    Config.save(this.keys.height, this.h);
     this.commit();
-  },
+  }
+
   commit() {
     const cfg = Config.get();
-    const aspect = cfg.frontResW / cfg.frontResH;
-    this.w = this.h * aspect;
-    this.x = clampInt(this.x, 0, cfg.frontResW - this.w);
-    this.y = clampInt(this.y, 0, cfg.frontResH - this.h);
+    const resW = cfg[this.keys.resW];
+    const resH = cfg[this.keys.resH];
+    if (!this.allowX) {
+      this.x = 0;
+      this.w = resW;
+    } else if (this.maintainAspect) {
+      this.w = this.h * (resW / resH);
+    }
+    this.x = clampInt(this.x, 0, resW - this.w);
+    this.y = clampInt(this.y, 0, resH - this.h);
     const x0 = Math.round(this.x), y0 = Math.round(this.y);
     const x1 = Math.round(this.x + this.w), y1 = Math.round(this.y + this.h);
-    cfg.polyF = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-    Config.save('polyF', cfg.polyF);
-    PreviewGfx.drawROI(cfg.polyF, 'aqua', 'front');
-  },
+    cfg[this.keys.poly] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    Config.save(this.keys.poly, cfg[this.keys.poly]);
+    PreviewGfx.drawROI(cfg[this.keys.poly], this.color, this.which);
+  }
+
   attach(canvas) {
     const cfg = Config.get();
     const self = this;
-    let dragStart = null, roiStart = null;
     canvas.style.touchAction = 'none';
-    function toCanvas(e) {
-      const r = canvas.getBoundingClientRect();
-      return {
-        x: (e.clientX - r.left) * cfg.frontResW / r.width,
-        y: (e.clientY - r.top) * cfg.frontResH / r.height
-      };
+
+    if (!this.allowX) {
+      let dragY = null;
+      canvas.addEventListener('pointerdown', function (e) {
+        if (!Controller.isPreview()) return;
+        const r = canvas.getBoundingClientRect();
+        dragY = (e.clientY - r.top) * cfg[self.keys.resH] / r.height;
+        canvas.setPointerCapture(e.pointerId);
+      });
+      canvas.addEventListener('pointermove', function (e) {
+        if (dragY == null || !Controller.isPreview()) return;
+        const r = canvas.getBoundingClientRect();
+        const curY = (e.clientY - r.top) * cfg[self.keys.resH] / r.height;
+        self.y += curY - dragY;
+        dragY = curY;
+        self.commit();
+      });
+      function lift() { dragY = null; }
+      canvas.addEventListener('pointerup', lift);
+      canvas.addEventListener('pointercancel', lift);
+    } else {
+      let dragStart = null, roiStart = null;
+      function toCanvas(e) {
+        const r = canvas.getBoundingClientRect();
+        return {
+          x: (e.clientX - r.left) * cfg[self.keys.resW] / r.width,
+          y: (e.clientY - r.top) * cfg[self.keys.resH] / r.height
+        };
+      }
+      canvas.addEventListener('pointerdown', function (e) {
+        if (!Controller.isPreview()) return;
+        canvas.setPointerCapture(e.pointerId);
+        dragStart = toCanvas(e);
+        roiStart = { x: self.x, y: self.y };
+      });
+      canvas.addEventListener('pointermove', function (e) {
+        if (!dragStart || !Controller.isPreview()) return;
+        const cur = toCanvas(e);
+        self.x = roiStart.x + (cur.x - dragStart.x);
+        self.y = roiStart.y + (cur.y - dragStart.y);
+        self.commit();
+      });
+      function lift() { dragStart = null; roiStart = null; }
+      canvas.addEventListener('pointerup', lift);
+      canvas.addEventListener('pointercancel', lift);
     }
-    canvas.addEventListener('pointerdown', function (e) {
-      if (!Controller.isPreview()) return;
-      canvas.setPointerCapture(e.pointerId);
-      dragStart = toCanvas(e);
-      roiStart = { x: self.x, y: self.y };
-    });
-    canvas.addEventListener('pointermove', function (e) {
-      if (!dragStart || !Controller.isPreview()) return;
-      const cur = toCanvas(e);
-      self.x = roiStart.x + (cur.x - dragStart.x);
-      self.y = roiStart.y + (cur.y - dragStart.y);
-      self.commit();
-    });
-    function lift() { dragStart = null; roiStart = null; }
-    canvas.addEventListener('pointerup', lift);
-    canvas.addEventListener('pointercancel', lift);
     self.commit();
   }
-};
+}
+
+const TopROI = new ROI({
+  which: 'top',
+  color: 'lime',
+  allowX: false,
+  maintainAspect: false,
+  keys: { resW: 'topResW', resH: 'topResH', poly: 'polyT', height: 'topH' }
+});
+
+const FrontROI = new ROI({
+  which: 'front',
+  color: 'aqua',
+  allowX: true,
+  maintainAspect: true,
+  keys: { resW: 'frontResW', resH: 'frontResH', poly: 'polyF', height: 'frontH' }
+});
 
 const Setup = (() => {
   const cfg = Config.get();
