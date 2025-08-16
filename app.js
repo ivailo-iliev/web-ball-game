@@ -681,7 +681,7 @@ const Detect = (() => {
   async function detectPass(source, feed, rect, flags, preview, which, origin = { x: 0, y: 0 }, flipY = true) {
     pack.resetStats(device.queue);
     GPUShared.copyFrame(device.queue, source, feed, origin, flipY);
-    const enc = device.createCommandEncoder();
+    const enc = device.createCommandEncoder({ label: which ? `enc-${which}` : 'enc' });
     GPUShared.clearMask(enc, feed);
     pack.writeUniform(device.queue, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rect, flags);
     GPUShared.encodeCompute(enc, pipelines, feed, pack);
@@ -694,7 +694,8 @@ const Detect = (() => {
 
   async function runTopDetection(preview) {
     const src = Feeds.top();
-    const srcY = Math.floor((src.naturalHeight - cfg.TOP_H) / 2);
+    const raw = (src?.naturalHeight ?? cfg.TOP_H) - cfg.TOP_H;
+    const srcY = Math.max(0, Math.floor(raw / 2));
     const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
     const { a, b } = await detectPass(src, feedTop, rectTop(), flagsTop, preview, 'top', { x: 0, y: srcY }, true);
     const cntA = a[0], cntB = b[0];

@@ -147,7 +147,7 @@
   /* 🔵 */ 0.50, 0.3, 0.20, 0.7, 1, 1,
   /* 🟢 */ 0.70, 0.6, 0.25, 0.9, 1, 1
     ]);
-    const savedCT = localStorage.getItem('TOP_COLOR_TABLE');
+    const savedCT = localStorage.getItem('COLOR_TABLE');
     if (savedCT) {
       try {
         const arr = JSON.parse(savedCT);
@@ -240,7 +240,7 @@
       inp.addEventListener('input', e => {
         const base = TEAM_INDICES[cfg.teamA] * 6 + i;
         COLOR_TABLE[base] = parseFloat(e.target.value);
-        localStorage.setItem('TOP_COLOR_TABLE',
+        localStorage.setItem('COLOR_TABLE',
           JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
         cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
       });
