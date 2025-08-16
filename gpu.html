@@ -323,7 +323,7 @@
         };
       `;
         const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
-        const videoWorker = new Worker(workerURL, { type: 'module' });
+        const videoWorker = new Worker(workerURL);
         URL.revokeObjectURL(workerURL);
 
         // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
@@ -360,11 +360,9 @@
             GPUShared.encodeCompute(enc, pipelines, feed, pack);
             GPUShared.drawMaskTo(enc, pipelines, feed, ctx.getCurrentTexture().createView());
             device.queue.submit([enc.finish()]);
-            const { a, b } = await pack.readStats();
-            const sumA = a[0] + a[1] + a[2];
-            const sumB = b[0] + b[1] + b[2];
-            const aOn = sumA > cfg.topMinArea;
-            const bOn = sumB > cfg.topMinArea;
+            const { a: cntA, b: cntB } = await pack.readStats();
+            const aOn = cntA[0] > cfg.topMinArea;
+            const bOn = cntB[0] > cfg.topMinArea;
             if (aOn || bOn) {
               let bit;
               if (aOn && bOn) bit = '2';

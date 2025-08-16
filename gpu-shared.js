@@ -65,8 +65,8 @@
         readA.mapAsync(GPUMapMode.READ),
         readB.mapAsync(GPUMapMode.READ)
       ]);
-      const a = Array.from(new Uint32Array(readA.getMappedRange()).slice(0, 3));
-      const b = Array.from(new Uint32Array(readB.getMappedRange()).slice(0, 3));
+      const a = new Uint32Array(readA.getMappedRange()).slice(0, 3);
+      const b = new Uint32Array(readB.getMappedRange()).slice(0, 3);
       readA.unmap();
       readB.unmap();
       return { a, b };
@@ -86,12 +86,14 @@
       format,
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
     });
+    const frameView = frameTex.createView();
+    const maskView = maskTex.createView();
     let bgCompute = null;
     const renderBG = device.createBindGroup({
       layout: pipelines.render.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: frameTex.createView() },
-        { binding: 4, resource: maskTex.createView() },
+        { binding: 0, resource: frameView },
+        { binding: 4, resource: maskView },
         { binding: 5, resource: sampler }
       ]
     });
@@ -100,8 +102,8 @@
         bgCompute = device.createBindGroup({
           layout: pipelines.compute.getBindGroupLayout(0),
           entries: [
-            { binding: 0, resource: frameTex.createView() },
-            { binding: 1, resource: maskTex.createView() },
+            { binding: 0, resource: frameView },
+            { binding: 1, resource: maskView },
             { binding: 2, resource: { buffer: pack.statsA } },
             { binding: 3, resource: { buffer: pack.statsB } },
             { binding: 6, resource: { buffer: pack.uni } }
@@ -120,7 +122,7 @@
       frameTex.destroy();
       maskTex.destroy();
     }
-    return { w, h, frameTex, maskTex, computeBG, renderBG, dispatchGroups, destroy };
+    return { w, h, frameTex, maskTex, frameView, maskView, computeBG, renderBG, dispatchGroups, destroy };
   }
 
   function copyFrame(queue, source, feed, origin = { x: 0, y: 0 }, flipY = true) {
@@ -133,12 +135,12 @@
 
   function clearMask(encoder, feed) {
     encoder.beginRenderPass({
-      colorAttachments: [{ view: feed.maskTex.createView(), loadOp: 'clear', storeOp: 'store' }]
+      colorAttachments: [{ view: feed.maskView, loadOp: 'clear', storeOp: 'store' }]
     }).end();
   }
 
   function encodeCompute(encoder, pipelines, feed, pack) {
-    const pass = encoder.beginComputePass();
+    const pass = encoder.beginComputePass({ label: 'detect-compute' });
     pass.setPipeline(pipelines.compute);
     pass.setBindGroup(0, feed.computeBG(pack));
     const { x, y } = feed.dispatchGroups();
@@ -150,6 +152,7 @@
 
   function drawMaskTo(encoder, pipelines, feed, view) {
     const pass = encoder.beginRenderPass({
+      label: 'mask-present',
       colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }]
     });
     pass.setPipeline(pipelines.render);
