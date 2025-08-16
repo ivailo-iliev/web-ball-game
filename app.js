@@ -73,73 +73,26 @@ function hsvRangeF16(team) {
   return dst;
 }
 
-const Config = (() => {
-  const DEFAULTS = {
-    TOP_W: 640,
-    TOP_H: 480,
-    FRONT_W: 1280,
-    FRONT_H: 590,
-    TOP_MIN_AREA: 400,
-    FRONT_MIN_AREA: 8000,
-    url:    "http://192.168.43.1:8080/video",
-    teamA:  "green",
-    teamB:  "blue",
-    polyT:  [],
-    polyF:  [],
-    zoom:   1.0,
-    topH:   160,
-    frontH: 220,
-    topMode: TOP_MODE_WEBRTC
-  };
+const DEFAULTS = {
+  TOP_W: 640,
+  TOP_H: 480,
+  FRONT_W: 1280,
+  FRONT_H: 590,
+  TOP_MIN_AREA: 400,
+  FRONT_MIN_AREA: 8000,
+  url:    "http://192.168.43.1:8080/video",
+  teamA:  "green",
+  teamB:  "blue",
+  polyT:  [],
+  polyF:  [],
+  zoom:   1.0,
+  topH:   160,
+  frontH: 220,
+  topMode: TOP_MODE_WEBRTC
+};
 
-  const PERSIST = {
-    url:    "frontURL",
-    teamA:  "teamA",
-    teamB:  "teamB",
-    polyT:  "roiPolyTop",
-    polyF:  "roiPolyFront",
-    zoom:   "zoom",
-    topH:   "topH",
-    frontH: "frontH",
-    TOP_MIN_AREA: "topMinArea",
-    FRONT_MIN_AREA: "frontMinArea",
-    topMode: "topMode"
-  };
-
-  let cfg;
-
-  function load() {
-    cfg = {};
-    for (const [name, def] of Object.entries(DEFAULTS)) {
-      if (PERSIST[name]) {
-        const raw = localStorage.getItem(PERSIST[name]);
-        cfg[name] = raw !== null ? JSON.parse(raw) : def;
-      } else {
-        cfg[name] = def;
-      }
-    }
-    cfg.f16Ranges = {};
-    for (const t of Object.keys(TEAM_INDICES)) {
-      cfg.f16Ranges[t] = hsvRangeF16(t);
-    }
-    return cfg;
-  }
-
-  function save(name, value) {
-    if (PERSIST[name]) {
-      localStorage.setItem(PERSIST[name], JSON.stringify(value));
-    }
-    if (cfg) {
-      cfg[name] = value;
-    }
-  }
-
-  function get() { return cfg; }
-
-  return { load, save, get };
-})();
-
-Config.load();
+const Config = createConfig(DEFAULTS);
+Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
 
 const PreviewGfx = (() => {
   const cfg = Config.get();

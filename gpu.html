@@ -93,7 +93,9 @@
   </div>
 
   <script src="webrtc.js" defer></script>
+  <script src="config.js"></script>
   <script type="module">
+    const { createConfig } = window;
     const $ = id => document.getElementById(id);
     const state = $('state');
     const b0 = $('b0');
@@ -177,44 +179,16 @@
       return dst;
     }
 
-    const Config = (() => {
-      const DEFAULTS = {
-        topResW: 1280,
-        topResH: 720,
-        topMinArea: 600,
-        teamA: 'green',
-        teamB: 'blue'
-      };
-      const PERSIST = {
-        topResW: 'topWidth',
-        topResH: 'topHeight',
-        topMinArea: 'topCamMinArea',
-        teamA: 'topTeamA',
-        teamB: 'topTeamB'
-      };
-      let cfg;
-      function load() {
-        cfg = {};
-        for (const [name, def] of Object.entries(DEFAULTS)) {
-          if (PERSIST[name]) {
-            const raw = localStorage.getItem(PERSIST[name]);
-            cfg[name] = raw !== null ? JSON.parse(raw) : def;
-          } else cfg[name] = def;
-        }
-        cfg.f16Ranges = {};
-        for (const t of Object.keys(TEAM_INDICES)) {
-          cfg.f16Ranges[t] = hsvRangeF16(t);
-        }
-        return cfg;
-      }
-      function save(name, val) {
-        if (PERSIST[name]) localStorage.setItem(PERSIST[name], JSON.stringify(val));
-        if (cfg) cfg[name] = val;
-      }
-      function get() { return cfg; }
-      return { load, save, get };
-    })();
-    Config.load();
+    const DEFAULTS = {
+      topResW: 1280,
+      topResH: 720,
+      topMinArea: 600,
+      teamA: 'green',
+      teamB: 'blue'
+    };
+
+    const Config = createConfig(DEFAULTS);
+    Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
     const cfg = Config.get();
 
     widthInput.value = cfg.topResW;
