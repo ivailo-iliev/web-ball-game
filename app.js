@@ -89,7 +89,7 @@ const PreviewGfx = (() => {
       if (c && typeof c.getContext === 'function') {
         try {
           ctxTopGPU = c.getContext('webgpu');
-          ctxTopGPU?.configure({ device, format: 'rgba8unorm' });
+          ctxTopGPU?.configure({ device, format: 'rgba8unorm', alphaMode: 'opaque' });
         } catch (err) {
           console.log('Top canvas WebGPU init failed', err);
           ctxTopGPU = null;
@@ -101,7 +101,7 @@ const PreviewGfx = (() => {
       if (c && typeof c.getContext === 'function') {
         try {
           ctxFrontGPU = c.getContext('webgpu');
-          ctxFrontGPU?.configure({ device, format: 'rgba8unorm' });
+          ctxFrontGPU?.configure({ device, format: 'rgba8unorm', alphaMode: 'opaque' });
         } catch (err) {
           console.log('Front canvas WebGPU init failed', err);
           ctxFrontGPU = null;
@@ -664,8 +664,12 @@ const Detect = (() => {
     } catch (err) {
       console.log('f16 check failed', err);
     }
+    if (!hasF16) {
+      console.log('shader-f16 not supported');
+      return false;
+    }
     try {
-      device = await adapter.requestDevice({ requiredFeatures: hasF16 ? ["shader-f16"] : [] });
+      device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
     } catch (err) {
       console.log('Device request failed', err);
       return false;
@@ -673,7 +677,7 @@ const Detect = (() => {
     console.log("shader-f16:", hasF16);
 
     pipelines = await GPUShared.createPipelines(device, {});
-    sampler = device.createSampler();
+    sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
     pack = GPUShared.createUniformPack(device);
     feedTop = GPUShared.createFeed(device, pipelines, sampler, cfg.TOP_W, cfg.TOP_H);
     feedFront = GPUShared.createFeed(device, pipelines, sampler, cfg.FRONT_W, cfg.FRONT_H);
