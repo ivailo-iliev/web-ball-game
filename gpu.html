@@ -96,29 +96,44 @@
   <script src="config.js"></script>
   <script src="gpu-shared.js"></script>
   <script>
-    const { createConfig } = window;
-    const $ = id => document.getElementById(id);
+    (function () {
+      'use strict';
+      const { createConfig } = window;
+      const $ = id => document.getElementById(id);
     const state = $('state');
     const b0 = $('b0');
 
     function handleLog(msg) { state.textContent = msg; }
+    function onB0Click() { sendBit('0'); }
+
     function handleOpen() {
       handleLog('Connected');
       b0.disabled = false;
-      b0.onclick = () => sendBit('0');
+      b0.onclick = onB0Click;
     }
 
     let dc;
-    StartA().then(ctrl => {
+
+    function handleDcOpen() {
+      handleLog('dc: open');
+      dc.send('hello from A');
+      handleOpen();
+    }
+
+    function handleDcMessage(e) { console.log('msg:', e.data); }
+
+    function handleStartCtrl(ctrl) {
       dc = ctrl.channel;
       if (!dc) { handleLog('No data channel'); return; }
-      dc.onopen = () => {
-        handleLog('dc: open');
-        dc.send('hello from A');
-        handleOpen();
-      };
-      dc.onmessage = e => console.log('msg:', e.data);
-    }).catch(err => handleLog('ERR: ' + (err && (err.stack || err))));
+      dc.onopen = handleDcOpen;
+      dc.onmessage = handleDcMessage;
+    }
+
+    function handleStartError(err) {
+      handleLog('ERR: ' + (err && (err.stack || err)));
+    }
+
+    StartA().then(handleStartCtrl).catch(handleStartError);
 
     function sendBit(bit) {
       if (dc && dc.readyState === 'open') {
@@ -158,6 +173,8 @@
     }
     const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
     const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
+    const { PREVIEW: FLAG_PREVIEW, TEAM_A: FLAG_TEAM_A_ACTIVE, TEAM_B: FLAG_TEAM_B_ACTIVE } =
+      GPUShared.FLAGS;
 
     const DEFAULTS = {
       topResW: 1280,
@@ -174,18 +191,25 @@
     widthInput.value = cfg.topResW;
     heightInput.value = cfg.topResH;
     minAreaInput.value = cfg.topMinArea;
-    widthInput.addEventListener('input', e => {
+
+    function onWidthInput(e) {
       cfg.topResW = Math.max(1, +e.target.value);
       Config.save('topResW', cfg.topResW);
-    });
-    heightInput.addEventListener('input', e => {
+    }
+
+    function onHeightInput(e) {
       cfg.topResH = Math.max(1, +e.target.value);
       Config.save('topResH', cfg.topResH);
-    });
-    minAreaInput.addEventListener('input', e => {
+    }
+
+    function onMinAreaInput(e) {
       cfg.topMinArea = Math.max(0, +e.target.value);
       Config.save('topMinArea', cfg.topMinArea);
-    });
+    }
+
+    widthInput.addEventListener('input', onWidthInput);
+    heightInput.addEventListener('input', onHeightInput);
+    minAreaInput.addEventListener('input', onMinAreaInput);
 
     const fragA = document.createDocumentFragment();
     const fragB = document.createDocumentFragment();
@@ -215,15 +239,20 @@
       cfg.teamB = selB.value;
       Config.save('teamB', cfg.teamB);
     }
-    selA.addEventListener('change', e => {
+
+    function onChangeTeamA(e) {
       cfg.teamA = e.target.value;
       Config.save('teamA', cfg.teamA);
       updateThreshInputs();
-    });
-    selB.addEventListener('change', e => {
+    }
+
+    function onChangeTeamB(e) {
       cfg.teamB = e.target.value;
       Config.save('teamB', cfg.teamB);
-    });
+    }
+
+    selA.addEventListener('change', onChangeTeamA);
+    selB.addEventListener('change', onChangeTeamB);
 
     const thInputs = [];
     const thFrag = document.createDocumentFragment();
@@ -235,25 +264,33 @@
         step: '0.05'
       });
       Object.assign(inp.style, { width: '4ch' });
+      inp.dataset.idx = i;
       thInputs.push(inp);
       thFrag.appendChild(inp);
-      inp.addEventListener('input', e => {
-        const base = TEAM_INDICES[cfg.teamA] * 6 + i;
-        COLOR_TABLE[base] = parseFloat(e.target.value);
-        localStorage.setItem('COLOR_TABLE',
-          JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
-        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-      });
+      inp.addEventListener('input', onThresholdInput);
     }
     thCont.appendChild(thFrag);
+
+    function onThresholdInput(e) {
+      const i = +e.target.dataset.idx;
+      const base = TEAM_INDICES[cfg.teamA] * 6 + i;
+      COLOR_TABLE[base] = parseFloat(e.target.value);
+      localStorage.setItem('COLOR_TABLE',
+        JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
+      cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+    }
+
     function updateThreshInputs() {
       const base = TEAM_INDICES[cfg.teamA] * 6;
       for (let i = 0; i < 6; i++) thInputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
     }
     updateThreshInputs();
 
-    start.addEventListener('click', async () => {
+    start.addEventListener('click', onStartClick);
+
+    async function onStartClick() {
       start.disabled = true;
+      infoBase = '';
       try {
         // 1) Camera → WebCodecs VideoFrame (no <video> element)
         const videoConstraints = { facingMode: 'user', frameRate: { ideal: 60 } };
@@ -279,9 +316,8 @@
 
         const pipelines = await GPUShared.createPipelines(device, { format });
         const pack = GPUShared.createUniformPack(device);
-        const flagsTop = GPUShared.FLAGS.PREVIEW | GPUShared.FLAGS.TEAM_A | GPUShared.FLAGS.TEAM_B;
+        const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
         let feed = null;
-        let infoBase = '';
 
         function ensureFeed(frame) {
           const w = frame.codedWidth, h = frame.codedHeight;
@@ -336,7 +372,9 @@
         }
 
         // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
-        videoWorker.onmessage = async (ev) => {
+        videoWorker.onmessage = onWorkerMessage;
+
+        async function onWorkerMessage(ev) {
           const frame = ev.data; // VideoFrame (transferred)
           if (!frame) return;
           if (busy) { frame.close(); return; }
@@ -374,14 +412,15 @@
             frame.close(); // always release
             busy = false;
           }
-        };
+        }
 
       } catch (err) {
         info.textContent = (err && err.message) ? err.message : String(err);
         start.disabled = false;
         console.error(err);
       }
-    });
+    }
+    })();
   </script>
 
 </body>
