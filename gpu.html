@@ -133,9 +133,7 @@
       handleLog('ERR: ' + (err && (err.stack || err)));
     }
 
-    window.addEventListener('load', () => {
-      StartA().then(handleStartCtrl).catch(handleStartError);
-    });
+    StartA().then(handleStartCtrl).catch(handleStartError);
 
     function sendBit(bit) {
       if (dc && dc.readyState === 'open') {
