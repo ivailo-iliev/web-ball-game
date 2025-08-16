@@ -53,29 +53,10 @@
       if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
         COLOR_TABLE.set(arr.map(Number));
       }
-    } catch(e){}
+  } catch(e){}
   }
   const COLOR_EMOJI = { red: '🔴', yellow: '🟡', green: '🟢', blue: '🔵' };
-  function hsvRange(team){
-    const i = TEAM_INDICES[team] * 6;
-    return COLOR_TABLE.subarray(i, i+6);
-  }
-  function float32ToFloat16(val){
-    const f32 = new Float32Array([val]);
-    const u32 = new Uint32Array(f32.buffer)[0];
-    const sign = (u32 >> 16) & 0x8000;
-    let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
-    let mant = u32 & 0x7FFFFF;
-    if (exp <= 0) return sign;
-    if (exp >= 0x1F) return sign | 0x7C00;
-    return sign | (exp << 10) | (mant >> 13);
-  }
-  function hsvRangeF16(team){
-    const src = hsvRange(team);
-    const dst = new Uint16Array(6);
-    for (let i=0;i<6;i++) dst[i] = float32ToFloat16(src[i]);
-    return dst;
-  }
+  const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
 
   // Detection flag bits (subset from app.js)
   const FLAG_PREVIEW = 1;

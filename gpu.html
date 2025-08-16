@@ -94,7 +94,8 @@
 
   <script src="webrtc.js" defer></script>
   <script src="config.js"></script>
-  <script type="module">
+  <script src="gpu-shared.js"></script>
+  <script>
     const { createConfig } = window;
     const $ = id => document.getElementById(id);
     const state = $('state');
@@ -156,28 +157,7 @@
       } catch (e) { }
     }
     const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
-    function hsvRange(team) {
-      const i = TEAM_INDICES[team] * 6;
-      return COLOR_TABLE.subarray(i, i + 6);
-    }
-    const _f32 = new Float32Array(1);
-    const _u32 = new Uint32Array(_f32.buffer);
-    function float32ToFloat16(val) {
-      _f32[0] = val;
-      const u32 = _u32[0];
-      const sign = (u32 >> 16) & 0x8000;
-      let exp = ((u32 >> 23) & 0xFF) - 127 + 15;
-      let mant = u32 & 0x7FFFFF;
-      if (exp <= 0) return sign;
-      if (exp >= 0x1F) return sign | 0x7C00;
-      return sign | (exp << 10) | (mant >> 13);
-    }
-    function hsvRangeF16(team) {
-      const src = hsvRange(team);
-      const dst = new Uint16Array(6);
-      for (let i = 0; i < 6; i++) dst[i] = float32ToFloat16(src[i]);
-      return dst;
-    }
+    const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
 
     const DEFAULTS = {
       topResW: 1280,
@@ -294,115 +274,23 @@
         const format = navigator.gpu.getPreferredCanvasFormat();
         ctx.configure({ device, format, alphaMode: 'opaque' });
 
-        const blitSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+        const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
         let busy = false; // drop frames when main thread is busy
 
-        // 3) GPU resources (textures are created lazily from first VideoFrame)
-        let frameTex1, maskTex1;
-        const maskPassDesc = { colorAttachments: [{ view: undefined, loadOp: 'clear', storeOp: 'store' }] };
-        const colorAttachment = {
-          view: undefined,
-          loadOp: 'clear',
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          storeOp: 'store'
-        };
-        const colorPassDesc = { colorAttachments: [colorAttachment] };
-        let width = 0, height = 0;
-        let xGroups = 0, yGroups = 0;
-        let bgTop, bgR;
-        const WG_X = 8, WG_Y = 32;
+        const pipelines = await GPUShared.createPipelines(device, { format });
+        const pack = GPUShared.createUniformPack(device);
+        const flagsTop = GPUShared.FLAGS.PREVIEW | GPUShared.FLAGS.TEAM_A | GPUShared.FLAGS.TEAM_B;
+        let feed = null;
+        let infoBase = '';
 
-        // Uniform & stats buffers (match legacy/top.js layout)
-        const uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-        const statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-        const statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-        const readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-        const readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-        const zeroU32 = new Uint32Array([0, 0, 0]);
-
-        // Pack uniforms like top.js (f16 HSV ranges + ROI + flags)
-        const uniformArrayBuffer = new ArrayBuffer(64);
-        const uniformU16 = new Uint16Array(uniformArrayBuffer);
-        const uniformF32 = new Float32Array(uniformArrayBuffer);
-        const uniformU32 = new Uint32Array(uniformArrayBuffer);
-        function writeUniform(buf, hsvA6, hsvB6, rect, flags) {
-          const u16 = uniformU16, f32 = uniformF32, u32 = uniformU32;
-          u16.set(hsvA6.subarray(0, 3), 0);
-          u16.set(hsvA6.subarray(3, 6), 4);
-          u16.set(hsvB6.subarray(0, 3), 8);
-          u16.set(hsvB6.subarray(3, 6), 12);
-          f32.set(rect.min, 8);
-          f32.set(rect.max, 10);
-          u32[12] = flags;
-          device.queue.writeBuffer(buf, 0, uniformArrayBuffer);
-        }
-        const FLAG_PREVIEW = 1, FLAG_TEAM_A_ACTIVE = 2, FLAG_TEAM_B_ACTIVE = 4;
-        const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-
-        // 4) Pipelines from shared shader.wgsl (compute: 'main', render: 'vs'/'fs')
-        const SHADER_CODE = await fetch('shader.wgsl').then(r => r.text());
-        const sharedMod = device.createShaderModule({ code: SHADER_CODE });
-        const computePipeline = device.createComputePipeline({
-          layout: 'auto',
-          compute: { module: sharedMod, entryPoint: 'main' }
-        });
-        const renderPipeline = device.createRenderPipeline({
-          layout: 'auto',
-          vertex: { module: sharedMod, entryPoint: 'vs' },
-          fragment: { module: sharedMod, entryPoint: 'fs', targets: [{ format }] },
-          primitive: { topology: 'triangle-list' },
-        });
-
-        // Helper to (re)create textures/bind groups from a VideoFrame's coded size
-        async function ensureTextures(frame) {
+        function ensureFeed(frame) {
           const w = frame.codedWidth, h = frame.codedHeight;
-          if (frameTex1 && w === width && h === height) return;
-
-          width = w; height = h;
+          if (feed && feed.w === w && feed.h === h) return;
+          feed?.destroy?.();
+          feed = GPUShared.createFeed(device, pipelines, sampler, w, h);
           canvas.width = frame.displayWidth;
           canvas.height = frame.displayHeight;
-
-          frameTex1?.destroy?.();
-          maskTex1?.destroy?.();
-
-          // camera frame (sampled/RT) + mask (storage/sampled/RT)
-          frameTex1 = device.createTexture({
-            size: { width, height },
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
-          });
-          maskTex1 = device.createTexture({
-            size: { width, height },
-            format: 'rgba8unorm',
-            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
-          });
-          maskPassDesc.colorAttachments[0].view = maskTex1.createView();
-
-          xGroups = Math.ceil(width / WG_X);
-          yGroups = Math.ceil(height / WG_Y);
-
-          // compute BG: {0:frameTex1,1:maskTex1,2:statsA,3:statsB,6:uni}
-          bgTop = device.createBindGroup({
-            layout: computePipeline.getBindGroupLayout(0),
-            entries: [
-              { binding: 0, resource: frameTex1.createView() },
-              { binding: 1, resource: maskTex1.createView() },
-              { binding: 2, resource: { buffer: statsA } },
-              { binding: 3, resource: { buffer: statsB } },
-              { binding: 6, resource: { buffer: uni } }
-            ]
-          });
-          // render BG: {0:frameTex1,4:maskTex1,5:sampler}
-          bgR = device.createBindGroup({
-            layout: renderPipeline.getBindGroupLayout(0),
-            entries: [
-              { binding: 0, resource: frameTex1.createView() },
-              { binding: 4, resource: maskTex1.createView() },
-              { binding: 5, resource: blitSampler }
-            ]
-          });
-
-          infoBase = `Running ${width}×${height}, shader.wgsl compute+render (VideoFrame).`;
+          infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
           info.textContent = infoBase;
         }
 
@@ -448,76 +336,40 @@
         }
 
         // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
-          videoWorker.onmessage = async (ev) => {
-            const frame = ev.data; // VideoFrame (transferred)
-            if (!frame) return;
-            if (busy) { frame.close(); return; }
-            const now = performance.now();
-            if (lastFrameTS !== undefined) {
-              const fps = 1000 / (now - lastFrameTS);
-              info.textContent = `${infoBase} ${fps.toFixed(1)} fps`;
-            }
-            lastFrameTS = now;
-            busy = true;
-            try {
-              await ensureTextures(frame);
-
-            // Upload camera frame into frameTex1
-            device.queue.copyExternalImageToTexture(
-              { source: frame, flipY: true },
-              { texture: frameTex1, colorSpace: 'srgb' },
-              { width, height }
-            );
-
-            // reset stats and write uniforms (full-frame ROI; preview+both teams flags)
-            device.queue.writeBuffer(statsA, 0, zeroU32);
-            device.queue.writeBuffer(statsB, 0, zeroU32);
-            writeUniform(
-              uni,
+        videoWorker.onmessage = async (ev) => {
+          const frame = ev.data; // VideoFrame (transferred)
+          if (!frame) return;
+          if (busy) { frame.close(); return; }
+          const now = performance.now();
+          if (lastFrameTS !== undefined) {
+            const fps = 1000 / (now - lastFrameTS);
+            info.textContent = `${infoBase} ${fps.toFixed(1)} fps`;
+          }
+          lastFrameTS = now;
+          busy = true;
+          try {
+            ensureFeed(frame);
+            pack.resetStats(device.queue);
+            GPUShared.copyFrame(device.queue, frame, feed);
+            const enc = device.createCommandEncoder();
+            GPUShared.clearMask(enc, feed);
+            pack.writeUniform(device.queue,
               cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB],
-              { min: [0, 0], max: [width, height] },
-              flagsTop
-            );
-
-              const enc = device.createCommandEncoder();
-              enc.beginRenderPass(maskPassDesc).end();
-              {
-                const pass = enc.beginComputePass();
-                pass.setPipeline(computePipeline);
-                pass.setBindGroup(0, bgTop);
-                pass.dispatchWorkgroups(xGroups, yGroups);
-                pass.end();
-              }
-              {
-                colorAttachment.view = ctx.getCurrentTexture().createView();
-                const pass = enc.beginRenderPass(colorPassDesc);
-                pass.setPipeline(renderPipeline);
-                pass.setBindGroup(0, bgR);
-                pass.draw(3);
-                pass.end();
-              }
-            // optional: copy stats out (not displayed here)
-            enc.copyBufferToBuffer(statsA, 0, readA, 0, 12);
-            enc.copyBufferToBuffer(statsB, 0, readB, 0, 12);
-
+              { min: [0, 0], max: [feed.w, feed.h] },
+              flagsTop);
+            GPUShared.encodeCompute(enc, pipelines, feed, pack);
+            GPUShared.drawMaskTo(enc, pipelines, feed, ctx.getCurrentTexture().createView());
             device.queue.submit([enc.finish()]);
-            await Promise.all([
-              readA.mapAsync(GPUMapMode.READ),
-              readB.mapAsync(GPUMapMode.READ)
-            ]);
-            const cntA = new Uint32Array(readA.getMappedRange());
-            const cntB = new Uint32Array(readB.getMappedRange());
-            const sumA = cntA[0] + cntA[1] + cntA[2];
-            const sumB = cntB[0] + cntB[1] + cntB[2];
-            readA.unmap();
-            readB.unmap();
-            const a = sumA > cfg.topMinArea;
-            const b = sumB > cfg.topMinArea;
-            if (a || b) {
+            const { a, b } = await pack.readStats();
+            const sumA = a[0] + a[1] + a[2];
+            const sumB = b[0] + b[1] + b[2];
+            const aOn = sumA > cfg.topMinArea;
+            const bOn = sumB > cfg.topMinArea;
+            if (aOn || bOn) {
               let bit;
-              if (a && b) bit = '2';
-              else if (a) bit = '0';
-              else if (b) bit = '1';
+              if (aOn && bOn) bit = '2';
+              else if (aOn) bit = '0';
+              else if (bOn) bit = '1';
               if (bit !== undefined && window.sendBit) window.sendBit(bit);
             }
           } finally {
