@@ -49,7 +49,7 @@ const COLOR_EMOJI = {
   green: '🟢',
   blue: '🔵'
 };
-const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
+const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
 
 const DEFAULTS = {
   topResW: 640,

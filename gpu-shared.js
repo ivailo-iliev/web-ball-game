@@ -161,18 +161,11 @@
     pass.end();
   }
 
-  function createColorHelpers(teamIndices, colorTable) {
-    function hsvRange(team) {
-      const i = teamIndices[team] * 6;
-      return colorTable.subarray(i, i + 6);
-    }
-    function hsvRangeF16(team) {
-      const src = hsvRange(team);
-      const dst = new Uint16Array(6);
-      for (let i = 0; i < 6; i++) dst[i] = float32ToFloat16(src[i]);
-      return dst;
-    }
-    return { hsvRange, hsvRangeF16 };
+  function hsvRangeF16(teamIndices, colorTable, team) {
+    const i = teamIndices[team] * 6;
+    const dst = new Uint16Array(6);
+    for (let j = 0; j < 6; j++) dst[j] = float32ToFloat16(colorTable[i + j]);
+    return dst;
   }
 
   const GPUShared = {
@@ -186,7 +179,7 @@
     encodeCompute,
     drawMaskTo,
     float32ToFloat16,
-    createColorHelpers
+    hsvRangeF16
   };
 
   global.GPUShared = GPUShared;

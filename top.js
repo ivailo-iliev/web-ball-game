@@ -56,7 +56,7 @@
   } catch(e){}
   }
   const COLOR_EMOJI = { red: '🔴', yellow: '🟡', green: '🟢', blue: '🔵' };
-  const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
+  const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
 
   // Detection flag bits (subset from app.js)
   const { PREVIEW: FLAG_PREVIEW, TEAM_A: FLAG_TEAM_A_ACTIVE, TEAM_B: FLAG_TEAM_B_ACTIVE } =
