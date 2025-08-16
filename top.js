@@ -542,5 +542,5 @@
     return { start };
   })();
 
-  window.addEventListener('DOMContentLoaded', () => Controller.start());
+  Controller.start();
 })();
