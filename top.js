@@ -59,9 +59,8 @@
   const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
 
   // Detection flag bits (subset from app.js)
-  const FLAG_PREVIEW = GPUShared.FLAGS.PREVIEW;
-  const FLAG_TEAM_A_ACTIVE = GPUShared.FLAGS.TEAM_A;
-  const FLAG_TEAM_B_ACTIVE = GPUShared.FLAGS.TEAM_B;
+  const { PREVIEW: FLAG_PREVIEW, TEAM_A: FLAG_TEAM_A_ACTIVE, TEAM_B: FLAG_TEAM_B_ACTIVE } =
+    GPUShared.FLAGS;
 
   /* ---- Config copied from app.js (trimmed to top camera only) ---- */
   const Config = (() => {

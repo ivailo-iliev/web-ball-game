@@ -11,9 +11,8 @@
 // ——————— CONSTANTS ———————
 // top-camera MJPEG feed (over Wi-Fi)
 // moved constants into Config
-const FLAG_PREVIEW = GPUShared.FLAGS.PREVIEW;   // bit 0 – preview
-const FLAG_TEAM_A_ACTIVE = GPUShared.FLAGS.TEAM_A;   // bit 1 – team A
-const FLAG_TEAM_B_ACTIVE = GPUShared.FLAGS.TEAM_B;   // bit 2 – team B
+const { PREVIEW: FLAG_PREVIEW, TEAM_A: FLAG_TEAM_A_ACTIVE, TEAM_B: FLAG_TEAM_B_ACTIVE } =
+  GPUShared.FLAGS;
 
 const TOP_MODE_MJPEG = 'mjpeg';
 const TOP_MODE_WEBRTC = 'webrtc';
@@ -53,12 +52,12 @@ const COLOR_EMOJI = {
 const { hsvRange, hsvRangeF16 } = GPUShared.createColorHelpers(TEAM_INDICES, COLOR_TABLE);
 
 const DEFAULTS = {
-  TOP_W: 640,
-  TOP_H: 480,
-  FRONT_W: 1280,
-  FRONT_H: 590,
-  TOP_MIN_AREA: 400,
-  FRONT_MIN_AREA: 8000,
+  topResW: 640,
+  topResH: 480,
+  frontResW: 1280,
+  frontResH: 590,
+  topMinArea: 400,
+  frontMinArea: 8000,
   url:    "http://192.168.43.1:8080/video",
   teamA:  "green",
   teamB:  "blue",
@@ -135,7 +134,7 @@ const PreviewGfx = (() => {
     ensure2d();
     if (!ctxFront2d) return;
     ctxFront2d.fillStyle = hit.team;
-    const px = hit.x * cfg.FRONT_W, py = hit.y * cfg.FRONT_H;
+    const px = hit.x * cfg.frontResW, py = hit.y * cfg.frontResH;
     ctxFront2d.beginPath();
     ctxFront2d.arc(px, py, 8, 0, Math.PI * 2);
     ctxFront2d.fill();
@@ -199,16 +198,16 @@ const TopROI = {
   h: 0,
   setHeight(h) {
     const cfg = Config.get();
-    this.h = clampInt(h, 10, cfg.TOP_H);
+    this.h = clampInt(h, 10, cfg.topResH);
     cfg.topH = this.h;
     Config.save('topH', cfg.topH);
     this.commit();
   },
   commit() {
     const cfg = Config.get();
-    this.y = clampInt(this.y, 0, cfg.TOP_H - this.h);
+    this.y = clampInt(this.y, 0, cfg.topResH - this.h);
     const y = this.y, h = this.h;
-    cfg.polyT = [[0, y], [cfg.TOP_W, y], [cfg.TOP_W, y + h], [0, y + h]];
+    cfg.polyT = [[0, y], [cfg.topResW, y], [cfg.topResW, y + h], [0, y + h]];
     Config.save('polyT', cfg.polyT);
     PreviewGfx.drawROI(cfg.polyT, 'lime', 'top');
   },
@@ -220,13 +219,13 @@ const TopROI = {
     canvas.addEventListener('pointerdown', function (e) {
       if (!Controller.isPreview()) return;
       const r = canvas.getBoundingClientRect();
-      dragY = (e.clientY - r.top) * cfg.TOP_H / r.height;
+      dragY = (e.clientY - r.top) * cfg.topResH / r.height;
       canvas.setPointerCapture(e.pointerId);
     });
     canvas.addEventListener('pointermove', function (e) {
       if (dragY == null || !Controller.isPreview()) return;
       const r = canvas.getBoundingClientRect();
-      const curY = (e.clientY - r.top) * cfg.TOP_H / r.height;
+      const curY = (e.clientY - r.top) * cfg.topResH / r.height;
       self.y += curY - dragY;
       dragY = curY;
       self.commit();
@@ -242,8 +241,8 @@ const FrontROI = {
   x: 0, y: 0, w: 0, h: 0,
   setHeight(h) {
     const cfg = Config.get();
-    const aspect = cfg.FRONT_W / cfg.FRONT_H;
-    this.h = clampInt(h, 10, cfg.FRONT_H);
+    const aspect = cfg.frontResW / cfg.frontResH;
+    this.h = clampInt(h, 10, cfg.frontResH);
     this.w = this.h * aspect;
     cfg.frontH = this.h;
     Config.save('frontH', cfg.frontH);
@@ -251,10 +250,10 @@ const FrontROI = {
   },
   commit() {
     const cfg = Config.get();
-    const aspect = cfg.FRONT_W / cfg.FRONT_H;
+    const aspect = cfg.frontResW / cfg.frontResH;
     this.w = this.h * aspect;
-    this.x = clampInt(this.x, 0, cfg.FRONT_W - this.w);
-    this.y = clampInt(this.y, 0, cfg.FRONT_H - this.h);
+    this.x = clampInt(this.x, 0, cfg.frontResW - this.w);
+    this.y = clampInt(this.y, 0, cfg.frontResH - this.h);
     const x0 = Math.round(this.x), y0 = Math.round(this.y);
     const x1 = Math.round(this.x + this.w), y1 = Math.round(this.y + this.h);
     cfg.polyF = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -269,8 +268,8 @@ const FrontROI = {
     function toCanvas(e) {
       const r = canvas.getBoundingClientRect();
       return {
-        x: (e.clientX - r.left) * cfg.FRONT_W / r.width,
-        y: (e.clientY - r.top) * cfg.FRONT_H / r.height
+        x: (e.clientX - r.left) * cfg.frontResW / r.width,
+        y: (e.clientY - r.top) * cfg.frontResH / r.height
       };
     }
     canvas.addEventListener('pointerdown', function (e) {
@@ -299,13 +298,13 @@ const Setup = (() => {
   let thInputs = [];
   const detectionUI = `
   <div class=cam id=topCam>
-    <canvas id=topTex width=${cfg.TOP_W} height=${cfg.TOP_H}></canvas>
-    <canvas id=topOv class=overlay width=${cfg.TOP_W} height=${cfg.TOP_H}></canvas>
+    <canvas id=topTex width=${cfg.topResW} height=${cfg.topResH}></canvas>
+    <canvas id=topOv class=overlay width=${cfg.topResW} height=${cfg.topResH}></canvas>
   </div>
   <div class=cam id=frontCam>
    <video id=vid autoplay playsinline style="display: none;"></video>
-   <canvas id="frontTex" width=${cfg.FRONT_W} height=${cfg.FRONT_H}></canvas>
-   <canvas id=frontOv  class=overlay width=${cfg.FRONT_W} height=${cfg.FRONT_H}></canvas>
+   <canvas id="frontTex" width=${cfg.frontResW} height=${cfg.frontResH}></canvas>
+   <canvas id=frontOv  class=overlay width=${cfg.frontResW} height=${cfg.frontResH}></canvas>
   </div>
   <div id=cfg>
     <span>
@@ -317,9 +316,9 @@ const Setup = (() => {
     </span>
     <label for=frontZoom>🔍 <input id=frontZoom type=number style="width:3ch"></label>
     <label for=topMinInp>⚫ <input id=topMinInp   type=number min=0 step=25 style="width:6ch"></label>
-    <label for=topHInp>↕️ <input id=topHInp   type=number min=10 max=${cfg.TOP_H} step=1></label>
+    <label for=topHInp>↕️ <input id=topHInp   type=number min=10 max=${cfg.topResH} step=1></label>
     <label for=frontMinInp>⚫ <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
-    <label for=frontHInp>↕️ <input id=frontHInp type=number min=10 max=${cfg.FRONT_H} step=1></label>
+    <label for=frontHInp>↕️ <input id=frontHInp type=number min=10 max=${cfg.frontResH} step=1></label>
     <label for=topMode>📡 <select id=topMode>
       <option value="${TOP_MODE_WEBRTC}">WebRTC</option>
       <option value="${TOP_MODE_MJPEG}">MJPEG</option>
@@ -367,8 +366,8 @@ const Setup = (() => {
     el.teamB.value = cfg.teamB;
     el.topH.value = cfg.topH;
     el.frontH.value = cfg.frontH;
-    el.topMin.value = cfg.TOP_MIN_AREA;
-    el.frontMin.value = cfg.FRONT_MIN_AREA;
+    el.topMin.value = cfg.topMinArea;
+    el.frontMin.value = cfg.frontMinArea;
     if (cfg.polyT.length === 4) {
       const ys = cfg.polyT.map(p => p[1]);
       TopROI.y = Math.min(...ys);
@@ -394,8 +393,8 @@ const Setup = (() => {
     el.teamB.addEventListener('change', onChangeTeamB);
     el.topH.addEventListener('input', onChangeTopH);
     el.frontH.addEventListener('input', onChangeFrontH);
-    el.topMin.addEventListener('change', onChangeTopMin);
-    el.frontMin.addEventListener('change', onChangeFrontMin);
+    el.topMin.addEventListener('input', onInputTopMin);
+    el.frontMin.addEventListener('input', onInputFrontMin);
     el.btnStart.addEventListener('click', onClickStart);
     TopROI.attach(el.topOv);
     FrontROI.attach(el.frontOv);
@@ -427,25 +426,25 @@ const Setup = (() => {
   }
 
   function onChangeTopH(e) {
-    const h = clampInt(e.target.value, 10, cfg.TOP_H);
+    const h = clampInt(e.target.value, 10, cfg.topResH);
     e.target.value = h;
     TopROI.setHeight(h);
   }
 
   function onChangeFrontH(e) {
-    const h = clampInt(e.target.value, 10, cfg.FRONT_H);
+    const h = clampInt(e.target.value, 10, cfg.frontResH);
     e.target.value = h;
     FrontROI.setHeight(h);
   }
 
-  function onChangeTopMin(e) {
-    cfg.TOP_MIN_AREA = clampInt(e.target.value, 0);
-    Config.save('TOP_MIN_AREA', cfg.TOP_MIN_AREA);
+  function onInputTopMin(e) {
+    cfg.topMinArea = clampInt(e.target.value, 0);
+    Config.save('topMinArea', cfg.topMinArea);
   }
 
-  function onChangeFrontMin(e) {
-    cfg.FRONT_MIN_AREA = clampInt(e.target.value, 0);
-    Config.save('FRONT_MIN_AREA', cfg.FRONT_MIN_AREA);
+  function onInputFrontMin(e) {
+    cfg.frontMinArea = clampInt(e.target.value, 0);
+    Config.save('frontMinArea', cfg.frontMinArea);
   }
 
   function onClickStart() {
@@ -526,8 +525,8 @@ const Feeds = (() => {
       frontStream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          width: { exact: cfg.FRONT_W },
-          height: { exact: cfg.FRONT_H },
+          width: { exact: cfg.frontResW },
+          height: { exact: cfg.frontResH },
           facingMode: 'environment',
           frameRate: { ideal: 60, max: 120 }
         }
@@ -551,8 +550,6 @@ const Feeds = (() => {
       zoomInput.min = min;
       zoomInput.max = Math.min(2, max);
       zoomInput.step = step || 0.1;
-      const storedZoom = localStorage.getItem('zoom');
-      if (storedZoom !== null) cfg.zoom = JSON.parse(storedZoom);
       zoomInput.value = cfg.zoom;
       advConstraints.push({ zoom: cfg.zoom });
       zoomInput.addEventListener('input', async () => {
@@ -626,7 +623,7 @@ const Detect = (() => {
 
   function rectTop() {
     const ys = cfg.polyT.map(p => p[1]);
-    return { min: [0, Math.min(...ys)], max: [cfg.TOP_W, Math.max(...ys)] };
+    return { min: [0, Math.min(...ys)], max: [cfg.topResW, Math.max(...ys)] };
   }
   function rectFront() {
     const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
@@ -673,8 +670,8 @@ const Detect = (() => {
     pipelines = await GPUShared.createPipelines(device, {});
     sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
     pack = GPUShared.createUniformPack(device);
-    feedTop = GPUShared.createFeed(device, pipelines, sampler, cfg.TOP_W, cfg.TOP_H);
-    feedFront = GPUShared.createFeed(device, pipelines, sampler, cfg.FRONT_W, cfg.FRONT_H);
+    feedTop = GPUShared.createFeed(device, pipelines, sampler, cfg.topResW, cfg.topResH);
+    feedFront = GPUShared.createFeed(device, pipelines, sampler, cfg.frontResW, cfg.frontResH);
     return true;
   }
 
@@ -694,12 +691,12 @@ const Detect = (() => {
 
   async function runTopDetection(preview) {
     const src = Feeds.top();
-    const raw = (src?.naturalHeight ?? cfg.TOP_H) - cfg.TOP_H;
+    const raw = (src?.naturalHeight ?? cfg.topResH) - cfg.topResH;
     const srcY = Math.max(0, Math.floor(raw / 2));
     const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
     const { a, b } = await detectPass(src, feedTop, rectTop(), flagsTop, preview, 'top', { x: 0, y: srcY }, true);
     const cntA = a[0], cntB = b[0];
-    const topDetected = cntA > cfg.TOP_MIN_AREA || cntB > cfg.TOP_MIN_AREA;
+    const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
     return { detected: topDetected, cntA, cntB };
   }
 
@@ -712,13 +709,13 @@ const Detect = (() => {
     const [cntA, sumXA, sumYA] = a;
     const [cntB, sumXB, sumYB] = b;
     const hits = [];
-    if (cntA > cfg.FRONT_MIN_AREA) {
+    if (cntA > cfg.frontMinArea) {
       const cx = sumXA / cntA, cy = sumYA / cntA;
-      hits.push({ team: cfg.teamA, x: cx / cfg.FRONT_W, y: cy / cfg.FRONT_H });
+      hits.push({ team: cfg.teamA, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
     }
-    if (cntB > cfg.FRONT_MIN_AREA) {
+    if (cntB > cfg.frontMinArea) {
       const cx = sumXB / cntB, cy = sumYB / cntB;
-      hits.push({ team: cfg.teamB, x: cx / cfg.FRONT_W, y: cy / cfg.FRONT_H });
+      hits.push({ team: cfg.teamB, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
     }
     if (preview && hits.length) {
       for (const h of hits) PreviewGfx.drawHit(h);
@@ -747,8 +744,8 @@ const Controller = (() => {
 
     if (topDetected) {
       let flags = preview ? FLAG_PREVIEW : 0;
-      if (cntA > cfg.TOP_MIN_AREA) flags |= FLAG_TEAM_A_ACTIVE;
-      if (cntB > cfg.TOP_MIN_AREA) flags |= FLAG_TEAM_B_ACTIVE;
+      if (cntA > cfg.topMinArea) flags |= FLAG_TEAM_A_ACTIVE;
+      if (cntB > cfg.topMinArea) flags |= FLAG_TEAM_B_ACTIVE;
 
       const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags, preview);
 
