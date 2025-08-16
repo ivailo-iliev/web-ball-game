@@ -133,7 +133,10 @@
       handleLog('ERR: ' + (err && (err.stack || err)));
     }
 
-    StartA().then(handleStartCtrl).catch(handleStartError);
+    function startRTC() {
+      StartA().then(handleStartCtrl).catch(handleStartError);
+    }
+    window.addEventListener('load', startRTC);
 
     function sendBit(bit) {
       if (dc && dc.readyState === 'open') {
