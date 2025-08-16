@@ -253,22 +253,6 @@ const Setup = (() => {
     drawPolyTop();
   }
 
-  function orderPoints(pts) {
-    const arr = pts.map(p => [...p]);
-    let tr = 0, bl = 0, mx = arr[0][0] - arr[0][1], mn = mx;
-    arr.forEach((p, i) => {
-      const v = p[0] - p[1];
-      if (v > mx) { mx = v; tr = i; }
-      if (v < mn) { mn = v; bl = i; }
-    });
-    const rem = [0, 1, 2, 3].filter(i => i !== tr && i !== bl);
-    const [a, b] = rem;
-    const sumA = arr[a][0] + arr[a][1], sumB = arr[b][0] + arr[b][1];
-    const tl = sumA < sumB ? a : b;
-    const br = rem.find(i => i !== tl);
-    return [arr[tl], arr[tr], arr[br], arr[bl]];
-  }
-
     if (cfg.polyT.length === 4) {
       const ys = cfg.polyT.map(p => p[1]);
       topROI.y = Math.min(...ys);
@@ -298,33 +282,29 @@ const Setup = (() => {
     commitTop();
 
     (function () {
+      // Front ROI: fixed aspect, height-driven; gesture = drag only
       const ASPECT = cfg.FRONT_W / cfg.FRONT_H;
-      const MIN_W = 60;
-
       let roi = { x: 0, y: 0, w: cfg.frontH * ASPECT, h: cfg.frontH };
       if (cfg.polyF?.length === 4) {
         const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
-        roi.x = Math.min(...xs);
-        roi.y = Math.min(...ys);
-        roi.w = Math.max(...xs) - roi.x;
+        const x0 = Math.min(...xs), x1 = Math.max(...xs);
+        const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+        // re-lock width to height*aspect in case stored poly drifted
+        roi.h = Math.max(10, Math.min(cfg.FRONT_H, roi.h));
+        roi.w = roi.h * ASPECT;
       }
 
-      const fingers = new Map();
-      let startRect, startDist, startMid;
-
       function commit() {
-        roi.w = Math.max(MIN_W, roi.w);
+        // lock width to height * aspect and clamp inside framebuffer
+        roi.h = Math.max(10, Math.min(cfg.FRONT_H, roi.h));
         roi.w = roi.h * ASPECT;
-
-        if (roi.w > cfg.FRONT_W) { roi.w = cfg.FRONT_W; roi.h = roi.w / ASPECT; }
-        if (roi.h > cfg.FRONT_H) { roi.h = cfg.FRONT_H; roi.w = roi.h * ASPECT; }
-
         roi.x = Math.min(Math.max(0, roi.x), cfg.FRONT_W - roi.w);
         roi.y = Math.min(Math.max(0, roi.y), cfg.FRONT_H - roi.h);
-
+        // write polygon in TL,TR,BR,BL order for downstream code
         const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
         const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
-        cfg.polyF = orderPoints([[x1, y0], [x0, y0], [x0, y1], [x1, y1]]);
+        cfg.polyF = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
         Config.save('polyF', cfg.polyF);
         drawPolyFront();
       }
@@ -337,73 +317,24 @@ const Setup = (() => {
         };
       }
 
+      // Drag-only gesture
+      let dragStart, roiStart;
       frontOv.addEventListener('pointerdown', e => {
         if (!Controller.isPreview()) return;
         frontOv.setPointerCapture(e.pointerId);
-        fingers.set(e.pointerId, toCanvas(e));
-
-        if (fingers.size === 1) {
-          startRect = { ...roi };
-          startMid = { ...fingers.values().next().value };
-        } else if (fingers.size === 2) {
-          const [a, b] = [...fingers.values()];
-          startDist = Math.hypot(b.x - a.x, b.y - a.y);
-          startMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-          startRect = { ...roi };
-        }
+        dragStart = toCanvas(e);
+        roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
       });
-
       frontOv.addEventListener('pointermove', e => {
-        if (!fingers.has(e.pointerId) || !Controller.isPreview()) return;
-        fingers.set(e.pointerId, toCanvas(e));
-
-        if (fingers.size === 1) {
-          const cur = [...fingers.values()][0];
-          roi.x = startRect.x + (cur.x - startMid.x);
-          roi.y = startRect.y + (cur.y - startMid.y);
-          commit();
-        }
-        else if (fingers.size === 2) {
-          const [a, b] = [...fingers.values()];
-          const dist = Math.hypot(b.x - a.x, b.y - a.y);
-          const scale = dist / startDist;
-          roi.h = startRect.h / scale;
-          roi.w = roi.h * ASPECT;
-          const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-          roi.x = mid.x - roi.w / 2;
-          roi.y = mid.y - roi.h / 2;
-          commit();
-        }
+        if (!dragStart || !Controller.isPreview()) return;
+        const cur = toCanvas(e);
+        roi.x = roiStart.x + (cur.x - dragStart.x);
+        roi.y = roiStart.y + (cur.y - dragStart.y);
+        commit();
       });
-
-      function lift(e) {
-        fingers.delete(e.pointerId);
-        if (!fingers.size) commit();
-      }
+      function lift() { dragStart = null; roiStart = null; }
       frontOv.addEventListener('pointerup', lift);
       frontOv.addEventListener('pointercancel', lift);
-
-      function zoomFromWheel(deltaY) {
-        return Math.exp(deltaY * 0.001);
-      }
-
-      frontOv.addEventListener('wheel', e => {
-        if (!Controller.isPreview()) return;
-        e.preventDefault();
-        const scale = zoomFromWheel(e.deltaY);
-        const prevW = roi.w, prevH = roi.h;
-        const newW = prevW * scale, newH = newW / ASPECT;
-
-        roi.x -= (newW - prevW) / 2;
-        roi.y -= (newH - prevH) / 2;
-        roi.w = newW;
-        roi.h = newH;
-        commit();
-      }, { passive: false });
-
-      ['gesturestart', 'gesturechange', 'gestureend'].forEach(t =>
-        frontOv.addEventListener(t, e => e.preventDefault())
-      );
 
       frontOv.style.touchAction = 'none';
       const topHInp = $('#topHInp');
@@ -424,8 +355,7 @@ const Setup = (() => {
       frontHInp.addEventListener('input', e => {
         cfg.frontH = Math.max(10, Math.min(cfg.FRONT_H, +e.target.value));
         Config.save('frontH', cfg.frontH);
-        roi.h = cfg.frontH;
-        roi.w = roi.h * ASPECT;
+        roi.h = cfg.frontH;               // width is recomputed in commit()
         commit();
       });
       topMinInp.onchange = e => {
