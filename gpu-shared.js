@@ -2,6 +2,21 @@
   const WG_SIZE = { X: 8, Y: 32 };
   const FLAGS = { PREVIEW: 1, TEAM_A: 2, TEAM_B: 4 };
 
+  // --- internal device/context cache (hidden) ---
+  const _DEV = new WeakMap(); // GPUDevice -> { format, pipelines, sampler, ctxs: Map(key -> Ctx) }
+  async function _getState(device, format) {
+    let st = _DEV.get(device);
+    if (!st) { st = { format, pipelines: null, sampler: null, ctxs: new Map() }; _DEV.set(device, st); }
+    if (!st.pipelines) st.pipelines = await createPipelines(device, { format });
+    if (!st.sampler)   st.sampler   = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+    return st;
+  }
+  function _sizeOf(source) {
+    const w = source?.codedWidth ?? source?.videoWidth ?? source?.naturalWidth ?? source?.width;
+    const h = source?.codedHeight ?? source?.videoHeight ?? source?.naturalHeight ?? source?.height;
+    return { w, h };
+  }
+
   function float32ToFloat16(val) {
     const f32 = new Float32Array([val]);
     const u32 = new Uint32Array(f32.buffer)[0];
@@ -126,91 +141,85 @@
     return dst;
   }
 
-  async function createRunner(device, canvasFormat = 'rgba8unorm') {
-    if (!navigator.gpu) {
-      throw new Error('WebGPU not supported');
-    }
-    if (!device?.features?.has?.('shader-f16')) {
-      throw new Error('shader-f16 not supported');
-    }
-    const pipelines = await createPipelines(device, { format: canvasFormat });
-    const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
-    const pack = createUniformPack(device);
-    pack.hsvA6 = new Uint16Array(6);
-    pack.hsvB6 = new Uint16Array(6);
-    const ORIGIN = { x: 0, y: 0 };
-    const defaultRect = { min: new Float32Array(2), max: new Float32Array(2) };
-    let feed = null;
+  // --- single public method ---
+  async function detect(device, {
+    key       = 'default',
+    source,                   // VideoFrame | HTMLVideoElement | HTMLImageElement | ImageBitmap
+    rect      = null,         // {min:[x,y], max:[x,y]} in pixels; defaults to full frame
+    hsvA6, hsvB6,             // Uint16Array(6) half-floats (you already precompute these)
+    flags     = 0,            // GPUShared.FLAGS.*
+    view      = null,         // optional: GPUTextureView for preview overlay
+    flipY     = true,
+    format    = 'rgba8unorm'  // canvas/texture format
+  } = {}) {
+    if (!navigator.gpu) throw new Error('WebGPU not supported');
+    if (!device?.features?.has?.('shader-f16')) throw new Error('shader-f16 not supported');
+    if (!source) throw new Error('detect: source required');
 
-    function ensureFeed(width, height) {
-      if (!(width > 0 && height > 0)) {
-        throw new Error('ensureFeed: width and height must be positive');
-      }
-      if (!feed || feed.w !== width || feed.h !== height) {
-        feed?.destroy?.();
-        feed = createFeed(device, pipelines, sampler, width, height, canvasFormat);
-        defaultRect.max[0] = width;
-        defaultRect.max[1] = height;
-        return true;
-      }
-      return false;
+    // state for this device
+    const st = await _getState(device, format);
+
+    // per-key context (separate pack/feed so top/front can run independently)
+    let ctx = st.ctxs.get(key);
+    if (!ctx) {
+      const pack = createUniformPack(device);
+      pack.hsvA6 = new Uint16Array(6);
+      pack.hsvB6 = new Uint16Array(6);
+      ctx = { pack, feed: null, rectDefault: { min: new Float32Array(2), max: new Float32Array(2) } };
+      st.ctxs.set(key, ctx);
     }
 
-    async function process({ source, view = null, flags = 0, rect = defaultRect, flipY = true } = {}) {
-      if (!feed) {
-        throw new Error('process called before ensureFeed');
-      }
-      if (!source) {
-        throw new Error('process: source required');
-      }
-      pack.resetStats(device.queue);
-      pack.writeUniform(device.queue, pack.hsvA6, pack.hsvB6, rect, flags);
-      device.queue.copyExternalImageToTexture(
-        { source, origin: ORIGIN, flipY },
-        { texture: feed.frameTex },
-        { width: feed.w, height: feed.h }
-      );
-      const encoder = device.createCommandEncoder();
-      encoder
-        .beginRenderPass({ colorAttachments: [{ view: feed.maskView, loadOp: 'clear', storeOp: 'store' }] })
-        .end();
-      const pass = encoder.beginComputePass({ label: 'detect-compute' });
-      pass.setPipeline(pipelines.compute);
-      pass.setBindGroup(0, feed.computeBG(pack));
-      pass.dispatchWorkgroups(
-        Math.ceil(feed.w / WG_SIZE.X),
-        Math.ceil(feed.h / WG_SIZE.Y)
-      );
-      pass.end();
-      encoder.copyBufferToBuffer(pack.statsA, 0, pack.readA, 0, 12);
-      encoder.copyBufferToBuffer(pack.statsB, 0, pack.readB, 0, 12);
-      if (view) {
-        const rpass = encoder.beginRenderPass({
-          label: 'mask-present',
-          colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }]
-        });
-        rpass.setPipeline(pipelines.render);
-        rpass.setBindGroup(0, feed.renderBG);
-        rpass.draw(3);
-        rpass.end();
-      }
-      device.queue.submit([encoder.finish()]);
-      return pack.readStats();
+    // ensure feed size
+    const { w, h } = _sizeOf(source);
+    if (!(w > 0 && h > 0)) throw new Error('detect: could not determine source size');
+    let resized = false;
+    if (!ctx.feed || ctx.feed.w !== w || ctx.feed.h !== h) {
+      ctx.feed?.destroy?.();
+      ctx.feed = createFeed(device, st.pipelines, st.sampler, w, h, st.format);
+      ctx.rectDefault.max[0] = w;
+      ctx.rectDefault.max[1] = h;
+      resized = true;
     }
 
-    return { ensureFeed, process, pack };
+    // uniforms
+    if (hsvA6) ctx.pack.hsvA6.set(hsvA6);
+    if (hsvB6) ctx.pack.hsvB6.set(hsvB6);
+    const useRect = rect || ctx.rectDefault;
+    ctx.pack.resetStats(device.queue);
+    ctx.pack.writeUniform(device.queue, ctx.pack.hsvA6, ctx.pack.hsvB6, useRect, flags);
+
+    // upload frame
+    device.queue.copyExternalImageToTexture(
+      { source, origin: { x: 0, y: 0 }, flipY },
+      { texture: ctx.feed.frameTex },
+      { width: w, height: h }
+    );
+
+    // compute + (optional) present
+    const enc = device.createCommandEncoder();
+    enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
+    const pass = enc.beginComputePass({ label: 'detect-compute' });
+    pass.setPipeline(st.pipelines.compute);
+    pass.setBindGroup(0, ctx.feed.computeBG(ctx.pack));
+    pass.dispatchWorkgroups(Math.ceil(w / WG_SIZE.X), Math.ceil(h / WG_SIZE.Y));
+    pass.end();
+    enc.copyBufferToBuffer(ctx.pack.statsA, 0, ctx.pack.readA, 0, 12);
+    enc.copyBufferToBuffer(ctx.pack.statsB, 0, ctx.pack.readB, 0, 12);
+    if (view) {
+      const r = enc.beginRenderPass({ label: 'mask-present', colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+      r.setPipeline(st.pipelines.render);
+      r.setBindGroup(0, ctx.feed.renderBG);
+      r.draw(3);
+      r.end();
+    }
+    device.queue.submit([enc.finish()]);
+
+    const { a, b } = await ctx.pack.readStats();
+    return { a, b, resized, w, h };
   }
 
-  const GPUShared = {
-    WG_SIZE,
-    FLAGS,
-    createPipelines,
-    createUniformPack,
-    createFeed,
-    float32ToFloat16,
-    hsvRangeF16,
-    createRunner
-  };
+  // Only expose what callers need.
+  const GPUShared = { FLAGS, hsvRangeF16, detect };
 
   global.GPUShared = GPUShared;
 })(window);
