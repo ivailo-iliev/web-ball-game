@@ -150,24 +150,7 @@ const PreviewGfx = (() => {
 })();
 
 
-function clampInt(val, min, max) {
-  val = Math.round(Number(val));
-  if (!Number.isFinite(val)) val = 0;
-  if (min !== undefined && val < min) val = min;
-  if (max !== undefined && val > max) val = max;
-  return val;
-}
 
-function populateTeamSelects(selA, selB) {
-  for (const [team, emoji] of Object.entries(COLOR_EMOJI)) {
-    const optA = document.createElement('option');
-    optA.value = team;
-    optA.textContent = emoji;
-    const optB = optA.cloneNode(true);
-    selA.appendChild(optA);
-    selB.appendChild(optB);
-  }
-}
 
 
 const Setup = (() => {
@@ -256,7 +239,7 @@ const Setup = (() => {
 
     function setHeight(h) {
       const resH = cfg[roi.keys.resH];
-      roi.h = clampInt(h, 10, resH);
+      roi.h = Math.round(u.clamp(Number(h), 10, resH));
       if (roi.maintainAspect) {
         const resW = cfg[roi.keys.resW];
         roi.w = roi.h * (resW / resH);
@@ -278,8 +261,8 @@ const Setup = (() => {
       } else if (roi.maintainAspect) {
         roi.w = roi.h * (resW / resH);
       }
-      roi.x = clampInt(roi.x, 0, resW - roi.w);
-      roi.y = clampInt(roi.y, 0, resH - roi.h);
+      roi.x = u.clamp(roi.x, 0, resW - roi.w);
+      roi.y = u.clamp(roi.y, 0, resH - roi.h);
       const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
       const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
       cfg[roi.keys.poly] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -419,7 +402,7 @@ const Setup = (() => {
   }
 
   function initInputs() {
-    populateTeamSelects(el.teamA, el.teamB);
+    populateTeamSelects(el.teamA, el.teamB, COLOR_EMOJI);
     thInputs = createThreshInputs(el.teamAThresh, onInputThresh);
     el.topMode.value = cfg.topMode;
     el.topUrl.value = cfg.url;
@@ -486,27 +469,27 @@ const Setup = (() => {
     Game.setTeams(cfg.teamA, cfg.teamB);
   }
 
-  function onChangeTopH(e) {
-    const h = clampInt(e.target.value, 10, cfg.topResH);
-    e.target.value = h;
-    TopROI.setHeight(h);
-  }
+    function onChangeTopH(e) {
+      const h = Math.round(u.clamp(Number(e.target.value), 10, cfg.topResH));
+      e.target.value = h;
+      TopROI.setHeight(h);
+    }
 
-  function onChangeFrontH(e) {
-    const h = clampInt(e.target.value, 10, cfg.frontResH);
-    e.target.value = h;
-    FrontROI.setHeight(h);
-  }
+    function onChangeFrontH(e) {
+      const h = Math.round(u.clamp(Number(e.target.value), 10, cfg.frontResH));
+      e.target.value = h;
+      FrontROI.setHeight(h);
+    }
 
-  function onInputTopMin(e) {
-    cfg.topMinArea = clampInt(e.target.value, 0);
-    Config.save('topMinArea', cfg.topMinArea);
-  }
+    function onInputTopMin(e) {
+      cfg.topMinArea = Math.round(u.clamp(Number(e.target.value), 0, Number.MAX_SAFE_INTEGER));
+      Config.save('topMinArea', cfg.topMinArea);
+    }
 
-  function onInputFrontMin(e) {
-    cfg.frontMinArea = clampInt(e.target.value, 0);
-    Config.save('frontMinArea', cfg.frontMinArea);
-  }
+    function onInputFrontMin(e) {
+      cfg.frontMinArea = Math.round(u.clamp(Number(e.target.value), 0, Number.MAX_SAFE_INTEGER));
+      Config.save('frontMinArea', cfg.frontMinArea);
+    }
 
   function onClickStart() {
     Controller.start();

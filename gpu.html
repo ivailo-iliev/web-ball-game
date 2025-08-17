@@ -92,6 +92,7 @@
     <span id="info"></span>
   </div>
 
+  <script src="utils.js"></script>
   <script src="webrtc.js"></script>
   <script src="config.js"></script>
   <script src="gpu-shared.js"></script>
@@ -99,9 +100,8 @@
     (function () {
       'use strict';
       const { createConfig } = window;
-      const $ = id => document.getElementById(id);
-    const state = $('state');
-    const b0 = $('b0');
+    const state = $('#state');
+    const b0 = $('#b0');
 
     function handleOpen() {
       state.textContent = 'Connected';
@@ -136,17 +136,17 @@
     }
     window.sendBit = sendBit;
 
-      const info = $('info');
+    const info = $('#info');
       let infoBase = '';
       let lastFrameTS;
-    const start = $('start');
-    const canvas = $('gfx');
-    const widthInput = $('videoWidth');
-    const heightInput = $('videoHeight');
-    const minAreaInput = $('minArea');
-    const selA = $('teamA');
-    const selB = $('teamB');
-    const thCont = $('teamAThresh');
+    const start = $('#start');
+    const canvas = $('#gfx');
+    const widthInput = $('#videoWidth');
+    const heightInput = $('#videoHeight');
+    const minAreaInput = $('#minArea');
+    const selA = $('#teamA');
+    const selB = $('#teamB');
+    const thCont = $('#teamAThresh');
 
     const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
     const COLOR_TABLE = new Float32Array([
@@ -204,22 +204,7 @@
     heightInput.addEventListener('input', onHeightInput);
     minAreaInput.addEventListener('input', onMinAreaInput);
 
-    const fragA = document.createDocumentFragment();
-    const fragB = document.createDocumentFragment();
-    for (const t of Object.keys(TEAM_INDICES)) {
-      const optA = Object.assign(document.createElement('option'), {
-        value: t,
-        textContent: COLOR_EMOJI[t]
-      });
-      fragA.appendChild(optA);
-      const optB = Object.assign(document.createElement('option'), {
-        value: t,
-        textContent: COLOR_EMOJI[t]
-      });
-      fragB.appendChild(optB);
-    }
-    selA.appendChild(fragA);
-    selB.appendChild(fragB);
+    populateTeamSelects(selA, selB, COLOR_EMOJI);
     selA.value = cfg.teamA;
     selB.value = cfg.teamB;
     if (selA.selectedIndex === -1) {
