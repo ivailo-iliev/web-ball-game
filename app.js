@@ -169,150 +169,194 @@ function populateTeamSelects(selA, selB) {
   }
 }
 
-function updateThreshInputs(cfg, inputs) {
-  const base = TEAM_INDICES[cfg.teamA] * 6;
-  for (let i = 0; i < 6; i++) inputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
-}
-
-function createThreshInputs(container, handler) {
-  const inputs = [];
-  for (let i = 0; i < 6; i++) {
-    const inp = document.createElement('input');
-    inp.type = 'number';
-    inp.min = '0';
-    inp.max = '1';
-    inp.step = '0.05';
-    inp.style.width = '4ch';
-    inp.dataset.idx = String(i);
-    container.appendChild(inp);
-    inp.addEventListener('input', handler);
-    inputs.push(inp);
-  }
-  return inputs;
-}
-
-class ROI {
-  constructor(opts) {
-    this.x = 0;
-    this.y = 0;
-    this.w = 0;
-    this.h = 0;
-    this.which = opts.which;
-    this.color = opts.color;
-    this.allowX = opts.allowX;
-    this.maintainAspect = opts.maintainAspect;
-    this.keys = opts.keys; // { resW, resH, poly, height }
-  }
-
-  setHeight(h) {
-    const cfg = Config.get();
-    const resH = cfg[this.keys.resH];
-    this.h = clampInt(h, 10, resH);
-    if (this.maintainAspect) {
-      const resW = cfg[this.keys.resW];
-      this.w = this.h * (resW / resH);
-    } else {
-      this.w = cfg[this.keys.resW];
-      this.x = 0;
-    }
-    cfg[this.keys.height] = this.h;
-    Config.save(this.keys.height, this.h);
-    this.commit();
-  }
-
-  commit() {
-    const cfg = Config.get();
-    const resW = cfg[this.keys.resW];
-    const resH = cfg[this.keys.resH];
-    if (!this.allowX) {
-      this.x = 0;
-      this.w = resW;
-    } else if (this.maintainAspect) {
-      this.w = this.h * (resW / resH);
-    }
-    this.x = clampInt(this.x, 0, resW - this.w);
-    this.y = clampInt(this.y, 0, resH - this.h);
-    const x0 = Math.round(this.x), y0 = Math.round(this.y);
-    const x1 = Math.round(this.x + this.w), y1 = Math.round(this.y + this.h);
-    cfg[this.keys.poly] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-    Config.save(this.keys.poly, cfg[this.keys.poly]);
-    PreviewGfx.drawROI(cfg[this.keys.poly], this.color, this.which);
-  }
-
-  attach(canvas) {
-    const cfg = Config.get();
-    const self = this;
-    canvas.style.touchAction = 'none';
-
-    if (!this.allowX) {
-      let dragY = null;
-      canvas.addEventListener('pointerdown', function (e) {
-        if (!Controller.isPreview()) return;
-        const r = canvas.getBoundingClientRect();
-        dragY = (e.clientY - r.top) * cfg[self.keys.resH] / r.height;
-        canvas.setPointerCapture(e.pointerId);
-      });
-      canvas.addEventListener('pointermove', function (e) {
-        if (dragY == null || !Controller.isPreview()) return;
-        const r = canvas.getBoundingClientRect();
-        const curY = (e.clientY - r.top) * cfg[self.keys.resH] / r.height;
-        self.y += curY - dragY;
-        dragY = curY;
-        self.commit();
-      });
-      function lift() { dragY = null; }
-      canvas.addEventListener('pointerup', lift);
-      canvas.addEventListener('pointercancel', lift);
-    } else {
-      let dragStart = null, roiStart = null;
-      function toCanvas(e) {
-        const r = canvas.getBoundingClientRect();
-        return {
-          x: (e.clientX - r.left) * cfg[self.keys.resW] / r.width,
-          y: (e.clientY - r.top) * cfg[self.keys.resH] / r.height
-        };
-      }
-      canvas.addEventListener('pointerdown', function (e) {
-        if (!Controller.isPreview()) return;
-        canvas.setPointerCapture(e.pointerId);
-        dragStart = toCanvas(e);
-        roiStart = { x: self.x, y: self.y };
-      });
-      canvas.addEventListener('pointermove', function (e) {
-        if (!dragStart || !Controller.isPreview()) return;
-        const cur = toCanvas(e);
-        self.x = roiStart.x + (cur.x - dragStart.x);
-        self.y = roiStart.y + (cur.y - dragStart.y);
-        self.commit();
-      });
-      function lift() { dragStart = null; roiStart = null; }
-      canvas.addEventListener('pointerup', lift);
-      canvas.addEventListener('pointercancel', lift);
-    }
-    self.commit();
-  }
-}
-
-const TopROI = new ROI({
-  which: 'top',
-  color: 'lime',
-  allowX: false,
-  maintainAspect: false,
-  keys: { resW: 'topResW', resH: 'topResH', poly: 'polyT', height: 'topH' }
-});
-
-const FrontROI = new ROI({
-  which: 'front',
-  color: 'aqua',
-  allowX: true,
-  maintainAspect: true,
-  keys: { resW: 'frontResW', resH: 'frontResH', poly: 'polyF', height: 'frontH' }
-});
 
 const Setup = (() => {
   const cfg = Config.get();
   const el = {};
   let thInputs = [];
+
+  function updateThreshInputs(cfg, inputs) {
+    const base = TEAM_INDICES[cfg.teamA] * 6;
+    for (let i = 0; i < 6; i++) inputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
+  }
+
+  function createThreshInputs(container, handler) {
+    const inputs = [];
+    for (let i = 0; i < 6; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = '0';
+      inp.max = '1';
+      inp.step = '0.05';
+      inp.style.width = '4ch';
+      inp.dataset.idx = String(i);
+      container.appendChild(inp);
+      inp.addEventListener('input', handler);
+      inputs.push(inp);
+    }
+    return inputs;
+  }
+
+  function initNumberSpinners() {
+    document.querySelectorAll('input[type=number]:not([data-spinner])').forEach(input => {
+      input.setAttribute('data-spinner', '');
+
+      const wrap = document.createElement('span');
+      wrap.className = 'num-spinner';
+      input.before(wrap);
+
+      const btnDown = Object.assign(document.createElement('button'), {
+        type: 'button',
+        className: 'down',
+        textContent: '−',
+        onclick() {
+          input.stepDown();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          update();
+        }
+      });
+      const btnUp = Object.assign(document.createElement('button'), {
+        type: 'button',
+        className: 'up',
+        textContent: '+',
+        onclick() {
+          input.stepUp();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          update();
+        }
+      });
+
+      wrap.append(input, btnDown, btnUp);
+
+      const min = parseFloat(input.min);
+      const max = parseFloat(input.max);
+
+      const update = () => {
+        const val = parseFloat(input.value);
+        btnDown.disabled = !isNaN(min) && val <= min;
+        btnUp.disabled = !isNaN(max) && val >= max;
+      };
+      input.addEventListener('input', update);
+      update();
+    });
+  }
+
+  function ROI(opts) {
+    const roi = {
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
+      which: opts.which,
+      color: opts.color,
+      allowX: opts.allowX,
+      maintainAspect: opts.maintainAspect,
+      keys: opts.keys
+    };
+
+    function setHeight(h) {
+      const resH = cfg[roi.keys.resH];
+      roi.h = clampInt(h, 10, resH);
+      if (roi.maintainAspect) {
+        const resW = cfg[roi.keys.resW];
+        roi.w = roi.h * (resW / resH);
+      } else {
+        roi.w = cfg[roi.keys.resW];
+        roi.x = 0;
+      }
+      cfg[roi.keys.height] = roi.h;
+      Config.save(roi.keys.height, roi.h);
+      commit();
+    }
+
+    function commit() {
+      const resW = cfg[roi.keys.resW];
+      const resH = cfg[roi.keys.resH];
+      if (!roi.allowX) {
+        roi.x = 0;
+        roi.w = resW;
+      } else if (roi.maintainAspect) {
+        roi.w = roi.h * (resW / resH);
+      }
+      roi.x = clampInt(roi.x, 0, resW - roi.w);
+      roi.y = clampInt(roi.y, 0, resH - roi.h);
+      const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
+      const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
+      cfg[roi.keys.poly] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      Config.save(roi.keys.poly, cfg[roi.keys.poly]);
+      PreviewGfx.drawROI(cfg[roi.keys.poly], roi.color, roi.which);
+    }
+
+    function attach(canvas) {
+      canvas.style.touchAction = 'none';
+
+      if (!roi.allowX) {
+        let dragY = null;
+        canvas.addEventListener('pointerdown', function (e) {
+          if (!Controller.isPreview()) return;
+          const r = canvas.getBoundingClientRect();
+          dragY = (e.clientY - r.top) * cfg[roi.keys.resH] / r.height;
+          canvas.setPointerCapture(e.pointerId);
+        });
+        canvas.addEventListener('pointermove', function (e) {
+          if (dragY == null || !Controller.isPreview()) return;
+          const r = canvas.getBoundingClientRect();
+          const curY = (e.clientY - r.top) * cfg[roi.keys.resH] / r.height;
+          roi.y += curY - dragY;
+          dragY = curY;
+          commit();
+        });
+        function lift() { dragY = null; }
+        canvas.addEventListener('pointerup', lift);
+        canvas.addEventListener('pointercancel', lift);
+      } else {
+        let dragStart = null, roiStart = null;
+        function toCanvas(e) {
+          const r = canvas.getBoundingClientRect();
+          return {
+            x: (e.clientX - r.left) * cfg[roi.keys.resW] / r.width,
+            y: (e.clientY - r.top) * cfg[roi.keys.resH] / r.height
+          };
+        }
+        canvas.addEventListener('pointerdown', function (e) {
+          if (!Controller.isPreview()) return;
+          canvas.setPointerCapture(e.pointerId);
+          dragStart = toCanvas(e);
+          roiStart = { x: roi.x, y: roi.y };
+        });
+        canvas.addEventListener('pointermove', function (e) {
+          if (!dragStart || !Controller.isPreview()) return;
+          const cur = toCanvas(e);
+          roi.x = roiStart.x + (cur.x - dragStart.x);
+          roi.y = roiStart.y + (cur.y - dragStart.y);
+          commit();
+        });
+        function lift() { dragStart = null; roiStart = null; }
+        canvas.addEventListener('pointerup', lift);
+        canvas.addEventListener('pointercancel', lift);
+      }
+      commit();
+    }
+
+    return Object.assign(roi, { setHeight, commit, attach });
+  }
+
+  const TopROI = ROI({
+    which: 'top',
+    color: 'lime',
+    allowX: false,
+    maintainAspect: false,
+    keys: { resW: 'topResW', resH: 'topResH', poly: 'polyT', height: 'topH' }
+  });
+
+  const FrontROI = ROI({
+    which: 'front',
+    color: 'aqua',
+    allowX: true,
+    maintainAspect: true,
+    keys: { resW: 'frontResW', resH: 'frontResH', poly: 'polyF', height: 'frontH' }
+  });
+
   const detectionUI = `
   <div class=cam id=topCam>
     <canvas id=topTex width=${cfg.topResW} height=${cfg.topResH}></canvas>
