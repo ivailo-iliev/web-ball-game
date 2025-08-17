@@ -166,8 +166,6 @@
     }
     const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
     const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
-    const { PREVIEW: FLAG_PREVIEW, TEAM_A: FLAG_TEAM_A_ACTIVE, TEAM_B: FLAG_TEAM_B_ACTIVE } =
-      GPUShared.FLAGS;
 
     const DEFAULTS = {
       topResW: 1280,
@@ -283,15 +281,7 @@
         if (!('gpu' in navigator)) throw new Error('WebGPU not available');
         const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
         if (!adapter) throw new Error('No GPU adapter');
-        const device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
-
-        const ctx = canvas.getContext('webgpu');
-        const format = navigator.gpu.getPreferredCanvasFormat();
-        ctx.configure({ device, format, alphaMode: 'opaque' });
-
-        const runner = await GPUShared.createRunner(device, format);
         let busy = false; // drop frames when main thread is busy
-        const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
 
         // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
         //    We transfer the camera track to the worker; it posts VideoFrames back to main.
@@ -349,17 +339,23 @@
           lastFrameTS = now;
           busy = true;
           try {
-            const w = frame.codedWidth, h = frame.codedHeight;
-            if (runner.ensureFeed(w, h)) {
+            const { a, b, w, h, resized } = await GPUShared.detect({
+              key: 'demo',
+              source: frame,
+              hsvA6: cfg.f16Ranges[cfg.teamA],
+              hsvB6: cfg.f16Ranges[cfg.teamB],
+              rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
+              previewCanvas: canvas,
+              preview: true,
+              activeA: true, activeB: true,
+              flipY: true
+            });
+            if (resized) {
               canvas.width = frame.displayWidth;
               canvas.height = frame.displayHeight;
               infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               info.textContent = infoBase;
             }
-            runner.pack.hsvA6.set(cfg.f16Ranges[cfg.teamA]);
-            runner.pack.hsvB6.set(cfg.f16Ranges[cfg.teamB]);
-            const view = ctx.getCurrentTexture().createView();
-            const { a, b } = await runner.process({ source: frame, view, flags: flagsTop });
             const aOn = a[0] > cfg.topMinArea;
             const bOn = b[0] > cfg.topMinArea;
             if (aOn || bOn) {
