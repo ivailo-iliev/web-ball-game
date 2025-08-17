@@ -163,7 +163,7 @@ const Setup = (() => {
     for (let i = 0; i < 6; i++) inputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
   }
 
-  function createThreshInputs(container, handler) {
+  function createThreshInputs(container) {
     const inputs = [];
     for (let i = 0; i < 6; i++) {
       const inp = document.createElement('input');
@@ -174,7 +174,6 @@ const Setup = (() => {
       inp.style.width = '4ch';
       inp.dataset.idx = String(i);
       container.appendChild(inp);
-      inp.addEventListener('input', handler);
       inputs.push(inp);
     }
     return inputs;
@@ -289,9 +288,8 @@ const Setup = (() => {
           dragY = curY;
           commit();
         });
-        function lift() { dragY = null; }
-        canvas.addEventListener('pointerup', lift);
-        canvas.addEventListener('pointercancel', lift);
+        canvas.addEventListener('pointerup', () => { dragY = null; });
+        canvas.addEventListener('pointercancel', () => { dragY = null; });
       } else {
         let dragStart = null, roiStart = null;
         function toCanvas(e) {
@@ -314,9 +312,8 @@ const Setup = (() => {
           roi.y = roiStart.y + (cur.y - dragStart.y);
           commit();
         });
-        function lift() { dragStart = null; roiStart = null; }
-        canvas.addEventListener('pointerup', lift);
-        canvas.addEventListener('pointercancel', lift);
+        canvas.addEventListener('pointerup',   () => { dragStart = null; roiStart = null; });
+        canvas.addEventListener('pointercancel', () => { dragStart = null; roiStart = null; });
       }
       commit();
     }
@@ -393,17 +390,9 @@ const Setup = (() => {
     el.btnStart = $('#btnStart');
   }
 
-  function onInputThresh(e) {
-    const idx = +e.target.dataset.idx;
-    const base = TEAM_INDICES[cfg.teamA] * 6 + idx;
-    COLOR_TABLE[base] = parseFloat(e.target.value);
-    localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
-    cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-  }
-
   function initInputs() {
     populateTeamSelects(el.teamA, el.teamB, COLOR_EMOJI);
-    thInputs = createThreshInputs(el.teamAThresh, onInputThresh);
+    thInputs = createThreshInputs(el.teamAThresh);
     el.topMode.value = cfg.topMode;
     el.topUrl.value = cfg.url;
     el.teamA.value = cfg.teamA;
@@ -431,69 +420,83 @@ const Setup = (() => {
   }
 
   function attachEvents() {
-    el.topMode.addEventListener('change', onChangeTopMode);
-    el.topUrl.addEventListener('blur', onBlurTopUrl);
-    el.teamA.addEventListener('change', onChangeTeamA);
-    el.teamB.addEventListener('change', onChangeTeamB);
-    el.topH.addEventListener('input', onChangeTopH);
-    el.frontH.addEventListener('input', onChangeFrontH);
-    el.topMin.addEventListener('input', onInputTopMin);
-    el.frontMin.addEventListener('input', onInputFrontMin);
-    el.btnStart.addEventListener('click', onClickStart);
+    const root = document.getElementById('cfg');
+    const ac = new AbortController();
+
+    // Live updates (numbers while typing)
+    root.addEventListener('input', e => {
+      const t = e.target;
+      switch (t.id) {
+        case 'topHInp': {
+          const h = Math.round(u.clamp(Number(t.value), 10, cfg.topResH));
+          t.value = h; TopROI.setHeight(h); break;
+        }
+        case 'frontHInp': {
+          const h = Math.round(u.clamp(Number(t.value), 10, cfg.frontResH));
+          t.value = h; FrontROI.setHeight(h); break;
+        }
+        case 'topMinInp': {
+          cfg.topMinArea = Math.round(u.clamp(Number(t.value), 0, Number.MAX_SAFE_INTEGER));
+          Config.save('topMinArea', cfg.topMinArea); break;
+        }
+        case 'frontMinInp': {
+          cfg.frontMinArea = Math.round(u.clamp(Number(t.value), 0, Number.MAX_SAFE_INTEGER));
+          Config.save('frontMinArea', cfg.frontMinArea); break;
+        }
+      }
+    }, { signal: ac.signal });
+
+    // Selects / discrete changes
+    root.addEventListener('change', e => {
+      const t = e.target;
+      switch (t.id) {
+        case 'topMode':
+          cfg.topMode = t.value; Config.save('topMode', cfg.topMode); break;
+        case 'teamA':
+          cfg.teamA = t.value;  Config.save('teamA', cfg.teamA);
+          Game.setTeams(cfg.teamA, cfg.teamB);
+          cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+          updateThreshInputs(cfg, thInputs);
+          break;
+        case 'teamB':
+          cfg.teamB = t.value;  Config.save('teamB', cfg.teamB);
+          Game.setTeams(cfg.teamA, cfg.teamB);
+          break;
+      }
+    }, { signal: ac.signal });
+
+    // Persist URL on blur (delegated via focusout because it bubbles)
+    root.addEventListener('focusout', e => {
+      if (e.target.id === 'topUrl') {
+        cfg.url = e.target.value; Config.save('url', cfg.url);
+        el.urlWarn && (el.urlWarn.textContent = '');
+      }
+    }, { signal: ac.signal });
+
+    // Buttons
+    root.addEventListener('click', e => {
+      if (e.target.id === 'btnStart') Controller.start();
+    }, { signal: ac.signal });
+
+    // HSV threshold inputs (delegate to container)
+    if (el.teamAThresh) {
+      el.teamAThresh.addEventListener('input', e => {
+        const t = e.target;
+        if (t.tagName !== 'INPUT') return;
+        const idx = +t.dataset.idx;
+        const base = TEAM_INDICES[cfg.teamA] * 6 + idx;
+        COLOR_TABLE[base] = parseFloat(t.value);
+        localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
+        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+      }, { signal: ac.signal });
+    }
+
+    // ROI interactions as before
     TopROI.attach(el.topOv);
     FrontROI.attach(el.frontOv);
   }
 
-  function onChangeTopMode(e) {
-    cfg.topMode = e.target.value;
-    Config.save('topMode', cfg.topMode);
-  }
-
-  function onBlurTopUrl() {
-    cfg.url = el.topUrl.value;
-    Config.save('url', cfg.url);
-    if (el.urlWarn) el.urlWarn.textContent = '';
-  }
-
-  function onChangeTeamA(e) {
-    cfg.teamA = e.target.value;
-    Config.save('teamA', cfg.teamA);
-    Game.setTeams(cfg.teamA, cfg.teamB);
-    cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-    updateThreshInputs(cfg, thInputs);
-  }
-
-  function onChangeTeamB(e) {
-    cfg.teamB = e.target.value;
-    Config.save('teamB', cfg.teamB);
-    Game.setTeams(cfg.teamA, cfg.teamB);
-  }
-
-    function onChangeTopH(e) {
-      const h = Math.round(u.clamp(Number(e.target.value), 10, cfg.topResH));
-      e.target.value = h;
-      TopROI.setHeight(h);
-    }
-
-    function onChangeFrontH(e) {
-      const h = Math.round(u.clamp(Number(e.target.value), 10, cfg.frontResH));
-      e.target.value = h;
-      FrontROI.setHeight(h);
-    }
-
-    function onInputTopMin(e) {
-      cfg.topMinArea = Math.round(u.clamp(Number(e.target.value), 0, Number.MAX_SAFE_INTEGER));
-      Config.save('topMinArea', cfg.topMinArea);
-    }
-
-    function onInputFrontMin(e) {
-      cfg.frontMinArea = Math.round(u.clamp(Number(e.target.value), 0, Number.MAX_SAFE_INTEGER));
-      Config.save('frontMinArea', cfg.frontMinArea);
-    }
-
-  function onClickStart() {
-    Controller.start();
-  }
+  // (named handlers removed; handled via delegation in attachEvents)
 
   return {
     bind() {
