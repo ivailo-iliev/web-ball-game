@@ -663,7 +663,6 @@ const Feeds = (() => {
 
 const Detect = (() => {
   const cfg = Config.get();
-  let device, runnerTop, runnerFront;
 
   function rectTop() {
     const ys = cfg.polyT.map(p => p[1]);
@@ -678,52 +677,23 @@ const Detect = (() => {
   }
 
   async function init() {
-    if (!('gpu' in navigator)) {
-      console.log('WebGPU not supported');
-      return false;
-    }
-    let adapter;
-    try {
-      adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-    } catch (err) {
-      console.log('Adapter request failed', err);
-      return false;
-    }
-    if (!adapter) {
-      console.log('No WebGPU adapter');
-      return false;
-    }
-    let hasF16 = false;
-    try {
-      hasF16 = adapter.features?.has && adapter.features.has("shader-f16");
-    } catch (err) {
-      console.log('f16 check failed', err);
-    }
-    if (!hasF16) {
-      console.log('shader-f16 not supported');
-      return false;
-    }
-    try {
-      device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
-    } catch (err) {
-      console.log('Device request failed', err);
-      return false;
-    }
-    console.log("shader-f16:", hasF16);
-
-    runnerTop = await GPUShared.createRunner(device);
-    runnerFront = await GPUShared.createRunner(device);
-    runnerTop.ensureFeed(cfg.topResW, cfg.topResH);
-    runnerFront.ensureFeed(cfg.frontResW, cfg.frontResH);
+    // all GPU checks/device creation removed
+    // rely on GPUShared.detect to throw if unsupported
     return true;
   }
   async function runTopDetection(preview) {
-    const src = Feeds.top();
-    runnerTop.pack.hsvA6.set(cfg.f16Ranges[cfg.teamA]);
-    runnerTop.pack.hsvB6.set(cfg.f16Ranges[cfg.teamB]);
-    const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-    const view = preview ? PreviewGfx.view(device, 'top') : null;
-    const { a, b } = await runnerTop.process({ source: src, view, flags: flagsTop, rect: rectTop(), flipY: true });
+    const { a, b } = await GPUShared.detect({
+      key: 'top',
+      source: Feeds.top(),
+      hsvA6: cfg.f16Ranges[cfg.teamA],  // still floats; GPUShared converts to f16
+      hsvB6: cfg.f16Ranges[cfg.teamB],
+      rect: rectTop(),
+      previewCanvas: preview ? document.getElementById('topTex') : null,
+      preview,
+      activeA: true,
+      activeB: true,
+      flipY: true
+    });
     const cntA = a[0], cntB = b[0];
     const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
     return { detected: topDetected, cntA, cntB };
@@ -734,10 +704,19 @@ const Detect = (() => {
     const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
     if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
     lastCaptureTime = meta.captureTime;
-    runnerFront.pack.hsvA6.set(cfg.f16Ranges[cfg.teamA]);
-    runnerFront.pack.hsvB6.set(cfg.f16Ranges[cfg.teamB]);
-    const view = preview ? PreviewGfx.view(device, 'front') : null;
-    const { a, b } = await runnerFront.process({ source: Feeds.front(), view, flags, rect: rectFront(), flipY: true });
+    const aActive = !!(flags & 2), bActive = !!(flags & 4); // using your semantics
+    const { a, b } = await GPUShared.detect({
+      key: 'front',
+      source: Feeds.front(),
+      hsvA6: cfg.f16Ranges[cfg.teamA],
+      hsvB6: cfg.f16Ranges[cfg.teamB],
+      rect: rectFront(),
+      previewCanvas: preview ? document.getElementById('frontTex') : null,
+      preview,
+      activeA: aActive,
+      activeB: bActive,
+      flipY: true
+    });
     const [cntA, sumXA, sumYA] = a;
     const [cntB, sumXB, sumYB] = b;
     const hits = [];
