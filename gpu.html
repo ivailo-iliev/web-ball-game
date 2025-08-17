@@ -103,37 +103,30 @@
     const state = $('state');
     const b0 = $('b0');
 
-    function handleLog(msg) { state.textContent = msg; }
-    function onB0Click() { sendBit('0'); }
-
     function handleOpen() {
-      handleLog('Connected');
+      state.textContent = 'Connected';
       b0.disabled = false;
-      b0.onclick = onB0Click;
+      b0.onclick = () => sendBit('0');
     }
 
     let dc;
 
     function handleDcOpen() {
-      handleLog('dc: open');
+      state.textContent = 'dc: open';
       dc.send('hello from A');
       handleOpen();
     }
 
-    function handleDcMessage(e) { console.log('msg:', e.data); }
-
     function handleStartCtrl(ctrl) {
       dc = ctrl.channel;
-      if (!dc) { handleLog('No data channel'); return; }
+      if (!dc) { state.textContent = 'No data channel'; return; }
       dc.onopen = handleDcOpen;
-      dc.onmessage = handleDcMessage;
+      dc.onmessage = e => console.log('msg:', e.data);
     }
 
-    function handleStartError(err) {
-      handleLog('ERR: ' + (err && (err.stack || err)));
-    }
-
-    StartA().then(handleStartCtrl).catch(handleStartError);
+    StartA().then(handleStartCtrl).catch(err => {
+      state.textContent = 'ERR: ' + (err && (err.stack || err));
+    });
 
     function sendBit(bit) {
       if (dc && dc.readyState === 'open') {
@@ -311,24 +304,9 @@
         const format = navigator.gpu.getPreferredCanvasFormat();
         ctx.configure({ device, format, alphaMode: 'opaque' });
 
-        const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+        const runner = await GPUShared.createRunner(device, format);
         let busy = false; // drop frames when main thread is busy
-
-        const pipelines = await GPUShared.createPipelines(device, { format });
-        const pack = GPUShared.createUniformPack(device);
         const flagsTop = FLAG_PREVIEW | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-        let feed = null;
-
-        function ensureFeed(frame) {
-          const w = frame.codedWidth, h = frame.codedHeight;
-          if (feed && feed.w === w && feed.h === h) return;
-          feed?.destroy?.();
-          feed = GPUShared.createFeed(device, pipelines, sampler, w, h);
-          canvas.width = frame.displayWidth;
-          canvas.height = frame.displayHeight;
-          infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
-          info.textContent = infoBase;
-        }
 
         // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
         //    We transfer the camera track to the worker; it posts VideoFrames back to main.
@@ -386,21 +364,19 @@
           lastFrameTS = now;
           busy = true;
           try {
-            ensureFeed(frame);
-            pack.resetStats(device.queue);
-            GPUShared.copyFrame(device.queue, frame, feed);
-            const enc = device.createCommandEncoder();
-            GPUShared.clearMask(enc, feed);
-            pack.writeUniform(device.queue,
-              cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB],
-              { min: [0, 0], max: [feed.w, feed.h] },
-              flagsTop);
-            GPUShared.encodeCompute(enc, pipelines, feed, pack);
-            GPUShared.drawMaskTo(enc, pipelines, feed, ctx.getCurrentTexture().createView());
-            device.queue.submit([enc.finish()]);
-            const { a: cntA, b: cntB } = await pack.readStats();
-            const aOn = cntA[0] > cfg.topMinArea;
-            const bOn = cntB[0] > cfg.topMinArea;
+            const w = frame.codedWidth, h = frame.codedHeight;
+            if (runner.ensureFeed(w, h)) {
+              canvas.width = frame.displayWidth;
+              canvas.height = frame.displayHeight;
+              infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
+              info.textContent = infoBase;
+            }
+            runner.pack.hsvA6.set(cfg.f16Ranges[cfg.teamA]);
+            runner.pack.hsvB6.set(cfg.f16Ranges[cfg.teamB]);
+            const view = ctx.getCurrentTexture().createView();
+            const { a, b } = await runner.process({ source: frame, view, flags: flagsTop });
+            const aOn = a[0] > cfg.topMinArea;
+            const bOn = b[0] > cfg.topMinArea;
             if (aOn || bOn) {
               let bit;
               if (aOn && bOn) bit = '2';

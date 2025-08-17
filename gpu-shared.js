@@ -112,53 +112,11 @@
       }
       return bgCompute;
     }
-    function dispatchGroups() {
-      return {
-        x: Math.ceil(w / WG_SIZE.X),
-        y: Math.ceil(h / WG_SIZE.Y)
-      };
-    }
     function destroy() {
       frameTex.destroy();
       maskTex.destroy();
     }
-    return { w, h, frameTex, maskTex, frameView, maskView, computeBG, renderBG, dispatchGroups, destroy };
-  }
-
-  function copyFrame(queue, source, feed, origin = { x: 0, y: 0 }, flipY = true) {
-    queue.copyExternalImageToTexture(
-      { source, origin, flipY },
-      { texture: feed.frameTex },
-      { width: feed.w, height: feed.h }
-    );
-  }
-
-  function clearMask(encoder, feed) {
-    encoder.beginRenderPass({
-      colorAttachments: [{ view: feed.maskView, loadOp: 'clear', storeOp: 'store' }]
-    }).end();
-  }
-
-  function encodeCompute(encoder, pipelines, feed, pack) {
-    const pass = encoder.beginComputePass({ label: 'detect-compute' });
-    pass.setPipeline(pipelines.compute);
-    pass.setBindGroup(0, feed.computeBG(pack));
-    const { x, y } = feed.dispatchGroups();
-    pass.dispatchWorkgroups(x, y);
-    pass.end();
-    encoder.copyBufferToBuffer(pack.statsA, 0, pack.readA, 0, 12);
-    encoder.copyBufferToBuffer(pack.statsB, 0, pack.readB, 0, 12);
-  }
-
-  function drawMaskTo(encoder, pipelines, feed, view) {
-    const pass = encoder.beginRenderPass({
-      label: 'mask-present',
-      colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }]
-    });
-    pass.setPipeline(pipelines.render);
-    pass.setBindGroup(0, feed.renderBG);
-    pass.draw(3);
-    pass.end();
+    return { w, h, frameTex, maskTex, frameView, maskView, computeBG, renderBG, destroy };
   }
 
   function hsvRangeF16(teamIndices, colorTable, team) {
@@ -168,18 +126,90 @@
     return dst;
   }
 
+  async function createRunner(device, canvasFormat = 'rgba8unorm') {
+    if (!navigator.gpu) {
+      throw new Error('WebGPU not supported');
+    }
+    if (!device?.features?.has?.('shader-f16')) {
+      throw new Error('shader-f16 not supported');
+    }
+    const pipelines = await createPipelines(device, { format: canvasFormat });
+    const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+    const pack = createUniformPack(device);
+    pack.hsvA6 = new Uint16Array(6);
+    pack.hsvB6 = new Uint16Array(6);
+    const ORIGIN = { x: 0, y: 0 };
+    const defaultRect = { min: new Float32Array(2), max: new Float32Array(2) };
+    let feed = null;
+
+    function ensureFeed(width, height) {
+      if (!(width > 0 && height > 0)) {
+        throw new Error('ensureFeed: width and height must be positive');
+      }
+      if (!feed || feed.w !== width || feed.h !== height) {
+        feed?.destroy?.();
+        feed = createFeed(device, pipelines, sampler, width, height, canvasFormat);
+        defaultRect.max[0] = width;
+        defaultRect.max[1] = height;
+        return true;
+      }
+      return false;
+    }
+
+    async function process({ source, view = null, flags = 0, rect = defaultRect, flipY = true } = {}) {
+      if (!feed) {
+        throw new Error('process called before ensureFeed');
+      }
+      if (!source) {
+        throw new Error('process: source required');
+      }
+      pack.resetStats(device.queue);
+      pack.writeUniform(device.queue, pack.hsvA6, pack.hsvB6, rect, flags);
+      device.queue.copyExternalImageToTexture(
+        { source, origin: ORIGIN, flipY },
+        { texture: feed.frameTex },
+        { width: feed.w, height: feed.h }
+      );
+      const encoder = device.createCommandEncoder();
+      encoder
+        .beginRenderPass({ colorAttachments: [{ view: feed.maskView, loadOp: 'clear', storeOp: 'store' }] })
+        .end();
+      const pass = encoder.beginComputePass({ label: 'detect-compute' });
+      pass.setPipeline(pipelines.compute);
+      pass.setBindGroup(0, feed.computeBG(pack));
+      pass.dispatchWorkgroups(
+        Math.ceil(feed.w / WG_SIZE.X),
+        Math.ceil(feed.h / WG_SIZE.Y)
+      );
+      pass.end();
+      encoder.copyBufferToBuffer(pack.statsA, 0, pack.readA, 0, 12);
+      encoder.copyBufferToBuffer(pack.statsB, 0, pack.readB, 0, 12);
+      if (view) {
+        const rpass = encoder.beginRenderPass({
+          label: 'mask-present',
+          colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }]
+        });
+        rpass.setPipeline(pipelines.render);
+        rpass.setBindGroup(0, feed.renderBG);
+        rpass.draw(3);
+        rpass.end();
+      }
+      device.queue.submit([encoder.finish()]);
+      return pack.readStats();
+    }
+
+    return { ensureFeed, process, pack };
+  }
+
   const GPUShared = {
     WG_SIZE,
     FLAGS,
     createPipelines,
     createUniformPack,
     createFeed,
-    copyFrame,
-    clearMask,
-    encodeCompute,
-    drawMaskTo,
     float32ToFloat16,
-    hsvRangeF16
+    hsvRangeF16,
+    createRunner
   };
 
   global.GPUShared = GPUShared;
