@@ -140,15 +140,13 @@ const PreviewGfx = (() => {
     ctxFront2d.fill();
   }
 
-  function drawMask(enc, pipelines, feed, device, which) {
+  function view(device, which) {
     ensureGPU(device);
     const ctx = which === 'front' ? ctxFrontGPU : ctxTopGPU;
-    if (!ctx) return;
-    const view = ctx.getCurrentTexture().createView();
-    GPUShared.drawMaskTo(enc, pipelines, feed, view);
+    return ctx ? ctx.getCurrentTexture().createView() : null;
   }
 
-  return { drawMask, drawROI, drawHit, clear };
+  return { view, drawROI, drawHit, clear };
 })();
 
 
@@ -638,7 +636,7 @@ const Feeds = (() => {
 
 const Detect = (() => {
   const cfg = Config.get();
-  let device, pipelines, pack, sampler, feedTop, feedFront;
+  let device, runnerTop, runnerFront;
 
   function rectTop() {
     const ys = cfg.polyT.map(p => p[1]);
@@ -686,34 +684,19 @@ const Detect = (() => {
     }
     console.log("shader-f16:", hasF16);
 
-    pipelines = await GPUShared.createPipelines(device, {});
-    sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
-    pack = GPUShared.createUniformPack(device);
-    feedTop = GPUShared.createFeed(device, pipelines, sampler, cfg.topResW, cfg.topResH);
-    feedFront = GPUShared.createFeed(device, pipelines, sampler, cfg.frontResW, cfg.frontResH);
+    runnerTop = await GPUShared.createRunner(device);
+    runnerFront = await GPUShared.createRunner(device);
+    runnerTop.ensureFeed(cfg.topResW, cfg.topResH);
+    runnerFront.ensureFeed(cfg.frontResW, cfg.frontResH);
     return true;
   }
-
-  async function detectPass(source, feed, rect, flags, preview, which, origin = { x: 0, y: 0 }, flipY = true) {
-    pack.resetStats(device.queue);
-    GPUShared.copyFrame(device.queue, source, feed, origin, flipY);
-    const enc = device.createCommandEncoder({ label: which ? `enc-${which}` : 'enc' });
-    GPUShared.clearMask(enc, feed);
-    pack.writeUniform(device.queue, cfg.f16Ranges[cfg.teamA], cfg.f16Ranges[cfg.teamB], rect, flags);
-    GPUShared.encodeCompute(enc, pipelines, feed, pack);
-    if (preview) {
-      PreviewGfx.drawMask(enc, pipelines, feed, device, which);
-    }
-    device.queue.submit([enc.finish()]);
-    return pack.readStats();
-  }
-
   async function runTopDetection(preview) {
     const src = Feeds.top();
-    const raw = (src?.naturalHeight ?? cfg.topResH) - cfg.topResH;
-    const srcY = Math.max(0, Math.floor(raw / 2));
+    runnerTop.pack.hsvA6.set(cfg.f16Ranges[cfg.teamA]);
+    runnerTop.pack.hsvB6.set(cfg.f16Ranges[cfg.teamB]);
     const flagsTop = (preview ? FLAG_PREVIEW : 0) | FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE;
-    const { a, b } = await detectPass(src, feedTop, rectTop(), flagsTop, preview, 'top', { x: 0, y: srcY }, true);
+    const view = preview ? PreviewGfx.view(device, 'top') : null;
+    const { a, b } = await runnerTop.process({ source: src, view, flags: flagsTop, rect: rectTop(), flipY: true });
     const cntA = a[0], cntB = b[0];
     const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
     return { detected: topDetected, cntA, cntB };
@@ -724,7 +707,10 @@ const Detect = (() => {
     const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
     if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
     lastCaptureTime = meta.captureTime;
-    const { a, b } = await detectPass(Feeds.front(), feedFront, rectFront(), flags, preview, 'front');
+    runnerFront.pack.hsvA6.set(cfg.f16Ranges[cfg.teamA]);
+    runnerFront.pack.hsvB6.set(cfg.f16Ranges[cfg.teamB]);
+    const view = preview ? PreviewGfx.view(device, 'front') : null;
+    const { a, b } = await runnerFront.process({ source: Feeds.front(), view, flags, rect: rectFront(), flipY: true });
     const [cntA, sumXA, sumYA] = a;
     const [cntB, sumXB, sumYB] = b;
     const hits = [];
