@@ -1,21 +1,6 @@
-(function (global) {
+(async function (global) {
   const WG_SIZE = { X: 8, Y: 32 };
   const FLAGS = { PREVIEW: 1, TEAM_A: 2, TEAM_B: 4 };
-
-  // --- internal device/context cache (hidden) ---
-  const _DEV = new WeakMap(); // GPUDevice -> { format, pipelines, sampler, ctxs: Map(key -> Ctx) }
-  async function _getState(device, format) {
-    let st = _DEV.get(device);
-    if (!st) { st = { format, pipelines: null, sampler: null, ctxs: new Map() }; _DEV.set(device, st); }
-    if (!st.pipelines) st.pipelines = await createPipelines(device, { format });
-    if (!st.sampler)   st.sampler   = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
-    return st;
-  }
-  function _sizeOf(source) {
-    const w = source?.codedWidth ?? source?.videoWidth ?? source?.naturalWidth ?? source?.width;
-    const h = source?.codedHeight ?? source?.videoHeight ?? source?.naturalHeight ?? source?.height;
-    return { w, h };
-  }
 
   function float32ToFloat16(val) {
     const f32 = new Float32Array([val]);
@@ -141,85 +126,120 @@
     return dst;
   }
 
-  // --- single public method ---
-  async function detect(device, {
-    key       = 'default',
-    source,                   // VideoFrame | HTMLVideoElement | HTMLImageElement | ImageBitmap
-    rect      = null,         // {min:[x,y], max:[x,y]} in pixels; defaults to full frame
-    hsvA6, hsvB6,             // Uint16Array(6) half-floats (you already precompute these)
-    flags     = 0,            // GPUShared.FLAGS.*
-    view      = null,         // optional: GPUTextureView for preview overlay
-    flipY     = true,
-    format    = 'rgba8unorm'  // canvas/texture format
+  const _devState = new WeakMap();
+  let _device = null;
+  let _format = null;
+
+  async function _ensureDevice() {
+    if (_device) return _device;
+    if (!('gpu' in navigator)) throw new Error('WebGPU not supported');
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) throw new Error('No WebGPU adapter');
+    if (!adapter.features?.has?.('shader-f16')) throw new Error('shader-f16 not supported');
+    _device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
+    _format = navigator.gpu.getPreferredCanvasFormat?.() || 'rgba8unorm';
+    return _device;
+  }
+
+  function _sizeOf(src) {
+    const w = src?.codedWidth ?? src?.videoWidth ?? src?.naturalWidth ?? src?.width;
+    const h = src?.codedHeight ?? src?.videoHeight ?? src?.naturalHeight ?? src?.height;
+    return { w, h };
+  }
+
+  async function detect({
+    key = 'default',
+    source,
+    hsvA6,
+    hsvB6,
+    rect = null,
+    previewCanvas = null,
+    preview = false,
+    activeA = true,
+    activeB = true,
+    flipY = true
   } = {}) {
-    if (!navigator.gpu) throw new Error('WebGPU not supported');
-    if (!device?.features?.has?.('shader-f16')) throw new Error('shader-f16 not supported');
+    const device = await _ensureDevice();
     if (!source) throw new Error('detect: source required');
 
-    // state for this device
-    const st = await _getState(device, format);
+    let state = _devState.get(device);
+    if (!state) {
+      state = { pipelines: null, sampler: null, ctxByKey: new Map() };
+      _devState.set(device, state);
+    }
+    if (!state.pipelines) state.pipelines = await createPipelines(device, { format: _format });
+    if (!state.sampler)   state.sampler   = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
 
-    // per-key context (separate pack/feed so top/front can run independently)
-    let ctx = st.ctxs.get(key);
+    let ctx = state.ctxByKey.get(key);
     if (!ctx) {
       const pack = createUniformPack(device);
-      pack.hsvA6 = new Uint16Array(6);
-      pack.hsvB6 = new Uint16Array(6);
-      ctx = { pack, feed: null, rectDefault: { min: new Float32Array(2), max: new Float32Array(2) } };
-      st.ctxs.set(key, ctx);
+      pack.hA = new Uint16Array(6);
+      pack.hB = new Uint16Array(6);
+      ctx = { pack, feed: null, defaultRect: { min: new Float32Array([0,0]), max: new Float32Array([0,0]) }, canvasCtx: null };
+      state.ctxByKey.set(key, ctx);
     }
 
-    // ensure feed size
     const { w, h } = _sizeOf(source);
-    if (!(w > 0 && h > 0)) throw new Error('detect: could not determine source size');
+    if (!(w > 0 && h > 0)) throw new Error('detect: bad source size');
     let resized = false;
     if (!ctx.feed || ctx.feed.w !== w || ctx.feed.h !== h) {
       ctx.feed?.destroy?.();
-      ctx.feed = createFeed(device, st.pipelines, st.sampler, w, h, st.format);
-      ctx.rectDefault.max[0] = w;
-      ctx.rectDefault.max[1] = h;
+      ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h, _format);
+      ctx.defaultRect.max[0] = w;
+      ctx.defaultRect.max[1] = h;
       resized = true;
     }
 
-    // uniforms
-    if (hsvA6) ctx.pack.hsvA6.set(hsvA6);
-    if (hsvB6) ctx.pack.hsvB6.set(hsvB6);
-    const useRect = rect || ctx.rectDefault;
-    ctx.pack.resetStats(device.queue);
-    ctx.pack.writeUniform(device.queue, ctx.pack.hsvA6, ctx.pack.hsvB6, useRect, flags);
+    let view = null;
+    if (preview && previewCanvas) {
+      if (!ctx.canvasCtx) {
+        const gc = previewCanvas.getContext('webgpu');
+        gc.configure({ device, format: _format, alphaMode: 'opaque' });
+        ctx.canvasCtx = gc;
+      }
+      view = ctx.canvasCtx.getCurrentTexture().createView();
+      if (resized) { previewCanvas.width = w; previewCanvas.height = h; }
+    }
 
-    // upload frame
+    const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
+    const flags = (preview ? FLAGS_PREVIEW : 0) | (activeA ? FLAGS_A : 0) | (activeB ? FLAGS_B : 0);
+
+    for (let i = 0; i < 6; i++) {
+      ctx.pack.hA[i] = float32ToFloat16(hsvA6[i]);
+      ctx.pack.hB[i] = float32ToFloat16(hsvB6[i]);
+    }
+    ctx.pack.resetStats(device.queue);
+    ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, rect || ctx.defaultRect, flags);
+
     device.queue.copyExternalImageToTexture(
       { source, origin: { x: 0, y: 0 }, flipY },
       { texture: ctx.feed.frameTex },
       { width: w, height: h }
     );
 
-    // compute + (optional) present
     const enc = device.createCommandEncoder();
     enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
-    const pass = enc.beginComputePass({ label: 'detect-compute' });
-    pass.setPipeline(st.pipelines.compute);
-    pass.setBindGroup(0, ctx.feed.computeBG(ctx.pack));
-    pass.dispatchWorkgroups(Math.ceil(w / WG_SIZE.X), Math.ceil(h / WG_SIZE.Y));
-    pass.end();
+    const c = enc.beginComputePass({ label: 'detect' });
+    c.setPipeline(state.pipelines.compute);
+    c.setBindGroup(0, ctx.feed.computeBG(ctx.pack));
+    c.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 32));
+    c.end();
     enc.copyBufferToBuffer(ctx.pack.statsA, 0, ctx.pack.readA, 0, 12);
     enc.copyBufferToBuffer(ctx.pack.statsB, 0, ctx.pack.readB, 0, 12);
+
     if (view) {
-      const r = enc.beginRenderPass({ label: 'mask-present', colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
-      r.setPipeline(st.pipelines.render);
+      const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+      r.setPipeline(state.pipelines.render);
       r.setBindGroup(0, ctx.feed.renderBG);
       r.draw(3);
       r.end();
     }
-    device.queue.submit([enc.finish()]);
 
+    device.queue.submit([enc.finish()]);
     const { a, b } = await ctx.pack.readStats();
-    return { a, b, resized, w, h };
+
+    return { a, b, w, h, resized };
   }
 
-  // Only expose what callers need.
-  const GPUShared = { FLAGS, hsvRangeF16, detect };
-
-  global.GPUShared = GPUShared;
+  global.GPUShared = { detect, hsvRangeF16 };
 })(window);
