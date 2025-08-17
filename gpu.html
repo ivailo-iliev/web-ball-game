@@ -277,12 +277,8 @@
         const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
         const track = stream.getVideoTracks()[0];
 
-        // 2) WebGPU (require f16; no fallbacks)
-        if (!('gpu' in navigator)) throw new Error('WebGPU not available');
-        const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-        if (!adapter) throw new Error('No GPU adapter');
+        // 2) detection will internally init WebGPU; just keep a simple busy flag
         let busy = false; // drop frames when main thread is busy
-
         // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
         //    We transfer the camera track to the worker; it posts VideoFrames back to main.
         const workerSrc = /* js */`

@@ -7,13 +7,6 @@
 (function () {
   'use strict';
 
-/* ---------------- CONSTANTS ---------------- */
-// ——————— CONSTANTS ———————
-// top-camera MJPEG feed (over Wi-Fi)
-// moved constants into Config
-const { PREVIEW: FLAG_PREVIEW, TEAM_A: FLAG_TEAM_A_ACTIVE, TEAM_B: FLAG_TEAM_B_ACTIVE } =
-  GPUShared.FLAGS;
-
 const TOP_MODE_MJPEG = 'mjpeg';
 const TOP_MODE_WEBRTC = 'webrtc';
 
@@ -703,11 +696,10 @@ const Detect = (() => {
   }
 
   let lastCaptureTime = 0;
-  async function runFrontDetection(flags, preview) {
+  async function runFrontDetection(aActive, bActive, preview) {
     const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
     if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
     lastCaptureTime = meta.captureTime;
-    const aActive = !!(flags & 2), bActive = !!(flags & 4); // using your semantics
     const { a, b } = await GPUShared.detect({
       key: 'front',
       source: Feeds.front(),
@@ -757,11 +749,9 @@ const Controller = (() => {
     const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection(preview);
 
     if (topDetected) {
-      let flags = preview ? FLAG_PREVIEW : 0;
-      if (cntA > cfg.topMinArea) flags |= FLAG_TEAM_A_ACTIVE;
-      if (cntB > cfg.topMinArea) flags |= FLAG_TEAM_B_ACTIVE;
-
-      const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags, preview);
+      const aActive = cntA > cfg.topMinArea;
+      const bActive = cntB > cfg.topMinArea;
+      const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, preview);
 
       if (frontDetected) {
         for (const h of hits) {
@@ -778,11 +768,10 @@ const Controller = (() => {
   }
 
   async function handleBit(bit) {
-    let flags = preview ? FLAG_PREVIEW : 0;
-    if (bit === 0 || bit === 2) flags |= FLAG_TEAM_A_ACTIVE;
-    if (bit === 1 || bit === 2) flags |= FLAG_TEAM_B_ACTIVE;
-    if (!(flags & (FLAG_TEAM_A_ACTIVE | FLAG_TEAM_B_ACTIVE))) return;
-    const { detected: frontDetected, hits } = await Detect.runFrontDetection(flags, preview);
+    const aActive = (bit === 0 || bit === 2);
+    const bActive = (bit === 1 || bit === 2);
+    if (!aActive && !bActive) return;
+    const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, preview);
     if (frontDetected) {
       for (const h of hits) {
         Game.routeHit(
