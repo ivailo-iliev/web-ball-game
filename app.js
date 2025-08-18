@@ -143,193 +143,8 @@ const PreviewGfx = (() => {
 })();
 
 
-
-
-
 const Setup = (() => {
   const cfg = Config.get();
-  const el = {};
-  let thInputs = [];
-
-  function updateThreshInputs(cfg, inputs) {
-    const base = TEAM_INDICES[cfg.teamA] * 6;
-    for (let i = 0; i < 6; i++) inputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
-  }
-
-  function createThreshInputs(container) {
-    const inputs = [];
-    for (let i = 0; i < 6; i++) {
-      const inp = document.createElement('input');
-      inp.type = 'number';
-      inp.min = '0';
-      inp.max = '1';
-      inp.step = '0.05';
-      inp.style.width = '4ch';
-      inp.dataset.idx = String(i);
-      container.appendChild(inp);
-      inputs.push(inp);
-    }
-    return inputs;
-  }
-
-  function initNumberSpinners() {
-    document.querySelectorAll('input[type=number]:not([data-spinner])').forEach(input => {
-      input.setAttribute('data-spinner', '');
-
-      const wrap = document.createElement('span');
-      wrap.className = 'num-spinner';
-      input.before(wrap);
-
-      const btnDown = Object.assign(document.createElement('button'), {
-        type: 'button',
-        className: 'down',
-        textContent: '−',
-        onclick() {
-          input.stepDown();
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          update();
-        }
-      });
-      const btnUp = Object.assign(document.createElement('button'), {
-        type: 'button',
-        className: 'up',
-        textContent: '+',
-        onclick() {
-          input.stepUp();
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          update();
-        }
-      });
-
-      wrap.append(input, btnDown, btnUp);
-
-      const min = parseFloat(input.min);
-      const max = parseFloat(input.max);
-
-      const update = () => {
-        const val = parseFloat(input.value);
-        btnDown.disabled = !isNaN(min) && val <= min;
-        btnUp.disabled = !isNaN(max) && val >= max;
-      };
-      input.addEventListener('input', update);
-      update();
-    });
-  }
-
-  function ROI(opts) {
-    const roi = {
-      x: 0,
-      y: 0,
-      w: 0,
-      h: 0,
-      which: opts.which,
-      color: opts.color,
-      allowX: opts.allowX,
-      maintainAspect: opts.maintainAspect,
-      keys: opts.keys
-    };
-
-    function setHeight(h) {
-      const resH = cfg[roi.keys.resH];
-      roi.h = Math.round(u.clamp(Number(h), 10, resH));
-      if (roi.maintainAspect) {
-        const resW = cfg[roi.keys.resW];
-        roi.w = roi.h * (resW / resH);
-      } else {
-        roi.w = cfg[roi.keys.resW];
-        roi.x = 0;
-      }
-      cfg[roi.keys.height] = roi.h;
-      Config.save(roi.keys.height, roi.h);
-      commit();
-    }
-
-    function commit() {
-      const resW = cfg[roi.keys.resW];
-      const resH = cfg[roi.keys.resH];
-      if (!roi.allowX) {
-        roi.x = 0;
-        roi.w = resW;
-      } else if (roi.maintainAspect) {
-        roi.w = roi.h * (resW / resH);
-      }
-      roi.x = u.clamp(roi.x, 0, resW - roi.w);
-      roi.y = u.clamp(roi.y, 0, resH - roi.h);
-      const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
-      const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
-      cfg[roi.keys.poly] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-      Config.save(roi.keys.poly, cfg[roi.keys.poly]);
-      PreviewGfx.drawROI(cfg[roi.keys.poly], roi.color, roi.which);
-    }
-
-    function attach(canvas) {
-      canvas.style.touchAction = 'none';
-
-      if (!roi.allowX) {
-        let dragY = null;
-        canvas.addEventListener('pointerdown', function (e) {
-          if (!Controller.isPreview()) return;
-          const r = canvas.getBoundingClientRect();
-          dragY = (e.clientY - r.top) * cfg[roi.keys.resH] / r.height;
-          canvas.setPointerCapture(e.pointerId);
-        });
-        canvas.addEventListener('pointermove', function (e) {
-          if (dragY == null || !Controller.isPreview()) return;
-          const r = canvas.getBoundingClientRect();
-          const curY = (e.clientY - r.top) * cfg[roi.keys.resH] / r.height;
-          roi.y += curY - dragY;
-          dragY = curY;
-          commit();
-        });
-        canvas.addEventListener('pointerup', () => { dragY = null; });
-        canvas.addEventListener('pointercancel', () => { dragY = null; });
-      } else {
-        let dragStart = null, roiStart = null;
-        function toCanvas(e) {
-          const r = canvas.getBoundingClientRect();
-          return {
-            x: (e.clientX - r.left) * cfg[roi.keys.resW] / r.width,
-            y: (e.clientY - r.top) * cfg[roi.keys.resH] / r.height
-          };
-        }
-        canvas.addEventListener('pointerdown', function (e) {
-          if (!Controller.isPreview()) return;
-          canvas.setPointerCapture(e.pointerId);
-          dragStart = toCanvas(e);
-          roiStart = { x: roi.x, y: roi.y };
-        });
-        canvas.addEventListener('pointermove', function (e) {
-          if (!dragStart || !Controller.isPreview()) return;
-          const cur = toCanvas(e);
-          roi.x = roiStart.x + (cur.x - dragStart.x);
-          roi.y = roiStart.y + (cur.y - dragStart.y);
-          commit();
-        });
-        canvas.addEventListener('pointerup',   () => { dragStart = null; roiStart = null; });
-        canvas.addEventListener('pointercancel', () => { dragStart = null; roiStart = null; });
-      }
-      commit();
-    }
-
-    return Object.assign(roi, { setHeight, commit, attach });
-  }
-
-  const TopROI = ROI({
-    which: 'top',
-    color: 'lime',
-    allowX: false,
-    maintainAspect: false,
-    keys: { resW: 'topResW', resH: 'topResH', poly: 'polyT', height: 'topH' }
-  });
-
-  const FrontROI = ROI({
-    which: 'front',
-    color: 'aqua',
-    allowX: true,
-    maintainAspect: true,
-    keys: { resW: 'frontResW', resH: 'frontResH', poly: 'polyF', height: 'frontH' }
-  });
-
   const detectionUI = `
   <div class=cam id=topCam>
     <canvas id=topTex width=${cfg.topResW} height=${cfg.topResH}></canvas>
@@ -358,147 +173,219 @@ const Setup = (() => {
       <option value="${TOP_MODE_MJPEG}">MJPEG</option>
     </select></label>
     <label for=topUrl>🔗 <input id=topUrl size=28><span id=urlWarn></span></label>
-    <label for=teamA>🅰️ <select id=teamA></select></label>
-    <label for=teamB>🅱️ <select id=teamB></select></label>
+    <label for=teamA>🅰️ <select id=teamA>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
+    <label for=teamB>🅱️ <select id=teamB>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
     <label>HSV <span id=teamAThresh></span></label>
   </div>`;
 
-  function renderUI() {
+  function bind() {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
-  }
-
-  function cacheElements() {
-    el.topOv = $('#topOv');
-    el.frontOv = $('#frontOv');
-    el.topMode = $('#topMode');
-    el.topUrl = $('#topUrl');
-    el.urlWarn = $('#urlWarn');
-    el.teamA = $('#teamA');
-    el.teamB = $('#teamB');
-    el.teamAThresh = $('#teamAThresh');
-    el.topH = $('#topHInp');
-    el.frontH = $('#frontHInp');
-    el.topMin = $('#topMinInp');
-    el.frontMin = $('#frontMinInp');
-    el.btnStart = $('#btnStart');
-  }
-
-  function initInputs() {
-    populateTeamSelects(el.teamA, el.teamB, COLOR_EMOJI);
-    thInputs = createThreshInputs(el.teamAThresh);
-    el.topMode.value = cfg.topMode;
-    el.topUrl.value = cfg.url;
-    el.teamA.value = cfg.teamA;
-    el.teamB.value = cfg.teamB;
-    el.topH.value = cfg.topH;
-    el.frontH.value = cfg.frontH;
-    el.topMin.value = cfg.topMinArea;
-    el.frontMin.value = cfg.frontMinArea;
-    if (cfg.polyT.length === 4) {
-      const ys = cfg.polyT.map(p => p[1]);
-      TopROI.y = Math.min(...ys);
-      TopROI.h = Math.max(...ys) - TopROI.y;
-    }
-    if (cfg.polyF.length === 4) {
-      const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
-      const x0 = Math.min(...xs), x1 = Math.max(...xs);
-      const y0 = Math.min(...ys), y1 = Math.max(...ys);
-      FrontROI.x = x0; FrontROI.y = y0; FrontROI.w = x1 - x0; FrontROI.h = y1 - y0;
-    }
-    TopROI.setHeight(cfg.topH);
-    FrontROI.setHeight(cfg.frontH);
-    Game.setTeams(cfg.teamA, cfg.teamB);
-    updateThreshInputs(cfg, thInputs);
-    initNumberSpinners();
-  }
-
-  function attachEvents() {
-    const root = document.getElementById('cfg');
-    const ac = new AbortController();
-
-    // Live updates (numbers while typing)
-    root.addEventListener('input', e => {
-      const t = e.target;
-      switch (t.id) {
-        case 'topHInp': {
-          const h = Math.round(u.clamp(Number(t.value), 10, cfg.topResH));
-          t.value = h; TopROI.setHeight(h); break;
-        }
-        case 'frontHInp': {
-          const h = Math.round(u.clamp(Number(t.value), 10, cfg.frontResH));
-          t.value = h; FrontROI.setHeight(h); break;
-        }
-        case 'topMinInp': {
-          cfg.topMinArea = Math.round(u.clamp(Number(t.value), 0, Number.MAX_SAFE_INTEGER));
-          Config.save('topMinArea', cfg.topMinArea); break;
-        }
-        case 'frontMinInp': {
-          cfg.frontMinArea = Math.round(u.clamp(Number(t.value), 0, Number.MAX_SAFE_INTEGER));
-          Config.save('frontMinArea', cfg.frontMinArea); break;
-        }
-      }
-    }, { signal: ac.signal });
-
-    // Selects / discrete changes
-    root.addEventListener('change', e => {
-      const t = e.target;
-      switch (t.id) {
-        case 'topMode':
-          cfg.topMode = t.value; Config.save('topMode', cfg.topMode); break;
-        case 'teamA':
-          cfg.teamA = t.value;  Config.save('teamA', cfg.teamA);
-          Game.setTeams(cfg.teamA, cfg.teamB);
-          cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-          updateThreshInputs(cfg, thInputs);
-          break;
-        case 'teamB':
-          cfg.teamB = t.value;  Config.save('teamB', cfg.teamB);
-          Game.setTeams(cfg.teamA, cfg.teamB);
-          break;
-      }
-    }, { signal: ac.signal });
-
-    // Persist URL on blur (delegated via focusout because it bubbles)
-    root.addEventListener('focusout', e => {
-      if (e.target.id === 'topUrl') {
-        cfg.url = e.target.value; Config.save('url', cfg.url);
-        el.urlWarn && (el.urlWarn.textContent = '');
-      }
-    }, { signal: ac.signal });
-
-    // Buttons
-    root.addEventListener('click', e => {
-      if (e.target.id === 'btnStart') Controller.start();
-    }, { signal: ac.signal });
-
-    // HSV threshold inputs (delegate to container)
-    if (el.teamAThresh) {
-      el.teamAThresh.addEventListener('input', e => {
-        const t = e.target;
-        if (t.tagName !== 'INPUT') return;
-        const idx = +t.dataset.idx;
-        const base = TEAM_INDICES[cfg.teamA] * 6 + idx;
-        COLOR_TABLE[base] = parseFloat(t.value);
+    const urlI = $('#topUrl');
+    const urlWarn = $('#urlWarn');
+    const selMode = $('#topMode');
+    const selA = $('#teamA');
+    const selB = $('#teamB');
+    const thCont = $('#teamAThresh');
+    const thInputs = [];
+    for (let i = 0; i < 6; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = '0';
+      inp.max = '1';
+      inp.step = '0.05';
+      inp.style.width = '4ch';
+      inp.id = `threshA${i}`;
+      thCont?.appendChild(inp);
+      thInputs.push(inp);
+      // Use the `input` event so spinner buttons and manual typing
+      // both immediately update the threshold values and persist them.
+      inp.addEventListener('input', e => {
+        const base = TEAM_INDICES[cfg.teamA] * 6 + i;
+        COLOR_TABLE[base] = parseFloat(e.target.value);
         localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
         cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-      }, { signal: ac.signal });
+      });
     }
+    selMode.value = cfg.topMode;
+    selMode.onchange = e => {
+      cfg.topMode = e.target.value;
+      Config.save('topMode', cfg.topMode);
+    };
 
-    // ROI interactions as before
-    TopROI.attach(el.topOv);
-    FrontROI.attach(el.frontOv);
+    initNumberSpinners();
+    function updateThreshInputs() {
+      const base = TEAM_INDICES[cfg.teamA] * 6;
+      for (let i = 0; i < 6; i++) thInputs[i].value = COLOR_TABLE[base + i];
+    }
+    const topOv = $('#topOv');
+    const frontOv = $('#frontOv');
+    const btnStart = $('#btnStart');
+    const btnTop   = $('#btnTop');
+    const btnFront = $('#btnFront');
+    const btnBoth  = $('#btnBoth');
+
+    const cfgScreen = $('#configScreen');
+    btnStart?.addEventListener('click', () => snapTo(1));
+    btnTop?.addEventListener('click', () => cfgScreen.className = 'onlyTop');
+    btnFront?.addEventListener('click', () => cfgScreen.className = 'onlyFront');
+    btnBoth?.addEventListener('click', () => cfgScreen.className = '');
+
+  const topROI = { y: 0, h: cfg.topH };
+
+  function drawPolyTop() { PreviewGfx.drawROI(cfg.polyT, 'lime', 'top'); }
+  function drawPolyFront() { PreviewGfx.drawROI(cfg.polyF, 'aqua', 'front'); }
+
+  function commitTop() {
+    topROI.y = Math.min(Math.max(0, topROI.y), cfg.topResH - topROI.h);
+    const { y, h } = topROI;
+    cfg.polyT = [[0, y], [cfg.topResW, y], [cfg.topResW, y + h], [0, y + h]];
+    Config.save('polyT', cfg.polyT);
+    drawPolyTop();
   }
 
-  // (named handlers removed; handled via delegation in attachEvents)
-
-  return {
-    bind() {
-      renderUI();
-      cacheElements();
-      initInputs();
-      attachEvents();
+    if (cfg.polyT.length === 4) {
+      const ys = cfg.polyT.map(p => p[1]);
+      topROI.y = Math.min(...ys);
+      topROI.h = Math.max(...ys) - topROI.y;
     }
-  };
+
+    /* vertical drag on overlay */
+    let dragY = null;
+    topOv.style.touchAction = 'none';
+    topOv.addEventListener('pointerdown', e => {
+      if (!Controller.isPreview()) return;
+      const r = topOv.getBoundingClientRect();
+      dragY = (e.clientY - r.top) * cfg.topResH / r.height;
+      topOv.setPointerCapture(e.pointerId);
+    });
+    topOv.addEventListener('pointermove', e => {
+      if (dragY == null || !Controller.isPreview()) return;
+      const r = topOv.getBoundingClientRect();
+      const curY = (e.clientY - r.top) * cfg.topResH / r.height;
+      topROI.y += curY - dragY;
+      dragY = curY;
+      commitTop();
+    });
+    topOv.addEventListener('pointerup', () => dragY = null);
+    topOv.addEventListener('pointercancel', () => dragY = null);
+
+    commitTop();
+
+    (function () {
+      // Front ROI: fixed aspect, height-driven; gesture = drag only
+      const ASPECT = cfg.frontResW / cfg.frontResH;
+      let roi = { x: 0, y: 0, w: cfg.frontH * ASPECT, h: cfg.frontH };
+      if (cfg.polyF?.length === 4) {
+        const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
+        const x0 = Math.min(...xs), x1 = Math.max(...xs);
+        const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+        // re-lock width to height*aspect in case stored poly drifted
+        roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
+        roi.w = roi.h * ASPECT;
+      }
+
+      function commit() {
+        // lock width to height * aspect and clamp inside framebuffer
+        roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
+        roi.w = roi.h * ASPECT;
+        roi.x = Math.min(Math.max(0, roi.x), cfg.frontResW - roi.w);
+        roi.y = Math.min(Math.max(0, roi.y), cfg.frontResH - roi.h);
+        // write polygon in TL,TR,BR,BL order for downstream code
+        const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
+        const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
+        cfg.polyF = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+        Config.save('polyF', cfg.polyF);
+        drawPolyFront();
+      }
+
+      function toCanvas(e) {
+        const r = frontOv.getBoundingClientRect();
+        return {
+          x: (e.clientX - r.left) * cfg.frontResW / r.width,
+          y: (e.clientY - r.top) * cfg.frontResH / r.height
+        };
+      }
+
+      // Drag-only gesture
+      let dragStart, roiStart;
+      frontOv.addEventListener('pointerdown', e => {
+        if (!Controller.isPreview()) return;
+        frontOv.setPointerCapture(e.pointerId);
+        dragStart = toCanvas(e);
+        roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
+      });
+      frontOv.addEventListener('pointermove', e => {
+        if (!dragStart || !Controller.isPreview()) return;
+        const cur = toCanvas(e);
+        roi.x = roiStart.x + (cur.x - dragStart.x);
+        roi.y = roiStart.y + (cur.y - dragStart.y);
+        commit();
+      });
+      function lift() { dragStart = null; roiStart = null; }
+      frontOv.addEventListener('pointerup', lift);
+      frontOv.addEventListener('pointercancel', lift);
+
+      frontOv.style.touchAction = 'none';
+      const topHInp = $('#topHInp');
+      const frontHInp = $('#frontHInp');
+      const topMinInp = $('#topMinInp');
+      const frontMinInp = $('#frontMinInp');
+      topHInp.value = cfg.topH;
+      frontHInp.value = cfg.frontH;
+      topMinInp.value = cfg.topMinArea;
+      frontMinInp.value = cfg.frontMinArea;
+
+      topHInp.addEventListener('input', e => {
+        cfg.topH = Math.max(10, Math.min(cfg.topResH, +e.target.value));
+        Config.save('topH', cfg.topH);
+        topROI.h = cfg.topH;
+        commitTop();
+      });
+      frontHInp.addEventListener('input', e => {
+        cfg.frontH = Math.max(10, Math.min(cfg.frontResH, +e.target.value));
+        Config.save('frontH', cfg.frontH);
+        roi.h = cfg.frontH;               // width is recomputed in commit()
+        commit();
+      });
+      topMinInp.onchange = e => {
+        cfg.topMinArea = Math.max(0, +e.target.value);
+        Config.save('topMinArea', cfg.topMinArea);
+      };
+      frontMinInp.onchange = e => {
+        cfg.frontMinArea = Math.max(0, +e.target.value);
+        Config.save('frontMinArea', cfg.frontMinArea);
+      };
+
+      commit();
+    })();
+
+      urlI.value = cfg.url;
+      selA.value = cfg.teamA;
+      selB.value = cfg.teamB;
+      updateThreshInputs();
+
+    urlI.onblur = () => {
+      cfg.url = urlI.value;
+      Config.save('url', cfg.url);
+      if (urlWarn) urlWarn.textContent = '';
+    };
+    
+      selA.onchange = e => {
+        cfg.teamA = e.target.value;
+        Config.save('teamA', cfg.teamA);
+        Game.setTeams(cfg.teamA, cfg.teamB);
+        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+        updateThreshInputs();
+      };
+    selB.onchange = e => {
+      cfg.teamB = e.target.value;
+      Config.save('teamB', cfg.teamB);
+      Game.setTeams(cfg.teamA, cfg.teamB);
+    };
+  }
+
+  return { bind };
 })();
 
 const Feeds = (() => {
