@@ -216,10 +216,11 @@
     const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
     const flags = (preview ? FLAGS_PREVIEW : 0) | (activeA ? FLAGS_A : 0) | (activeB ? FLAGS_B : 0);
 
-    for (let i = 0; i < 6; i++) {
-      ctx.pack.hA[i] = float32ToFloat16(hsvA6[i]);
-      ctx.pack.hB[i] = float32ToFloat16(hsvB6[i]);
+    if (!(hsvA6 instanceof Uint16Array) || !(hsvB6 instanceof Uint16Array)) {
+      throw new Error('detect: hsvA6/hsvB6 must be Uint16Array');
     }
+    ctx.pack.hA.set(hsvA6);
+    ctx.pack.hB.set(hsvB6);
     ctx.pack.resetStats(device.queue);
     ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, rect || ctx.defaultRect, flags);
 

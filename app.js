@@ -568,7 +568,7 @@ const Detect = (() => {
     const { a, b } = await GPUShared.detect({
       key: 'top',
       source: Feeds.top(),
-      hsvA6: cfg.f16Ranges[cfg.teamA],  // still floats; GPUShared converts to f16
+      hsvA6: cfg.f16Ranges[cfg.teamA],  // Uint16Array f16 thresholds
       hsvB6: cfg.f16Ranges[cfg.teamB],
       rect: rectTop(),
       previewCanvas: preview ? document.getElementById('topTex') : null,
