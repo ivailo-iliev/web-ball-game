@@ -55,12 +55,10 @@ struct TeamResult {
 @group(0) @binding(4) var<storage, read_write> accumA : array<atomic<u32>>;
 @group(0) @binding(5) var<storage, read_write> partialsA : array<Pair>;
 @group(0) @binding(6) var<storage, read_write> outResA : TeamResult;
-@group(0) @binding(7) var<storage, read_write> angleMaskA : array<u32>;
 
 @group(0) @binding(8)  var<storage, read_write> accumB : array<atomic<u32>>;
 @group(0) @binding(9)  var<storage, read_write> partialsB : array<Pair>;
 @group(0) @binding(10) var<storage, read_write> outResB : TeamResult;
-@group(0) @binding(11) var<storage, read_write> angleMaskB : array<u32>;
 
 const PI : f32 = 3.14159265358979323846;
 
@@ -315,11 +313,6 @@ fn reduce_stage2_B(@builtin(local_invocation_index) li: u32) {
 // -------------- Pass 3A: angular support for A --------------
 @compute @workgroup_size(64)
 fn score_A(@builtin(local_invocation_index) li: u32) {
-  if (li == 0u) {
-    let words = (U.nAngles + 31u) / 32u;
-    for (var w: u32 = 0u; w < words; w = w + 1u) { angleMaskA[w] = 0u; }
-  }
-  workgroupBarrier();
 
   let nA = U.nAngles;
   var localMax : f32 = 0.0;
@@ -386,9 +379,6 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
       if (mag > best) { best = mag; }
     }
     if (best >= T && best > 0.0) {
-      let w = i / 32u;
-      let b = i & 31u;
-      atomicOr(&(angleMaskA[w]), 1u << b);
       countSupported = countSupported + 1u;
     }
   }
@@ -409,12 +399,6 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
 // -------------- Pass 3B: angular support for B --------------
 @compute @workgroup_size(64)
 fn score_B(@builtin(local_invocation_index) li: u32) {
-  if (li == 0u) {
-    let words = (U.nAngles + 31u) / 32u;
-    for (var w: u32 = 0u; w < words; w = w + 1u) { angleMaskB[w] = 0u; }
-  }
-  workgroupBarrier();
-
   let nA = U.nAngles;
   var localMax : f32 = 0.0;
   let r_full = outResB.radius;
@@ -479,9 +463,6 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
       if (mag > best) { best = mag; }
     }
     if (best >= T && best > 0.0) {
-      let w = i / 32u;
-      let b = i & 31u;
-      atomicOr(&(angleMaskB[w]), 1u << b);
       countSupported = countSupported + 1u;
     }
   }
