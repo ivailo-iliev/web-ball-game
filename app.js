@@ -178,6 +178,50 @@ const Setup = (() => {
     <label>HSV <span id=teamAThresh></span></label>
   </div>`;
 
+  function initNumberSpinners() {
+    document.querySelectorAll('input[type=number]:not([data-spinner])').forEach(input => {
+      input.setAttribute('data-spinner', '');
+
+      const wrap = document.createElement('span');
+      wrap.className = 'num-spinner';
+      input.before(wrap);
+
+      const btnDown = Object.assign(document.createElement('button'), {
+        type: 'button',
+        className: 'down',
+        textContent: '−',
+        onclick() {
+          input.stepDown();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          update();
+        }
+      });
+      const btnUp = Object.assign(document.createElement('button'), {
+        type: 'button',
+        className: 'up',
+        textContent: '+',
+        onclick() {
+          input.stepUp();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          update();
+        }
+      });
+
+      wrap.append(input, btnDown, btnUp);
+
+      const min = parseFloat(input.min);
+      const max = parseFloat(input.max);
+
+      const update = () => {
+        const val = parseFloat(input.value);
+        btnDown.disabled = !isNaN(min) && val <= min;
+        btnUp.disabled = !isNaN(max) && val >= max;
+      };
+      input.addEventListener('input', update);
+      update();
+    });
+  }
+
   function bind() {
     $('#configScreen').insertAdjacentHTML('beforeend', detectionUI);
     const urlI = $('#topUrl');
