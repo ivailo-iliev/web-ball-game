@@ -1,31 +1,4 @@
-// shader.wgsl — dual-team circle detection (known radius) + coverage + overlay
-// Single frame. Detects up to 2 balls (team A + team B) simultaneously.
-// Votes centers on a downscaled grid, one accumulator per team, then reduces to
-// per-team maxima and computes angular coverage per team.
-//
-// GROUP 0 BINDINGS:
-//  0: videoTex   : texture_2d<f32>
-//  1: samp       : sampler
-//  2: I          : uniform ImageInfo
-//  3: U          : uniform Params
-//  4: accumA     : storage array<atomic<u32>>      // detW*detH
-//  5: partialsA  : storage array<Pair>             // nWGx*nWGy
-//  6: outResA    : storage TeamResult
-//  7: angleMaskA : storage array<u32>              // ceil(nAngles/32)
-//  8: accumB     : storage array<atomic<u32>>
-//  9: partialsB  : storage array<Pair>
-// 10: outResB    : storage TeamResult
-// 11: angleMaskB : storage array<u32>
-//
-// RENDER OVERLAY: draws both circles (A=green, B=red).
-//
-// Notes:
-// - ROI is in *full-res pixels* (same as your original).
-// - r0 is in *detection scale* pixels (det grid). radius written out in full-res px.
-// - Color gating uses normalized-rgb prototypes per team, supplied via Params.
-//
-// ----------------------------------------------------------------
-
+// shader.wgsl — dual-team circle detector (HSV gate, ROI, shape-first)
 enable f16;
 
 struct ImageInfo {
@@ -35,34 +8,27 @@ struct ImageInfo {
 };
 
 struct Params {
-  // ROI in full-res pixels
+  // ROI (full-res px)
   rectMin : vec2<f32>,
   rectMax : vec2<f32>,
 
+  // HSV ranges (low & high), per team
+  hsvA_lo : vec3<f32>, hsvA_hi : vec3<f32>,
+  hsvB_lo : vec3<f32>, hsvB_hi : vec3<f32>,
+
   // detection config
-  r0         : u32,         // radius at detection scale
-  rDelta     : u32,         // ± vote tolerance
+  r0         : u32,         // at detection scale
+  rDelta     : u32,         // ±
   nAngles    : u32,
   _pad0      : u32,
 
-  gradThresh : f32,         // <=0 -> 0.14 default
-  thrRatio   : f32,         // e.g., 0.30 -> keep top 70% angles
-  confAccept : f32,         // (host uses these; shader keeps them for reference)
-  coverageMin: f32,
+  gradThresh : f32,         // <=0 -> 0.14
+  thrRatio   : f32,         // 0.30 -> keep top 70% angles
 
-  // team toggles
-  activeA : u32,
-  activeB : u32,
-  _pad1   : vec2<u32>,
-
-  // team color prototypes (normalized-rgb)
-  teamA_nrgb : vec2<f32>,   // (r̂, ĝ)
-  teamA_thr  : f32,         // distance threshold
-  _pa        : f32,
-
-  teamB_nrgb : vec2<f32>,
-  teamB_thr  : f32,
-  _pb        : f32,
+  // toggles
+  activeA    : u32,
+  activeB    : u32,
+  _pad1      : vec2<u32>,
 };
 
 struct Pair { value: u32, index: u32; };
@@ -72,8 +38,8 @@ struct TeamResult {
   cy      : f32,
   radius  : f32,    // full-res px
   conf    : f32,    // votes / expected
-  coverage: f32,    // fraction of supported angles
-  votes   : u32,    // raw max votes at det scale
+  coverage: f32,    // 0..1
+  votes   : u32,
   _padR   : u32,
 };
 
@@ -97,19 +63,41 @@ const PI : f32 = 3.14159265358979323846;
 
 fn luma(rgb: vec3<f32>) -> f32 { return dot(rgb, vec3<f32>(0.299, 0.587, 0.114)); }
 
-fn nrgb(c: vec3<f32>) -> vec2<f32> {
-  let s = max(1e-4, c.r + c.g + c.b);
-  return vec2<f32>(c.r / s, c.g / s);
+fn rgb2hsv(c: vec3<f32>) -> vec3<f32> {
+  let K = vec4<f32>(0.0, -1.0/3.0, 2.0/3.0, -1.0);
+  let p = mix(vec4<f32>(c.bg, K.wz), vec4<f32>(c.gb, K.xy), step(c.b, c.g));
+  let q = mix(vec4<f32>(p.xyw, c.r), vec4<f32>(c.r, p.yzx), step(p.x, c.r));
+  let d = q.x - min(q.w, q.y);
+  let e = 1.0e-10;
+  let h = abs(q.z + (q.w - q.y) / (6.0 * d + e));
+  let s = d / (q.x + e);
+  let v = q.x;
+  return vec3<f32>(h, s, v);
+}
+
+fn hueInRange(h: f32, lo: f32, hi: f32) -> bool {
+  let hlo = fract(lo);
+  let hhi = fract(hi);
+  if (hlo <= hhi) {
+    return (h >= hlo && h <= hhi);
+  } else {
+    // wrap-around
+    return (h >= hlo || h <= hhi);
+  }
+}
+
+fn hsvInRange(hsv: vec3<f32>, lo: vec3<f32>, hi: vec3<f32>) -> bool {
+  return hueInRange(hsv.x, lo.x, hi.x) &&
+         hsv.y >= lo.y && hsv.y <= hi.y &&
+         hsv.z >= lo.z && hsv.z <= hi.z;
 }
 
 fn detUV(ix: i32, iy: i32) -> vec2<f32> {
-  // det grid coord -> UV on full frame
   let d = vec2<f32>(f32(I.detW), f32(I.detH));
   return (vec2<f32>(f32(ix), f32(iy)) + vec2<f32>(0.5)) / d;
 }
 
 fn sobel_at(ix: i32, iy: i32) -> vec3<f32> {
-  // Sobel on det grid (sampling full-res)
   var g00 = luma(textureSampleLevel(videoTex, samp, detUV(ix-1, iy-1), 0.0).rgb);
   var g01 = luma(textureSampleLevel(videoTex, samp, detUV(ix,   iy-1), 0.0).rgb);
   var g02 = luma(textureSampleLevel(videoTex, samp, detUV(ix+1, iy-1), 0.0).rgb);
@@ -131,30 +119,32 @@ fn insideROI_full(px: f32, py: f32) -> bool {
          py >= U.rectMin.y && py < U.rectMax.y;
 }
 
-// ---------------- Pass 1: vote into A and B accumulators ----------------
+// ---------------- Pass 1: vote into A & B accumulators ----------------
 @compute @workgroup_size(16,16)
 fn vote_centers(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (gid.x >= I.detW || gid.y >= I.detH) { return; }
   let x = i32(gid.x), y = i32(gid.y);
   if (x <= 0 || y <= 0 || x >= i32(I.detW)-1 || y >= i32(I.detH)-1) { return; }
 
-  // ROI gate in *full-res* pixels, mapping det coord -> full coord
+  // ROI (map det -> full px)
   let scale = f32(I.downscale);
   let px = (f32(x) + 0.5) * scale;
   let py = (f32(y) + 0.5) * scale;
   if (!insideROI_full(px, py)) { return; }
 
-  // Edge gate
+  // gradient gate
   let G = sobel_at(x, y);
   let thr = select(U.gradThresh, 0.14, U.gradThresh <= 0.0);
   if (G.z < thr) { return; }
 
-  // Color gate (normalized-rgb at det sample UV)
-  let f = nrgb(textureSampleLevel(videoTex, samp, detUV(x, y), 0.0).rgb);
-  let hitA = (U.activeA == 1u) && (distance(f, U.teamA_nrgb) < U.teamA_thr);
-  let hitB = (U.activeB == 1u) && (distance(f, U.teamB_nrgb) < U.teamB_thr);
+  // color gate using HSV
+  let col = textureSampleLevel(videoTex, samp, detUV(x, y), 0.0).rgb;
+  let hsv = rgb2hsv(col);
+  let hitA = (U.activeA == 1u) && hsvInRange(hsv, U.hsvA_lo, U.hsvA_hi);
+  let hitB = (U.activeB == 1u) && hsvInRange(hsv, U.hsvB_lo, U.hsvB_hi);
   if (!(hitA || hitB)) { return; }
 
+  // edge-normal voting
   let n = normalize(vec2<f32>(G.x, G.y));
   let r0 = f32(i32(U.r0));
   let rDelta = i32(U.rDelta);
@@ -170,7 +160,7 @@ fn vote_centers(@builtin(global_invocation_id) gid: vec3<u32>) {
   }
 }
 
-// ---------------- Pass 2a/2b: argmax per team ----------------
+// ---------------- Reductions per team ----------------
 var<workgroup> sMaxVal : array<u32, 256>;
 var<workgroup> sMaxIdx : array<u32, 256>;
 
@@ -186,8 +176,7 @@ fn reduce_stage1_A(@builtin(workgroup_id) wid: vec3<u32>,
     idx = gy * I.detW + gx;
     val = atomicLoad(&accumA[idx]);
   }
-  sMaxVal[lindex] = val;
-  sMaxIdx[lindex] = idx;
+  sMaxVal[lindex] = val; sMaxIdx[lindex] = idx;
   workgroupBarrier();
 
   var stride : u32 = 128u;
@@ -213,8 +202,7 @@ fn reduce_stage2_A(@builtin(local_invocation_index) li: u32) {
   let nWGx = (I.detW + 15u)/16u;
   let nWGy = (I.detH + 15u)/16u;
   let N = nWGx * nWGy;
-  var v : u32 = 0u;
-  var idx : u32 = 0u;
+  var v : u32 = 0u; var idx : u32 = 0u;
   if (li < N) { v = partialsA[li].value; idx = partialsA[li].index; }
   sMaxVal[li] = v; sMaxIdx[li] = idx;
   workgroupBarrier();
@@ -260,8 +248,7 @@ fn reduce_stage1_B(@builtin(workgroup_id) wid: vec3<u32>,
     idx = gy * I.detW + gx;
     val = atomicLoad(&accumB[idx]);
   }
-  sMaxVal[lindex] = val;
-  sMaxIdx[lindex] = idx;
+  sMaxVal[lindex] = val; sMaxIdx[lindex] = idx;
   workgroupBarrier();
 
   var stride : u32 = 128u;
@@ -287,8 +274,7 @@ fn reduce_stage2_B(@builtin(local_invocation_index) li: u32) {
   let nWGx = (I.detW + 15u)/16u;
   let nWGy = (I.detH + 15u)/16u;
   let N = nWGx * nWGy;
-  var v : u32 = 0u;
-  var idx : u32 = 0u;
+  var v : u32 = 0u; var idx : u32 = 0u;
   if (li < N) { v = partialsB[li].value; idx = partialsB[li].index; }
   sMaxVal[li] = v; sMaxIdx[li] = idx;
   workgroupBarrier();
@@ -322,7 +308,7 @@ fn reduce_stage2_B(@builtin(local_invocation_index) li: u32) {
   }
 }
 
-// -------------- Pass 3A: coverage for team A --------------
+// -------------- Pass 3A: angular support for A --------------
 @compute @workgroup_size(64)
 fn score_A(@builtin(local_invocation_index) li: u32) {
   if (li == 0u) {
@@ -333,7 +319,6 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
 
   let nA = U.nAngles;
   var localMax : f32 = 0.0;
-
   let r_full = outResA.radius;
   let cx = outResA.cx;
   let cy = outResA.cy;
@@ -359,20 +344,22 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
     if (best > localMax) { localMax = best; }
   }
 
-  sMaxVal[li] = bitcast<u32>(localMax);
+  // reduce to maxResp
+  var shared : array<u32, 64>;
+  shared[li] = bitcast<u32>(localMax);
   workgroupBarrier();
   var stride : u32 = 32u;
   loop {
     if (stride == 0u) { break; }
     if (li < stride) {
-      let a = bitcast<f32>(sMaxVal[li]);
-      let b = bitcast<f32>(sMaxVal[li + stride]);
-      if (b > a) { sMaxVal[li] = bitcast<u32>(b); }
+      let a = bitcast<f32>(shared[li]);
+      let b = bitcast<f32>(shared[li + stride]);
+      if (b > a) { shared[li] = bitcast<u32>(b); }
     }
     workgroupBarrier();
     stride = stride / 2u;
   }
-  let maxResp = bitcast<f32>(sMaxVal[0]);
+  let maxResp = bitcast<f32>(shared[0]);
   let T = maxResp * (1.0 - U.thrRatio);
 
   var countSupported : u32 = 0u;
@@ -402,19 +389,20 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
     }
   }
 
-  sMaxIdx[li] = countSupported;
+  var countShared : array<u32, 64>;
+  countShared[li] = countSupported;
   workgroupBarrier();
   var stride2 : u32 = 32u;
   loop {
     if (stride2 == 0u) { break; }
-    if (li < stride2) { sMaxIdx[li] = sMaxIdx[li] + sMaxIdx[li + stride2]; }
+    if (li < stride2) { countShared[li] = countShared[li] + countShared[li + stride2]; }
     workgroupBarrier();
     stride2 = stride2 / 2u;
   }
-  if (li == 0u) { outResA.coverage = f32(sMaxIdx[0]) / f32(nA); }
+  if (li == 0u) { outResA.coverage = f32(countShared[0]) / f32(nA); }
 }
 
-// -------------- Pass 3B: coverage for team B --------------
+// -------------- Pass 3B: angular support for B --------------
 @compute @workgroup_size(64)
 fn score_B(@builtin(local_invocation_index) li: u32) {
   if (li == 0u) {
@@ -425,7 +413,6 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
 
   let nA = U.nAngles;
   var localMax : f32 = 0.0;
-
   let r_full = outResB.radius;
   let cx = outResB.cx;
   let cy = outResB.cy;
@@ -451,20 +438,21 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
     if (best > localMax) { localMax = best; }
   }
 
-  sMaxVal[li] = bitcast<u32>(localMax);
+  var shared : array<u32, 64>;
+  shared[li] = bitcast<u32>(localMax);
   workgroupBarrier();
   var stride : u32 = 32u;
   loop {
     if (stride == 0u) { break; }
     if (li < stride) {
-      let a = bitcast<f32>(sMaxVal[li]);
-      let b = bitcast<f32>(sMaxVal[li + stride]);
-      if (b > a) { sMaxVal[li] = bitcast<u32>(b); }
+      let a = bitcast<f32>(shared[li]);
+      let b = bitcast<f32>(shared[li + stride]);
+      if (b > a) { shared[li] = bitcast<u32>(b); }
     }
     workgroupBarrier();
     stride = stride / 2u;
   }
-  let maxResp = bitcast<f32>(sMaxVal[0]);
+  let maxResp = bitcast<f32>(shared[0]);
   let T = maxResp * (1.0 - U.thrRatio);
 
   var countSupported : u32 = 0u;
@@ -494,19 +482,20 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
     }
   }
 
-  sMaxIdx[li] = countSupported;
+  var countShared : array<u32, 64>;
+  countShared[li] = countSupported;
   workgroupBarrier();
   var stride2 : u32 = 32u;
   loop {
     if (stride2 == 0u) { break; }
-    if (li < stride2) { sMaxIdx[li] = sMaxIdx[li] + sMaxIdx[li + stride2]; }
+    if (li < stride2) { countShared[li] = countShared[li] + countShared[li + stride2]; }
     workgroupBarrier();
     stride2 = stride2 / 2u;
   }
-  if (li == 0u) { outResB.coverage = f32(sMaxIdx[0]) / f32(nA); }
+  if (li == 0u) { outResB.coverage = f32(countShared[0]) / f32(nA); }
 }
 
-// ---------------- Render overlay: show circles for A (green) and B (red) ----------------
+// -------- Render overlay (optional): draw ROI box only (no circles here) --------
 struct VSOut { @builtin(position) pos : vec4<f32>, @location(0) uv : vec2<f32> };
 
 @vertex
@@ -519,19 +508,6 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
 @fragment
 fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let base = textureSample(videoTex, samp, i.uv).rgb;
-
-  let p = i.uv * vec2<f32>(f32(I.fullW), f32(I.fullH));
-
-  // Team A ring (green)
-  let dA = abs(length(p - vec2<f32>(outResA.cx, outResA.cy)) - outResA.radius);
-  let ringA = smoothstep(2.0, 0.5, dA);
-
-  // Team B ring (red)
-  let dB = abs(length(p - vec2<f32>(outResB.cx, outResB.cy)) - outResB.radius);
-  let ringB = smoothstep(2.0, 0.5, dB);
-
-  var color = base;
-  color = mix(color, vec3<f32>(0.0,1.0,0.0), 0.8 * ringA);
-  color = mix(color, vec3<f32>(1.0,0.0,0.0), 0.8 * ringB);
-  return vec4<f32>(color, 1.0);
+  // visualize ROI edges faintly (currently not drawing borders; keep base)
+  return vec4<f32>(base, 1.0);
 }
