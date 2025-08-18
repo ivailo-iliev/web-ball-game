@@ -201,12 +201,16 @@
     let view = null;
     if (preview && previewCanvas) {
       if (!ctx.canvasCtx) {
-        const gc = previewCanvas.getContext('webgpu');
-        gc.configure({ device, format: _format, alphaMode: 'opaque' });
-        ctx.canvasCtx = gc;
+        ctx.canvasCtx = previewCanvas.getContext('webgpu');
+        previewCanvas.width = w;
+        previewCanvas.height = h;
+        ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
+      } else if (resized) {
+        previewCanvas.width = w;
+        previewCanvas.height = h;
+        ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
       }
       view = ctx.canvasCtx.getCurrentTexture().createView();
-      if (resized) { previewCanvas.width = w; previewCanvas.height = h; }
     }
 
     const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
