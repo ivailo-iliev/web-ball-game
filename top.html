@@ -335,7 +335,7 @@
           lastFrameTS = now;
           busy = true;
           try {
-            const { a, b, w, h, resized } = await GPUShared.detect({
+            const { result: res, w, h, resized } = await GPUShared.detect({
               key: 'demo',
               source: frame,
               hsvA6: cfg.f16Ranges[cfg.teamA],
@@ -352,8 +352,10 @@
               infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               info.textContent = infoBase;
             }
-            const aOn = a[0] > cfg.topMinArea;
-            const bOn = b[0] > cfg.topMinArea;
+
+            const aOn = !!res?.ok && (res.mass > cfg.topMinArea);
+            const bOn = false; // the new pipeline only reports a single "winner"
+
             if (aOn || bOn) {
               let bit;
               if (aOn && bOn) bit = '2';

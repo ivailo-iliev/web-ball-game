@@ -15,7 +15,7 @@
     return sign | (exp << 10) | (mant >> 13);
   }
 
-  async function createPipelines(device, { url = 'shader.wgsl', elementId = null, format = 'rgba8unorm' } = {}) {
+  async function createPipelines(device, { url = 'shader.v2.wgsl?v2', elementId = null, format = 'rgba8unorm' } = {}) {
     let code;
     if (elementId) {
       const el = document.getElementById(elementId);
@@ -40,8 +40,8 @@
     // tiny scratch for on-GPU decision
     const bestKey   = device.createBuffer({ size: 4,  usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     const bestStats = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-    const outRes    = device.createBuffer({ size: 32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-    const outRead   = device.createBuffer({ size: 32, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    const outRes    = device.createBuffer({ size: 24, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    const outRead   = device.createBuffer({ size: 24, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     const zero4     = new Uint32Array(1);
     const zeroStats = new Uint32Array(4);
     const buffer = new ArrayBuffer(64);
@@ -100,7 +100,7 @@
     });
     const frameView = frameTex.createView();
     const maskView = maskTex.createView();
-    let bgCompute = null; // compute bind group
+    let bgCompute1 = null, bgCompute2 = null; // compute bind groups
     const renderBG = device.createBindGroup({
       layout: pipelines.render.getBindGroupLayout(0),
       entries: [
@@ -109,22 +109,34 @@
         { binding: 5, resource: sampler }
       ]
     });
-    function computeBG(pack) {
-      if (!bgCompute) {
-        bgCompute = device.createBindGroup({
-          layout: pipelines.pass1.getBindGroupLayout(0), // same for pass2
-          entries: [
-            { binding: 0, resource: frameView },
-            { binding: 1, resource: maskView },
-            { binding: 2, resource: { buffer: pack.bestKey } },
-            { binding: 3, resource: { buffer: pack.bestStats } },
-            { binding: 4, resource: { buffer: pack.outRes } },
-            { binding: 6, resource: { buffer: pack.uni } }
-          ]
-        });
-      }
-      return bgCompute;
-    }
+function computeBG(pack) {
+  if (!bgCompute1 || !bgCompute2) {
+    // PASS 1 — expects 5 bindings: 0,1,2,3,6
+    bgCompute1 = device.createBindGroup({
+      layout: pipelines.pass1.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: frameView },
+        { binding: 1, resource: maskView },                 // storageTexture (write)
+        { binding: 2, resource: { buffer: pack.bestKey } }, // 4 B atomic<u32>
+        { binding: 3, resource: { buffer: pack.bestStats } },// 16 B
+        { binding: 6, resource: { buffer: pack.uni } }       // ≥56 B (you have 64 B)
+      ]
+    });
+
+    // PASS 2 — expects 4 bindings: 0,3,4,6 (NO b1, NO b2)
+    bgCompute2 = device.createBindGroup({
+      layout: pipelines.pass2.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: frameView },
+        { binding: 3, resource: { buffer: pack.bestStats } },
+        { binding: 4, resource: { buffer: pack.outRes } },   // 24 B
+        { binding: 6, resource: { buffer: pack.uni } }
+      ]
+    });
+  }
+  return { pass1: bgCompute1, pass2: bgCompute2 };
+}
+
     function destroy() {
       frameTex.destroy();
       maskTex.destroy();
@@ -256,17 +268,17 @@
       const enc = device.createCommandEncoder();
       enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
       const c = enc.beginComputePass({ label: 'detect' });
-      const bg = ctx.feed.computeBG(ctx.pack);
+      const bgs = ctx.feed.computeBG(ctx.pack);
       // pass 1: full ROI tiles
       c.setPipeline(state.pipelines.pass1);
-      c.setBindGroup(0, bg);
+      c.setBindGroup(0, bgs.pass1);
       c.dispatchWorkgroups(Math.ceil(w / WG1.X), Math.ceil(h / WG1.Y));
       // pass 2: single WG region grow around winner
       c.setPipeline(state.pipelines.pass2);
-      c.setBindGroup(0, bg);
+      c.setBindGroup(0, bgs.pass2);
       c.dispatchWorkgroups(1, 1, 1);
       c.end();
-      enc.copyBufferToBuffer(ctx.pack.outRes, 0, ctx.pack.outRead, 0, 32);
+      enc.copyBufferToBuffer(ctx.pack.outRes, 0, ctx.pack.outRead, 0, 24);
 
       if (view) {
         const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
