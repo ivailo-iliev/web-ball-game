@@ -181,7 +181,13 @@
       const pack = createUniformPack(device);
       pack.hA = new Uint16Array(6);
       pack.hB = new Uint16Array(6);
-      ctx = { pack, feed: null, defaultRect: { min: new Float32Array([0,0]), max: new Float32Array([0,0]) }, canvasCtx: null };
+      ctx = {
+        pack,
+        feed: null,
+        defaultRect: { min: new Float32Array([0,0]), max: new Float32Array([0,0]) },
+        rectGpu: { min: new Float32Array(2), max: new Float32Array(2) },
+        canvasCtx: null
+      };
       state.ctxByKey.set(key, ctx);
     }
     while (ctx.running) await ctx.running;
@@ -223,7 +229,16 @@
       ctx.pack.hA.set(hsvA6);
       ctx.pack.hB.set(hsvB6);
       ctx.pack.resetStats(device.queue);
-      ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, rect || ctx.defaultRect, flags);
+      let r = rect || ctx.defaultRect;
+      if (flipY) {
+        const rg = ctx.rectGpu;
+        rg.min[0] = r.min[0];
+        rg.max[0] = r.max[0];
+        rg.min[1] = h - r.max[1];
+        rg.max[1] = h - r.min[1];
+        r = rg;
+      }
+      ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, r, flags);
 
       device.queue.copyExternalImageToTexture(
         { source, origin: { x: 0, y: 0 }, flipY },
