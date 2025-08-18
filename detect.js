@@ -1,33 +1,20 @@
-// detect.js — keep the SAME interface used by top.html
 // GPUShared.detect({ key, source, hsvA6, hsvB6, rect, previewCanvas, preview, activeA, activeB, flipY })
 // -> { a:[area,cx,cy], b:[area,cx,cy], w, h, resized }
-
 (function (global) {
   const WG = { VOTE_X:16, VOTE_Y:16, REDUCE_X:16, REDUCE_Y:16 };
 
-  // Default detection params (tuned for your photos)
-  const DEF = {
-    downscale: 2,
-    r0: 12, rDelta: 2, nAngles: 48,
-    gradThresh: 0.14,
-    thrRatio: 0.30
-  };
+  const DEF = { downscale: 2, r0: 12, rDelta: 2, nAngles: 48, gradThresh: 0.14, thrRatio: 0.30 };
 
   function hsvRangeF16(TEAM_INDICES, TABLE, teamName) {
-    // TABLE packs 6 floats per team: [hBase, sMin, vMin, hWin, sMax, vMax]
     const idx = TEAM_INDICES[teamName] * 6;
     const h0 = TABLE[idx+0], sMin = TABLE[idx+1], vMin = TABLE[idx+2];
     const hWin = TABLE[idx+3], sMax = TABLE[idx+4], vMax = TABLE[idx+5];
-    // Return 6 floats: [h_lo, s_lo, v_lo, h_hi, s_hi, v_hi]
-    let hlo = h0 - hWin, hhi = h0 + hWin;
-    // keep within [0,1] but allow wrap in shader via hueInRange()
-    return new Float32Array([hlo, sMin, vMin, hhi, sMax, vMax]);
+    return new Float32Array([h0 - hWin, sMin, vMin, h0 + hWin, sMax, vMax]);
   }
 
   async function ensureDevice() {
     if (!('gpu' in navigator)) throw new Error('WebGPU not supported');
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-    if (!adapter) throw new Error('No adapter');
     const device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
     const format = navigator.gpu.getPreferredCanvasFormat();
     return { device, format };
@@ -51,14 +38,14 @@
     return { render, vote, r1A, r2A, r1B, r2B, sA, sB };
   }
 
-  function makeBuffers(device, w, h, detW, detH, nAngles) {
+  function makeBuffers(device, detW, detH, nAngles) {
     const info   = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const params = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
     const accBytes = detW * detH * 4;
     const nWGx = Math.ceil(detW / WG.VOTE_X);
     const nWGy = Math.ceil(detH / WG.VOTE_Y);
-    const partialBytes = nWGx * nWGy * 8; // Pair{u32,u32}
+    const partialBytes = nWGx * nWGy * 8;
     const angleWords = Math.ceil(nAngles / 32);
     const angleBytes = angleWords * 4;
     const resBytes = 32;
@@ -76,7 +63,7 @@
     const rdA = device.createBuffer({ size: resBytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     const rdB = device.createBuffer({ size: resBytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
 
-    return { info, params, accumA, partialsA, outResA, angleMaskA, accumB, partialsB, outResB, angleMaskB, rdA, rdB, nWGx, nWGy };
+    return { info, params, accumA, partialsA, outResA, angleMaskA, accumB, partialsB, outResB, angleMaskB, rdA, rdB };
   }
 
   function writeInfo(queue, buf, { fullW, fullH, detW, detH, downscale }) {
@@ -115,6 +102,7 @@
 
     const w = source.codedWidth  || source.videoWidth  || source.naturalWidth  || source.width;
     const h = source.codedHeight || source.videoHeight || source.naturalHeight || source.height;
+
     const detW = Math.ceil(w / DEF.downscale);
     const detH = Math.ceil(h / DEF.downscale);
 
@@ -127,10 +115,10 @@
     const sampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
 
     const pipes = await createPipelines(device, code, format);
-    const bufs = makeBuffers(device, w, h, detW, detH, DEF.nAngles);
+    const bufs  = makeBuffers(device, detW, detH, DEF.nAngles);
+
     writeInfo(device.queue, bufs.info, { fullW:w, fullH:h, detW, detH, downscale: DEF.downscale });
 
-    // default HSV if not provided
     const def6 = new Float32Array([0,0,0,1,1,1]);
     hsvA6 = hsvA6 || def6;
     hsvB6 = hsvB6 || def6;
@@ -144,7 +132,7 @@
       activeA, activeB
     });
 
-    // bind groups share the same group layout across passes
+    // Shared bind group for compute passes
     const entries = [
       { binding:0, resource: view },
       { binding:1, resource: sampler },
@@ -166,11 +154,18 @@
     const bg_r2B    = device.createBindGroup({ layout: pipes.r2B.getBindGroupLayout(0), entries });
     const bg_scoreA = device.createBindGroup({ layout: pipes.sA.getBindGroupLayout(0),  entries });
     const bg_scoreB = device.createBindGroup({ layout: pipes.sB.getBindGroupLayout(0),  entries });
-    const bg_render = device.createBindGroup({ layout: pipes.render.getBindGroupLayout(0), entries });
+
+    // Render bind group must match *render* layout exactly: only bindings 0 & 1 are used.
+    const bg_render = device.createBindGroup({
+      layout: pipes.render.getBindGroupLayout(0),
+      entries: [
+        { binding:0, resource: view },
+        { binding:1, resource: sampler },
+      ]
+    });
 
     // upload frame
-    const copySize = { width: w, height: h };
-    device.queue.copyExternalImageToTexture({ source, flipY }, { texture: tex }, copySize);
+    device.queue.copyExternalImageToTexture({ source, flipY }, { texture: tex }, { width: w, height: h });
 
     // clear buffers
     device.queue.writeBuffer(bufs.accumA, 0, new Uint32Array(detW*detH));
@@ -182,7 +177,6 @@
 
     // encode passes
     const enc = device.createCommandEncoder();
-    // compute chain
     {
       const c = enc.beginComputePass();
       c.setPipeline(pipes.vote);   c.setBindGroup(0, bg_vote);
@@ -201,7 +195,7 @@
       c.end();
     }
 
-    // optional render overlay (frame passthrough; draw ROI on your canvas if needed)
+    // optional render overlay (just the frame)
     if (preview && previewCanvas) {
       const ctx = previewCanvas.getContext('webgpu');
       previewCanvas.width = w; previewCanvas.height = h;
@@ -213,7 +207,7 @@
       r.end();
     }
 
-    // read back results
+    // read back
     enc.copyBufferToBuffer(bufs.outResA, 0, bufs.rdA, 0, 32);
     enc.copyBufferToBuffer(bufs.outResB, 0, bufs.rdB, 0, 32);
     device.queue.submit([enc.finish()]);
@@ -222,20 +216,12 @@
     const dvA = new DataView(bufs.rdA.getMappedRange());
     const dvB = new DataView(bufs.rdB.getMappedRange());
 
-    const A = {
-      cx: dvA.getFloat32(0,true), cy: dvA.getFloat32(4,true),
-      r : dvA.getFloat32(8,true), conf: dvA.getFloat32(12,true),
-      cov: dvA.getFloat32(16,true), votes: dvA.getUint32(20,true)
-    };
-    const B = {
-      cx: dvB.getFloat32(0,true), cy: dvB.getFloat32(4,true),
-      r : dvB.getFloat32(8,true), conf: dvB.getFloat32(12,true),
-      cov: dvB.getFloat32(16,true), votes: dvB.getUint32(20,true)
-    };
+    const A = { cx: dvA.getFloat32(0,true), cy: dvA.getFloat32(4,true), r: dvA.getFloat32(8,true),
+                conf: dvA.getFloat32(12,true), cov: dvA.getFloat32(16,true), votes: dvA.getUint32(20,true) };
+    const B = { cx: dvB.getFloat32(0,true), cy: dvB.getFloat32(4,true), r: dvB.getFloat32(8,true),
+                conf: dvB.getFloat32(12,true), cov: dvB.getFloat32(16,true), votes: dvB.getUint32(20,true) };
     bufs.rdA.unmap(); bufs.rdB.unmap();
 
-    // Convert to the legacy "area, x, y" arrays expected by your UI:
-    // area ≈ π r^2 × coverage  (so thresholds like 600 keep working)
     const areaA = Math.PI * A.r * A.r * Math.max(0, Math.min(1, A.cov));
     const areaB = Math.PI * B.r * B.r * Math.max(0, Math.min(1, B.cov));
 

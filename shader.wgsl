@@ -31,7 +31,10 @@ struct Params {
   _pad1      : vec2<u32>,
 };
 
-struct Pair { value: u32, index: u32; };
+struct Pair {
+  value: u32,
+  index: u32,
+};
 
 struct TeamResult {
   cx      : f32,    // full-res px
@@ -110,7 +113,7 @@ fn sobel_at(ix: i32, iy: i32) -> vec3<f32> {
 
   let gx = (-1.0*g00 + 1.0*g02) + (-2.0*g10 + 2.0*g12) + (-1.0*g20 + 1.0*g22);
   let gy = ( 1.0*g00 + 2.0*g01 + 1.0*g02) + (-1.0*g20 - 2.0*g21 - 1.0*g22);
-  let mag = sqrt(gx*gx + gy*gy) + 1e-6;
+  let mag = sqrt(gx*gx + gy*gy) + 1.0e-6;
   return vec3<f32>(gx, gy, mag);
 }
 
@@ -123,7 +126,8 @@ fn insideROI_full(px: f32, py: f32) -> bool {
 @compute @workgroup_size(16,16)
 fn vote_centers(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (gid.x >= I.detW || gid.y >= I.detH) { return; }
-  let x = i32(gid.x), y = i32(gid.y);
+  let x = i32(gid.x);
+  let y = i32(gid.y);
   if (x <= 0 || y <= 0 || x >= i32(I.detW)-1 || y >= i32(I.detH)-1) { return; }
 
   // ROI (map det -> full px)
@@ -337,7 +341,7 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
       let gx = cxp - c;
       let gy = cyp - c;
       let mag = sqrt(gx*gx + gy*gy);
-      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1e-6);
+      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1.0e-6);
       if (abs(dotn) < 0.75) { continue; }
       if (mag > best) { best = mag; }
     }
@@ -345,21 +349,21 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
   }
 
   // reduce to maxResp
-  var shared : array<u32, 64>;
-  shared[li] = bitcast<u32>(localMax);
+  var tmpMax : array<u32, 64>;
+  tmpMax[li] = bitcast<u32>(localMax);
   workgroupBarrier();
   var stride : u32 = 32u;
   loop {
     if (stride == 0u) { break; }
     if (li < stride) {
-      let a = bitcast<f32>(shared[li]);
-      let b = bitcast<f32>(shared[li + stride]);
-      if (b > a) { shared[li] = bitcast<u32>(b); }
+      let a = bitcast<f32>(tmpMax[li]);
+      let b = bitcast<f32>(tmpMax[li + stride]);
+      if (b > a) { tmpMax[li] = bitcast<u32>(b); }
     }
     workgroupBarrier();
     stride = stride / 2u;
   }
-  let maxResp = bitcast<f32>(shared[0]);
+  let maxResp = bitcast<f32>(tmpMax[0]);
   let T = maxResp * (1.0 - U.thrRatio);
 
   var countSupported : u32 = 0u;
@@ -377,7 +381,7 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
       let gx = cxp - c;
       let gy = cyp - c;
       let mag = sqrt(gx*gx + gy*gy);
-      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1e-6);
+      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1.0e-6);
       if (abs(dotn) < 0.75) { continue; }
       if (mag > best) { best = mag; }
     }
@@ -389,17 +393,17 @@ fn score_A(@builtin(local_invocation_index) li: u32) {
     }
   }
 
-  var countShared : array<u32, 64>;
-  countShared[li] = countSupported;
+  var tmpCount : array<u32, 64>;
+  tmpCount[li] = countSupported;
   workgroupBarrier();
   var stride2 : u32 = 32u;
   loop {
     if (stride2 == 0u) { break; }
-    if (li < stride2) { countShared[li] = countShared[li] + countShared[li + stride2]; }
+    if (li < stride2) { tmpCount[li] = tmpCount[li] + tmpCount[li + stride2]; }
     workgroupBarrier();
     stride2 = stride2 / 2u;
   }
-  if (li == 0u) { outResA.coverage = f32(countShared[0]) / f32(nA); }
+  if (li == 0u) { outResA.coverage = f32(tmpCount[0]) / f32(nA); }
 }
 
 // -------------- Pass 3B: angular support for B --------------
@@ -431,28 +435,28 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
       let gx = cxp - c;
       let gy = cyp - c;
       let mag = sqrt(gx*gx + gy*gy);
-      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1e-6);
+      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1.0e-6);
       if (abs(dotn) < 0.75) { continue; }
       if (mag > best) { best = mag; }
     }
     if (best > localMax) { localMax = best; }
   }
 
-  var shared : array<u32, 64>;
-  shared[li] = bitcast<u32>(localMax);
+  var tmpMax : array<u32, 64>;
+  tmpMax[li] = bitcast<u32>(localMax);
   workgroupBarrier();
   var stride : u32 = 32u;
   loop {
     if (stride == 0u) { break; }
     if (li < stride) {
-      let a = bitcast<f32>(shared[li]);
-      let b = bitcast<f32>(shared[li + stride]);
-      if (b > a) { shared[li] = bitcast<u32>(b); }
+      let a = bitcast<f32>(tmpMax[li]);
+      let b = bitcast<f32>(tmpMax[li + stride]);
+      if (b > a) { tmpMax[li] = bitcast<u32>(b); }
     }
     workgroupBarrier();
     stride = stride / 2u;
   }
-  let maxResp = bitcast<f32>(shared[0]);
+  let maxResp = bitcast<f32>(tmpMax[0]);
   let T = maxResp * (1.0 - U.thrRatio);
 
   var countSupported : u32 = 0u;
@@ -470,7 +474,7 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
       let gx = cxp - c;
       let gy = cyp - c;
       let mag = sqrt(gx*gx + gy*gy);
-      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1e-6);
+      let dotn = (gx*dir.x + gy*dir.y) / (mag + 1.0e-6);
       if (abs(dotn) < 0.75) { continue; }
       if (mag > best) { best = mag; }
     }
@@ -482,20 +486,20 @@ fn score_B(@builtin(local_invocation_index) li: u32) {
     }
   }
 
-  var countShared : array<u32, 64>;
-  countShared[li] = countSupported;
+  var tmpCount : array<u32, 64>;
+  tmpCount[li] = countSupported;
   workgroupBarrier();
   var stride2 : u32 = 32u;
   loop {
     if (stride2 == 0u) { break; }
-    if (li < stride2) { countShared[li] = countShared[li] + countShared[li + stride2]; }
+    if (li < stride2) { tmpCount[li] = tmpCount[li] + tmpCount[li + stride2]; }
     workgroupBarrier();
     stride2 = stride2 / 2u;
   }
-  if (li == 0u) { outResB.coverage = f32(countShared[0]) / f32(nA); }
+  if (li == 0u) { outResB.coverage = f32(tmpCount[0]) / f32(nA); }
 }
 
-// -------- Render overlay (optional): draw ROI box only (no circles here) --------
+// -------- Render overlay (simple: just draw the frame) --------
 struct VSOut { @builtin(position) pos : vec4<f32>, @location(0) uv : vec2<f32> };
 
 @vertex
@@ -508,6 +512,5 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
 @fragment
 fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let base = textureSample(videoTex, samp, i.uv).rgb;
-  // visualize ROI edges faintly (currently not drawing borders; keep base)
   return vec4<f32>(base, 1.0);
 }
