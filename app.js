@@ -627,37 +627,44 @@ const Detect = (() => {
   }
 
   let lastCaptureTime = 0;
+  let frontRunning = false;
   async function runFrontDetection(aActive, bActive, preview) {
-    const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
-    if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
-    lastCaptureTime = meta.captureTime;
-    const { a, b } = await GPUShared.detect({
-      key: 'front',
-      source: Feeds.front(),
-      hsvA6: cfg.f16Ranges[cfg.teamA],
-      hsvB6: cfg.f16Ranges[cfg.teamB],
-      rect: rectFront(),
-      previewCanvas: preview ? document.getElementById('frontTex') : null,
-      preview,
-      activeA: aActive,
-      activeB: bActive,
-      flipY: true
-    });
-    const [cntA, sumXA, sumYA] = a;
-    const [cntB, sumXB, sumYB] = b;
-    const hits = [];
-    if (cntA > cfg.frontMinArea) {
-      const cx = sumXA / cntA, cy = sumYA / cntA;
-      hits.push({ team: cfg.teamA, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
+    if (frontRunning) return { detected: false, hits: [] };
+    frontRunning = true;
+    try {
+      const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
+      if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
+      lastCaptureTime = meta.captureTime;
+      const { a, b } = await GPUShared.detect({
+        key: 'front',
+        source: Feeds.front(),
+        hsvA6: cfg.f16Ranges[cfg.teamA],
+        hsvB6: cfg.f16Ranges[cfg.teamB],
+        rect: rectFront(),
+        previewCanvas: preview ? document.getElementById('frontTex') : null,
+        preview,
+        activeA: aActive,
+        activeB: bActive,
+        flipY: true
+      });
+      const [cntA, sumXA, sumYA] = a;
+      const [cntB, sumXB, sumYB] = b;
+      const hits = [];
+      if (cntA > cfg.frontMinArea) {
+        const cx = sumXA / cntA, cy = sumYA / cntA;
+        hits.push({ team: cfg.teamA, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
+      }
+      if (cntB > cfg.frontMinArea) {
+        const cx = sumXB / cntB, cy = sumYB / cntB;
+        hits.push({ team: cfg.teamB, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
+      }
+      if (preview && hits.length) {
+        for (const h of hits) PreviewGfx.drawHit(h);
+      }
+      return { detected: hits.length > 0, hits };
+    } finally {
+      frontRunning = false;
     }
-    if (cntB > cfg.frontMinArea) {
-      const cx = sumXB / cntB, cy = sumYB / cntB;
-      hits.push({ team: cfg.teamB, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
-    }
-    if (preview && hits.length) {
-      for (const h of hits) PreviewGfx.drawHit(h);
-    }
-    return { detected: hits.length > 0, hits };
   }
 
   return { init, runTopDetection, runFrontDetection };

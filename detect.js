@@ -184,74 +184,81 @@
       ctx = { pack, feed: null, defaultRect: { min: new Float32Array([0,0]), max: new Float32Array([0,0]) }, canvasCtx: null };
       state.ctxByKey.set(key, ctx);
     }
-
-    const { w, h } = _sizeOf(source);
-    if (!(w > 0 && h > 0)) throw new Error('detect: bad source size');
-    let resized = false;
-    if (!ctx.feed || ctx.feed.w !== w || ctx.feed.h !== h) {
-      ctx.feed?.destroy?.();
-      // Internal textures use RGBA format to support storage binding;
-      // the canvas may still prefer a BGRA format for presentation.
-      ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h);
-      ctx.defaultRect.max[0] = w;
-      ctx.defaultRect.max[1] = h;
-      resized = true;
-    }
-
-    let view = null;
-    if (preview && previewCanvas) {
-      if (!ctx.canvasCtx) {
-        ctx.canvasCtx = previewCanvas.getContext('webgpu');
-        previewCanvas.width = w;
-        previewCanvas.height = h;
-        ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
-      } else if (resized) {
-        previewCanvas.width = w;
-        previewCanvas.height = h;
-        ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
+    while (ctx.running) await ctx.running;
+    ctx.running = (async () => {
+      const { w, h } = _sizeOf(source);
+      if (!(w > 0 && h > 0)) throw new Error('detect: bad source size');
+      let resized = false;
+      if (!ctx.feed || ctx.feed.w !== w || ctx.feed.h !== h) {
+        ctx.feed?.destroy?.();
+        // Internal textures use RGBA format to support storage binding;
+        // the canvas may still prefer a BGRA format for presentation.
+        ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h);
+        ctx.defaultRect.max[0] = w;
+        ctx.defaultRect.max[1] = h;
+        resized = true;
       }
-      view = ctx.canvasCtx.getCurrentTexture().createView();
+
+      let view = null;
+      if (preview && previewCanvas) {
+        if (!ctx.canvasCtx) {
+          ctx.canvasCtx = previewCanvas.getContext('webgpu');
+          previewCanvas.width = w;
+          previewCanvas.height = h;
+          ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
+        } else if (resized) {
+          previewCanvas.width = w;
+          previewCanvas.height = h;
+          ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
+        }
+        view = ctx.canvasCtx.getCurrentTexture().createView();
+      }
+
+      const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
+      const flags = (preview ? FLAGS_PREVIEW : 0) | (activeA ? FLAGS_A : 0) | (activeB ? FLAGS_B : 0);
+
+      if (!(hsvA6 instanceof Uint16Array) || !(hsvB6 instanceof Uint16Array)) {
+        throw new Error('detect: hsvA6/hsvB6 must be Uint16Array');
+      }
+      ctx.pack.hA.set(hsvA6);
+      ctx.pack.hB.set(hsvB6);
+      ctx.pack.resetStats(device.queue);
+      ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, rect || ctx.defaultRect, flags);
+
+      device.queue.copyExternalImageToTexture(
+        { source, origin: { x: 0, y: 0 }, flipY },
+        { texture: ctx.feed.frameTex },
+        { width: w, height: h }
+      );
+
+      const enc = device.createCommandEncoder();
+      enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
+      const c = enc.beginComputePass({ label: 'detect' });
+      c.setPipeline(state.pipelines.compute);
+      c.setBindGroup(0, ctx.feed.computeBG(ctx.pack));
+      c.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 32));
+      c.end();
+      enc.copyBufferToBuffer(ctx.pack.statsA, 0, ctx.pack.readA, 0, 12);
+      enc.copyBufferToBuffer(ctx.pack.statsB, 0, ctx.pack.readB, 0, 12);
+
+      if (view) {
+        const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+        r.setPipeline(state.pipelines.render);
+        r.setBindGroup(0, ctx.feed.renderBG);
+        r.draw(3);
+        r.end();
+      }
+
+      device.queue.submit([enc.finish()]);
+      const { a, b } = await ctx.pack.readStats();
+
+      return { a, b, w, h, resized };
+    })();
+    try {
+      return await ctx.running;
+    } finally {
+      ctx.running = null;
     }
-
-    const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
-    const flags = (preview ? FLAGS_PREVIEW : 0) | (activeA ? FLAGS_A : 0) | (activeB ? FLAGS_B : 0);
-
-    if (!(hsvA6 instanceof Uint16Array) || !(hsvB6 instanceof Uint16Array)) {
-      throw new Error('detect: hsvA6/hsvB6 must be Uint16Array');
-    }
-    ctx.pack.hA.set(hsvA6);
-    ctx.pack.hB.set(hsvB6);
-    ctx.pack.resetStats(device.queue);
-    ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, rect || ctx.defaultRect, flags);
-
-    device.queue.copyExternalImageToTexture(
-      { source, origin: { x: 0, y: 0 }, flipY },
-      { texture: ctx.feed.frameTex },
-      { width: w, height: h }
-    );
-
-    const enc = device.createCommandEncoder();
-    enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
-    const c = enc.beginComputePass({ label: 'detect' });
-    c.setPipeline(state.pipelines.compute);
-    c.setBindGroup(0, ctx.feed.computeBG(ctx.pack));
-    c.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 32));
-    c.end();
-    enc.copyBufferToBuffer(ctx.pack.statsA, 0, ctx.pack.readA, 0, 12);
-    enc.copyBufferToBuffer(ctx.pack.statsB, 0, ctx.pack.readB, 0, 12);
-
-    if (view) {
-      const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
-      r.setPipeline(state.pipelines.render);
-      r.setBindGroup(0, ctx.feed.renderBG);
-      r.draw(3);
-      r.end();
-    }
-
-    device.queue.submit([enc.finish()]);
-    const { a, b } = await ctx.pack.readStats();
-
-    return { a, b, w, h, resized };
   }
 
   // Expose helpers and flag constants for external modules like top.js.
