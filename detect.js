@@ -15,7 +15,7 @@
     return sign | (exp << 10) | (mant >> 13);
   }
 
-  async function createPipelines(device, { url = 'shader.v2.wgsl?v2', elementId = null, format = 'rgba8unorm' } = {}) {
+  async function createPipelines(device, { url = 'shader.wgsl?v3', elementId = null, format = 'rgba8unorm' } = {}) {
     let code;
     if (elementId) {
       const el = document.getElementById(elementId);
