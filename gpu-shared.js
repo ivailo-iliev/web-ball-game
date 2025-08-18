@@ -75,15 +75,21 @@
     return { uni, statsA, statsB, readA, readB, writeUniform, resetStats, readStats };
   }
 
-  function createFeed(device, pipelines, sampler, w, h, format = 'rgba8unorm') {
+  function createFeed(device, pipelines, sampler, w, h) {
+    // Use an explicit RGBA format for textures that may be bound as storage.
+    // "bgra8unorm" (the common canvas format) is not allowed with
+    // GPUTextureUsage.STORAGE_BINDING, which caused validation failures in
+    // Chrome when creating the mask texture.
+    const texFormat = 'rgba8unorm';
+
     const frameTex = device.createTexture({
       size: { width: w, height: h },
-      format,
+      format: texFormat,
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     });
     const maskTex = device.createTexture({
       size: { width: w, height: h },
-      format,
+      format: texFormat,
       usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
     });
     const frameView = frameTex.createView();
@@ -184,7 +190,9 @@
     let resized = false;
     if (!ctx.feed || ctx.feed.w !== w || ctx.feed.h !== h) {
       ctx.feed?.destroy?.();
-      ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h, _format);
+      // Internal textures use RGBA format to support storage binding;
+      // the canvas may still prefer a BGRA format for presentation.
+      ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h);
       ctx.defaultRect.max[0] = w;
       ctx.defaultRect.max[1] = h;
       resized = true;
@@ -241,5 +249,6 @@
     return { a, b, w, h, resized };
   }
 
-  global.GPUShared = { detect, hsvRangeF16 };
+  // Expose helpers and flag constants for external modules like top.js.
+  global.GPUShared = { detect, hsvRangeF16, FLAGS };
 })(window);
