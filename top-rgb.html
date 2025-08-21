@@ -95,7 +95,8 @@
   <script src="utils.js"></script>
   <script src="webrtc.js"></script>
   <script src="config.js"></script>
-  <script src="detect.js"></script>
+  <!-- <script src="detect.js"></script> -->
+   <script src="detect_rgb_roi.js"></script>
   <script>
     (function () {
       'use strict';
@@ -165,7 +166,16 @@
       } catch (e) { }
     }
     const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
-    const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
+    // const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
+    // RGB dominance presets for the new detector (simple & robust).
+    const THR_PRESETS = {
+      red:    { primary: 0, minDom: 0.12, yMin: 0.10, knee: 0.10 },
+      yellow: { primary: 0, minDom: 0.08, yMin: 0.10, knee: 0.10 },
+      blue:   { primary: 2, minDom: 0.10, yMin: 0.08, knee: 0.10 },
+      green:  { primary: 1, minDom: 0.10, yMin: 0.08, knee: 0.10 }
+    };
+    const thrFor = (name) => THR_PRESETS[name] || THR_PRESETS.red;
+    const radiusFromArea = (area) => Math.max(4, Math.sqrt(Math.max(0, area) / Math.PI));
 
     const DEFAULTS = {
       topResW: 1280,
@@ -175,8 +185,10 @@
       teamB: 'blue'
     };
 
+    // const Config = createConfig(DEFAULTS);
+    // Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
     const Config = createConfig(DEFAULTS);
-    Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
+    Config.load({ teamIndices: TEAM_INDICES });
     const cfg = Config.get();
 
     widthInput.value = cfg.topResW;
@@ -253,7 +265,7 @@
       COLOR_TABLE[base] = parseFloat(e.target.value);
       localStorage.setItem('COLOR_TABLE',
         JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
-      cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
+      // cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
     }
 
     function updateThreshInputs() {
@@ -335,25 +347,54 @@
           lastFrameTS = now;
           busy = true;
           try {
-            const { a, b, w, h, resized } = await GPUShared.detect({
-              key: 'demo',
+            // const { result: res, w, h, resized } = await GPUShared.detect({
+            //   key: 'demo',
+            //   source: frame,
+            //   hsvA6: cfg.f16Ranges[cfg.teamA],
+            //   hsvB6: cfg.f16Ranges[cfg.teamB],
+            //   rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
+            //   previewCanvas: canvas,
+            //   preview: true,
+            //   activeA: true, activeB: true,
+            //   flipY: true
+            // });
+            const rect = {
+              min: new Float32Array([0, 0]),
+              max: new Float32Array([frame.codedWidth, frame.codedHeight])
+            };
+            // For back-compat we derive radius from the old "min area" setting.
+            const radiusPx = (cfg.topRadiusPx ?? radiusFromArea(cfg.topMinArea));
+
+            const det = await GPUSharedRGB.detectRGB({
               source: frame,
-              hsvA6: cfg.f16Ranges[cfg.teamA],
-              hsvB6: cfg.f16Ranges[cfg.teamB],
-              rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
+              thrA: thrFor(cfg.teamA),
+              thrB: thrFor(cfg.teamB),
+              radiusPx,
+              rect,
               previewCanvas: canvas,
               preview: true,
-              activeA: true, activeB: true,
+              activeA: true,
+              activeB: true,
               flipY: true
             });
+            const w = frame.codedWidth, h = frame.codedHeight;
+            const resized = true;
+
             if (resized) {
               canvas.width = frame.displayWidth;
               canvas.height = frame.displayHeight;
-              infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
+              // infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
+              infoBase = `Running ${w}×${h}, RGB grid+ring detector (VideoFrame).`;
               info.textContent = infoBase;
             }
-            const aOn = a[0] > cfg.topMinArea;
-            const bOn = b[0] > cfg.topMinArea;
+
+            // const aOn = !!res?.ok && (res.mass > cfg.topMinArea);
+            // const bOn = false; // the new pipeline only reports a single "winner"
+
+            // New detector reports per-team hits directly.
+            const aOn = !!det.a;
+            const bOn = !!det.b;
+
             if (aOn || bOn) {
               let bit;
               if (aOn && bOn) bit = '2';
