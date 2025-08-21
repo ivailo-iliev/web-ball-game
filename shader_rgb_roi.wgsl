@@ -131,6 +131,15 @@ const DIRS : array<vec2<f32>, 16> = array<vec2<f32>, 16>(
   vec2<f32>( 0.9238795, -0.3826834)
 );
 
+fn team_color(team: u32) -> vec4<f32> {
+  let primary = select(U.A.primary, U.B.primary, team == 2u);
+  let ip = u32(round(primary));
+  let r = select(0.0, 1.0, ip == 0u);
+  let g = select(0.0, 1.0, ip == 1u);
+  let b = select(0.0, 1.0, ip == 2u);
+  return vec4<f32>(r, g, b, 1.0);
+}
+
 fn mark_mask_abs(p: vec2<i32>, rgba: vec4<f32>) {
   if (!in_roi_abs(p)) { return; }
   textureStore(maskTex, p, rgba);
@@ -228,7 +237,7 @@ fn pass1(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   if (bestTeam == 0u) { return; }
 
-  if ((U.flags & 1u) != 0u) { mark_mask_abs(bestP, vec4<f32>(1.0, 1.0, 1.0, 1.0)); }
+  if ((U.flags & 1u) != 0u) { mark_mask_abs(bestP, team_color(bestTeam)); }
 
   let qScaled : u32 = u32(clamp(bestQ * 100000.0, 0.0, 4000000000.0));
   let prev = atomicMax(&BestKey.value, qScaled);
@@ -301,12 +310,13 @@ fn pass2(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   // preview ring drawn at ABS coords (so it overlays correctly)
   if ((U.flags & 1u) != 0u) {
+    let col = team_color(team);
     let steps : i32 = 64;
     for (var i:i32=0; i<steps; i++) {
       let a = 6.2831853 * f32(i) / f32(steps);
       let d = vec2<f32>(cos(a), sin(a));
       let q = vec2<i32>(floor(clamp_to_roi(vec2<f32>(cxAbs, cyAbs) + d * r)));
-      textureStore(maskTex, q, vec4<f32>(1.0,0.0,0.0,1.0));
+      textureStore(maskTex, q, col);
     }
   }
 }
