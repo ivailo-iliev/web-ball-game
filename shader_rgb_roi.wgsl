@@ -1,5 +1,5 @@
 
-//enable f16;
+enable f16;
 
 // ============================================================================
 // Fast RGB ball detector with ROI-local outputs
