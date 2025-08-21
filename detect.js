@@ -148,8 +148,10 @@
   }
 
   function _sizeOf(src) {
-    const w = src?.codedWidth ?? src?.videoWidth ?? src?.naturalWidth ?? src?.width;
-    const h = src?.codedHeight ?? src?.videoHeight ?? src?.naturalHeight ?? src?.height;
+    const w = src?.displayWidth ?? src?.visibleRect?.width ?? src?.codedWidth ??
+      src?.videoWidth ?? src?.naturalWidth ?? src?.width;
+    const h = src?.displayHeight ?? src?.visibleRect?.height ?? src?.codedHeight ??
+      src?.videoHeight ?? src?.naturalHeight ?? src?.height;
     return { w, h };
   }
 
