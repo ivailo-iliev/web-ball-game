@@ -22,42 +22,68 @@
       code = await fetch(url).then(r => r.text());
     }
     const mod = device.createShaderModule({ code });
-    const compute = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'main' } });
-    const render = device.createRenderPipeline({
-      layout: 'auto',
-      vertex: { module: mod, entryPoint: 'vs' },
-      fragment: { module: mod, entryPoint: 'fs', targets: [{ format }] },
-      primitive: { topology: 'triangle-list' }
-    });
-    return { compute, render };
+    // New entry points in WGSL: 'seed_grid' (sparse grid) and 'refine_micro' (tiny refine)
+    const computeSeed   = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'seed_grid' } });
+    const computeRefine = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'refine_micro' } });
+    // Preview is optional; your WGSL may not include vs/fs
+    let render = null;
+    try {
+      render = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: mod, entryPoint: 'vs' },
+        fragment: { module: mod, entryPoint: 'fs', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' }
+      });
+    } catch (_) { /* no preview shaders present; fine */ }
+    return { computeSeed, computeRefine, render };
   }
 
   function createUniformPack(device) {
-    const uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    // 64-byte uniform; see offsets in writeUniform below
+    const uni    = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    // Final refined sums (cnt,sumX,sumY)
     const statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
     const statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    // Seeds (BestA/BestB): (key,x,y)
+    const bestA  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    const bestB  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     const readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     const readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-    const zero = new Uint32Array(3);
+    const zero3  = new Uint32Array(3);
+    const zero12 = new Uint32Array(3); // for BestA/BestB too
     const buffer = new ArrayBuffer(64);
-    const u16 = new Uint16Array(buffer);
     const f32 = new Float32Array(buffer);
     const u32 = new Uint32Array(buffer);
 
-    function writeUniform(queue, hsvA6, hsvB6, rect, flags) {
-      u16.set(hsvA6.subarray(0, 3), 0);
-      u16.set(hsvA6.subarray(3, 6), 4);
-      u16.set(hsvB6.subarray(0, 3), 8);
-      u16.set(hsvB6.subarray(3, 6), 12);
-      f32.set(rect.min, 8);
-      f32.set(rect.max, 10);
-      u32[12] = flags;
+    // New Uniform layout (byte offsets):
+    //  0: u32 rMin.x,  4: u32 rMin.y
+    //  8: u32 rMax.x, 12: u32 rMax.y
+    // 16: f32 radiusPx
+    // 20: u32 colorA, 24: u32 colorB
+    // 28: f32 domThrA, 32: f32 domThrB
+    // 36: f32 yMinA,   40: f32 yMinB
+    // 44: u32 activeMask (bit0=A, bit1=B)
+    function writeUniform(queue, rect, radiusPx, colorA, colorB, domThrA, domThrB, yMinA, yMinB, activeMask) {
+      u32[0] = rect.min[0] >>> 0;
+      u32[1] = rect.min[1] >>> 0;
+      u32[2] = rect.max[0] >>> 0;
+      u32[3] = rect.max[1] >>> 0;
+      f32[4] = radiusPx;
+      u32[5] = (colorA >>> 0);
+      u32[6] = (colorB >>> 0);
+      f32[7] = domThrA;
+      f32[8] = domThrB;
+      f32[9] = yMinA;
+      f32[10] = yMinB;
+      u32[11] = (activeMask >>> 0);
       queue.writeBuffer(uni, 0, buffer);
     }
 
     function resetStats(queue) {
-      queue.writeBuffer(statsA, 0, zero);
-      queue.writeBuffer(statsB, 0, zero);
+      queue.writeBuffer(statsA, 0, zero3);
+      queue.writeBuffer(statsB, 0, zero3);
+      queue.writeBuffer(bestA,  0, zero12);
+      queue.writeBuffer(bestB,  0, zero12);
     }
 
     async function readStats() {
@@ -72,7 +98,7 @@
       return { a, b };
     }
 
-    return { uni, statsA, statsB, readA, readB, writeUniform, resetStats, readStats };
+    return { uni, statsA, statsB, bestA, bestB, readA, readB, writeUniform, resetStats, readStats };
   }
 
   function createFeed(device, pipelines, sampler, w, h) {
@@ -88,48 +114,76 @@
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     });
     const maskTex = device.createTexture({
-      size: { width: w, height: h },
+      size: [w, h],
       format: texFormat,
-      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
     });
     const frameView = frameTex.createView();
     const maskView = maskTex.createView();
-    let bgCompute = null;
-    const renderBG = device.createBindGroup({
-      layout: pipelines.render.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: frameView },
-        { binding: 4, resource: maskView },
-        { binding: 5, resource: sampler }
-      ]
-    });
-    function computeBG(pack) {
-      if (!bgCompute) {
-        bgCompute = device.createBindGroup({
-          layout: pipelines.compute.getBindGroupLayout(0),
+    // Render bind group (fragment samples frame@1, maskTex@4 with sampler@5)
+    let renderBG = null;
+    function getRenderBG(pack) {
+      if (!pipelines.render) return null;
+      if (!renderBG) {
+        renderBG = device.createBindGroup({
+          layout: pipelines.render.getBindGroupLayout(0),
           entries: [
-            { binding: 0, resource: frameView },
-            { binding: 1, resource: maskView },
-            { binding: 2, resource: { buffer: pack.statsA } },
-            { binding: 3, resource: { buffer: pack.statsB } },
+            { binding: 1, resource: frameView },               // texture_2d<f32> frame
+            { binding: 2, resource: { buffer: pack.bestA } },  // storage BestA
+            { binding: 3, resource: { buffer: pack.bestB } },  // storage BestB
+            { binding: 4, resource: maskView },                // texture_2d<f32> maskTex
+            { binding: 5, resource: sampler },                 // sampler samp2
+            { binding: 6, resource: { buffer: pack.uni } }     // uniform U
+          ]
+        });
+      }
+      return renderBG;
+    }
+
+    // Separate compute bind groups per pipeline entry (auto-layout depends on used bindings)
+    let bgSeed   = null;
+    let bgRefine = null;
+
+    function computeBGSeed(pack) {
+      if (!bgSeed) {
+        bgSeed = device.createBindGroup({
+          layout: pipelines.computeSeed.getBindGroupLayout(0),
+          entries: [
+            // seed_grid uses: frame@1, BestA@2, BestB@3, U@6
+            { binding: 1, resource: frameView },
+            { binding: 2, resource: { buffer: pack.bestA } },
+            { binding: 3, resource: { buffer: pack.bestB } },
             { binding: 6, resource: { buffer: pack.uni } }
           ]
         });
       }
-      return bgCompute;
+      return bgSeed;
     }
-    function destroy() {
+
+    function computeBGRefine(pack) {
+      if (!bgRefine) {
+        bgRefine = device.createBindGroup({
+          layout: pipelines.computeRefine.getBindGroupLayout(0),
+          entries: [
+            // refine_micro uses: frame@1, BestA@2, BestB@3, StatsA@4, StatsB@5, U@6, maskOut@7
+            { binding: 1, resource: frameView },
+            { binding: 2, resource: { buffer: pack.bestA } },
+            { binding: 3, resource: { buffer: pack.bestB } },
+            { binding: 4, resource: { buffer: pack.statsA } },
+            { binding: 5, resource: { buffer: pack.statsB } },
+            { binding: 6, resource: { buffer: pack.uni } },
+            { binding: 7, resource: maskView }
+          ]
+        });
+      }
+      return bgRefine;
+    }
+
+  function destroy() {
       frameTex.destroy();
       maskTex.destroy();
     }
-    return { w, h, frameTex, maskTex, frameView, maskView, computeBG, renderBG, destroy };
-  }
-
-  function hsvRangeF16(teamIndices, colorTable, team) {
-    const i = teamIndices[team] * 6;
-    const dst = new Uint16Array(6);
-    for (let j = 0; j < 6; j++) dst[j] = float32ToFloat16(colorTable[i + j]);
-    return dst;
+    return { w, h, frameTex, maskTex, frameView, maskView, computeBGSeed, computeBGRefine, getRenderBG, destroy };
   }
 
   const _devState = new WeakMap();
@@ -158,15 +212,21 @@
   async function detect({
     key = 'default',
     source,
-    hsvA6,
-    hsvB6,
     rect = null,
     previewCanvas = null,
     preview = false,
     activeA = true,
     activeB = true,
-    flipY = true
-  } = {}) {
+    flipY = true,
+    // Calibration knobs for the new WGSL:
+    colorA = 0,           // 0=R, 1=G, 2=B
+    colorB = 2,
+    domThrA = 0.18,       // dominance thresholds (0..1)
+    domThrB = 0.18,
+    yMinA  = 0.20,        // luma floors (0..1)
+    yMinB  = 0.20,
+    radiusPx = 45         // known ball radius in pixels
+    } = {}) {
     const device = await _ensureDevice();
     if (!source) throw new Error('detect: source required');
 
@@ -181,8 +241,6 @@
     let ctx = state.ctxByKey.get(key);
     if (!ctx) {
       const pack = createUniformPack(device);
-      pack.hA = new Uint16Array(6);
-      pack.hB = new Uint16Array(6);
       ctx = { pack, feed: null, defaultRect: { min: new Float32Array([0,0]), max: new Float32Array([0,0]) }, canvasCtx: null };
       state.ctxByKey.set(key, ctx);
     }
@@ -218,13 +276,18 @@
     const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
     const flags = (preview ? FLAGS_PREVIEW : 0) | (activeA ? FLAGS_A : 0) | (activeB ? FLAGS_B : 0);
 
-    if (!(hsvA6 instanceof Uint16Array) || !(hsvB6 instanceof Uint16Array)) {
-      throw new Error('detect: hsvA6/hsvB6 must be Uint16Array');
-    }
-    ctx.pack.hA.set(hsvA6);
-    ctx.pack.hB.set(hsvB6);
+    // activeMask for the new WGSL: bit0(A), bit1(B)
+    const activeMask = (activeA ? 1 : 0) | (activeB ? 2 : 0);
     ctx.pack.resetStats(device.queue);
-    ctx.pack.writeUniform(device.queue, ctx.pack.hA, ctx.pack.hB, rect || ctx.defaultRect, flags);
+    ctx.pack.writeUniform(
+      device.queue,
+      rect || ctx.defaultRect,
+      radiusPx,
+      colorA, colorB,
+      domThrA, domThrB,
+      yMinA, yMinB,
+      activeMask
+    );
 
     device.queue.copyExternalImageToTexture(
       { source, origin: { x: 0, y: 0 }, flipY },
@@ -233,19 +296,37 @@
     );
 
     const enc = device.createCommandEncoder();
+    // (Optional) clear preview target if you use it
     enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
-    const c = enc.beginComputePass({ label: 'detect' });
-    c.setPipeline(state.pipelines.compute);
-    c.setBindGroup(0, ctx.feed.computeBG(ctx.pack));
-    c.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 32));
-    c.end();
+
+    // Pass 1: sparse grid seed
+    const c1 = enc.beginComputePass({ label: 'detect:seed_grid' });
+    c1.setPipeline(state.pipelines.computeSeed);
+    c1.setBindGroup(0, ctx.feed.computeBGSeed(ctx.pack));
+    // Dispatch over the GRID, not full image:
+    const roiW = (rect || ctx.defaultRect).max[0] - (rect || ctx.defaultRect).min[0];
+    const roiH = (rect || ctx.defaultRect).max[1] - (rect || ctx.defaultRect).min[1];
+    const gridStride = Math.max(1, Math.round(radiusPx * 0.6666667));
+    const gridW = Math.ceil(roiW / gridStride);
+    const gridH = Math.ceil(roiH / gridStride);
+    c1.dispatchWorkgroups(gridW, gridH);
+    c1.end();
+
+    // Pass 2: tiny refine around seeds (tile grid)
+    const c2 = enc.beginComputePass({ label: 'detect:refine_micro' });
+    c2.setPipeline(state.pipelines.computeRefine);
+    c2.setBindGroup(0, ctx.feed.computeBGRefine(ctx.pack));
+    c2.dispatchWorkgroups(Math.ceil(roiW / 8), Math.ceil(roiH / 8));
+    c2.end();
+
+    // Read back refined stats
     enc.copyBufferToBuffer(ctx.pack.statsA, 0, ctx.pack.readA, 0, 12);
     enc.copyBufferToBuffer(ctx.pack.statsB, 0, ctx.pack.readB, 0, 12);
 
-    if (view) {
+    if (view && state.pipelines.render) {
       const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
       r.setPipeline(state.pipelines.render);
-      r.setBindGroup(0, ctx.feed.renderBG);
+      r.setBindGroup(0, ctx.feed.getRenderBG(ctx.pack));
       r.draw(3);
       r.end();
     }
@@ -256,6 +337,5 @@
     return { a, b, w, h, resized };
   }
 
-  // Expose helpers and flag constants for external modules like top.js.
-  global.GPUShared = { detect, hsvRangeF16, FLAGS };
+  global.GPUShared = { detect, FLAGS };
 })(window);

@@ -164,8 +164,11 @@
         }
       } catch (e) { }
     }
+
     const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
-    const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
+    // 0 = Red, 1 = Green, 2 = Blue, 3 = Yellow
+    const DOM_THR_DEFAULT = 0.20; // try 0.15..0.25
+    const YMIN_DEFAULT    = 0.20; // try 0.18..0.25
 
     const DEFAULTS = {
       topResW: 1280,
@@ -176,7 +179,7 @@
     };
 
     const Config = createConfig(DEFAULTS);
-    Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
+    Config.load({ teamIndices: TEAM_INDICES });
     const cfg = Config.get();
 
     widthInput.value = cfg.topResW;
@@ -338,13 +341,19 @@
             const { a, b, w, h, resized } = await GPUShared.detect({
               key: 'demo',
               source: frame,
-              hsvA6: cfg.f16Ranges[cfg.teamA],
-              hsvB6: cfg.f16Ranges[cfg.teamB],
+              // 0=R, 1=G, 2=B, 3=Y
+              colorA: 1, 
+              colorB: 2,
+              domThrA: DOM_THR_DEFAULT,
+              domThrB: DOM_THR_DEFAULT,
+              yMinA:  YMIN_DEFAULT,
+              yMinB:  YMIN_DEFAULT,
               rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
               previewCanvas: canvas,
               preview: true,
               activeA: true, activeB: true,
-              flipY: true
+              flipY: true,
+              radiusPx: 60,
             });
             if (resized) {
               canvas.width = frame.displayWidth;
