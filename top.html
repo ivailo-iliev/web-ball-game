@@ -84,11 +84,29 @@
       <input id="videoHeight" type="number" placeholder="height" />
     </fieldset>
     <fieldset>
-      <select id="teamA"></select>
-      <select id="teamB"></select>
+      <select id="teamA">
+      <option value="0">🔴</option>
+      <option value="1">🟢</option>
+      <option value="2">🔵</option>
+      <option value="3">🟡</option>
+    </select>
+      <input id="domA" type="number" placeholder="domA" step="0.01" />
+      <input id="yMinA" type="number" placeholder="yMinA" step="0.01" />
+    </fieldset>
+    <fieldset>
+      <select id="teamB">
+      <option value="0">🔴</option>
+      <option value="1">🟢</option>
+      <option value="2">🔵</option>
+      <option value="3">🟡</option>
+    </select>
+      <input id="domB" type="number" placeholder="domB" step="0.01" />
+      <input id="yMinB" type="number" placeholder="yMinB" step="0.01" />
+    </fieldset>
+    <fieldset>
+      <input id="radiusPx" type="number" placeholder="radius" />
       <input id="minArea" type="number" placeholder="min area" />
     </fieldset>
-    <fieldset id="teamAThresh"></fieldset>
     <span id="info"></span>
   </div>
 
@@ -144,47 +162,43 @@
     const widthInput = $('#videoWidth');
     const heightInput = $('#videoHeight');
     const minAreaInput = $('#minArea');
+    const radiusInput = $('#radiusPx');
+    const domAInput = $('#domA');
+    const domBInput = $('#domB');
+    const yMinAInput = $('#yMinA');
+    const yMinBInput = $('#yMinB');
     const selA = $('#teamA');
     const selB = $('#teamB');
-    const thCont = $('#teamAThresh');
 
-    const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
-    const COLOR_TABLE = new Float32Array([
-  /* 🔴 */ 0.00, 0.6, 0.35, 0.1, 1, 1,
-  /* 🟡 */ 0.05, 0.7, 0.40, 0.2, 1, 1,
-  /* 🔵 */ 0.50, 0.3, 0.20, 0.7, 1, 1,
-  /* 🟢 */ 0.70, 0.6, 0.25, 0.9, 1, 1
-    ]);
-    const savedCT = localStorage.getItem('COLOR_TABLE');
-    if (savedCT) {
-      try {
-        const arr = JSON.parse(savedCT);
-        if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
-          COLOR_TABLE.set(arr.map(Number));
-        }
-      } catch (e) { }
-    }
-
-    const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
-    // 0 = Red, 1 = Green, 2 = Blue, 3 = Yellow
     const DOM_THR_DEFAULT = 0.20; // try 0.15..0.25
     const YMIN_DEFAULT    = 0.20; // try 0.18..0.25
+    const RADIUS_DEFAULT  = 60;
 
     const DEFAULTS = {
       topResW: 1280,
       topResH: 720,
       topMinArea: 600,
-      teamA: 'green',
-      teamB: 'blue'
+      teamA: 1,
+      teamB: 2,
+      domThrA: DOM_THR_DEFAULT,
+      domThrB: DOM_THR_DEFAULT,
+      yMinA: YMIN_DEFAULT,
+      yMinB: YMIN_DEFAULT,
+      topRadiusPx: RADIUS_DEFAULT
     };
 
     const Config = createConfig(DEFAULTS);
-    Config.load({ teamIndices: TEAM_INDICES });
+    Config.load();
     const cfg = Config.get();
 
     widthInput.value = cfg.topResW;
     heightInput.value = cfg.topResH;
     minAreaInput.value = cfg.topMinArea;
+    radiusInput.value = cfg.topRadiusPx;
+    domAInput.value = cfg.domThrA;
+    domBInput.value = cfg.domThrB;
+    yMinAInput.value = cfg.yMinA;
+    yMinBInput.value = cfg.yMinB;
 
     function onWidthInput(e) {
       cfg.topResW = Math.max(1, +e.target.value);
@@ -201,71 +215,58 @@
       Config.save('topMinArea', cfg.topMinArea);
     }
 
+    function onRadiusInput(e) {
+      cfg.topRadiusPx = Math.max(0, +e.target.value);
+      Config.save('topRadiusPx', cfg.topRadiusPx);
+    }
+
+    function onDomAInput(e) {
+      cfg.domThrA = +e.target.value;
+      Config.save('domThrA', cfg.domThrA);
+    }
+
+    function onDomBInput(e) {
+      cfg.domThrB = +e.target.value;
+      Config.save('domThrB', cfg.domThrB);
+    }
+
+    function onYMinAInput(e) {
+      cfg.yMinA = +e.target.value;
+      Config.save('yMinA', cfg.yMinA);
+    }
+
+    function onYMinBInput(e) {
+      cfg.yMinB = +e.target.value;
+      Config.save('yMinB', cfg.yMinB);
+    }
+
     widthInput.addEventListener('input', onWidthInput);
     heightInput.addEventListener('input', onHeightInput);
     minAreaInput.addEventListener('input', onMinAreaInput);
+    radiusInput.addEventListener('input', onRadiusInput);
+    domAInput.addEventListener('input', onDomAInput);
+    domBInput.addEventListener('input', onDomBInput);
+    yMinAInput.addEventListener('input', onYMinAInput);
+    yMinBInput.addEventListener('input', onYMinBInput);
 
-    populateTeamSelects(selA, selB, COLOR_EMOJI);
-    selA.value = cfg.teamA;
-    selB.value = cfg.teamB;
-    if (selA.selectedIndex === -1) {
-      selA.selectedIndex = 0;
-      cfg.teamA = selA.value;
-      Config.save('teamA', cfg.teamA);
-    }
-    if (selB.selectedIndex === -1) {
-      selB.selectedIndex = 0;
-      cfg.teamB = selB.value;
-      Config.save('teamB', cfg.teamB);
-    }
+    selA.value = String(cfg.teamA);
+    selB.value = String(cfg.teamB);
 
     function onChangeTeamA(e) {
-      cfg.teamA = e.target.value;
+      cfg.teamA = +e.target.value;
       Config.save('teamA', cfg.teamA);
-      updateThreshInputs();
     }
 
     function onChangeTeamB(e) {
-      cfg.teamB = e.target.value;
+      cfg.teamB = +e.target.value;
       Config.save('teamB', cfg.teamB);
     }
 
     selA.addEventListener('change', onChangeTeamA);
     selB.addEventListener('change', onChangeTeamB);
 
-    const thInputs = [];
-    const thFrag = document.createDocumentFragment();
-    for (let i = 0; i < 6; i++) {
-      const inp = Object.assign(document.createElement('input'), {
-        type: 'number',
-        min: '0',
-        max: '1',
-        step: '0.05'
-      });
-      Object.assign(inp.style, { width: '4ch' });
-      inp.dataset.idx = i;
-      thInputs.push(inp);
-      thFrag.appendChild(inp);
-      inp.addEventListener('input', onThresholdInput);
-    }
-    thCont.appendChild(thFrag);
-
-    function onThresholdInput(e) {
-      const i = +e.target.dataset.idx;
-      const base = TEAM_INDICES[cfg.teamA] * 6 + i;
-      COLOR_TABLE[base] = parseFloat(e.target.value);
-      localStorage.setItem('COLOR_TABLE',
-        JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
-      cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-    }
-
-    function updateThreshInputs() {
-      const base = TEAM_INDICES[cfg.teamA] * 6;
-      for (let i = 0; i < 6; i++) thInputs[i].value = (+COLOR_TABLE[base + i].toFixed(2));
-    }
-    updateThreshInputs();
-
     start.addEventListener('click', onStartClick);
+
 
     async function onStartClick() {
       start.disabled = true;
@@ -341,19 +342,18 @@
             const { a, b, w, h, resized } = await GPUShared.detect({
               key: 'demo',
               source: frame,
-              // 0=R, 1=G, 2=B, 3=Y
-              colorA: 1, 
-              colorB: 2,
-              domThrA: DOM_THR_DEFAULT,
-              domThrB: DOM_THR_DEFAULT,
-              yMinA:  YMIN_DEFAULT,
-              yMinB:  YMIN_DEFAULT,
+              colorA: cfg.teamA,
+              colorB: cfg.teamB,
+              domThrA: cfg.domThrA,
+              domThrB: cfg.domThrB,
+              yMinA:  cfg.yMinA,
+              yMinB:  cfg.yMinB,
               rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
               previewCanvas: canvas,
               preview: true,
               activeA: true, activeB: true,
               flipY: true,
-              radiusPx: 60,
+              radiusPx: cfg.topRadiusPx,
             });
             if (resized) {
               canvas.width = frame.displayWidth;
