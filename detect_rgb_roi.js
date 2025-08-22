@@ -136,7 +136,9 @@
     if (!('gpu' in navigator)) throw new Error('WebGPU not supported');
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No WebGPU adapter');
-    _device = await adapter.requestDevice();
+    const requiredFeatures = [];
+    if (adapter.features?.has?.('shader-f16')) requiredFeatures.push('shader-f16');
+    _device = await adapter.requestDevice({ requiredFeatures });
     _format = navigator.gpu.getPreferredCanvasFormat?.() || 'rgba8unorm';
     return _device;
   }
