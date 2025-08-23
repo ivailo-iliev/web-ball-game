@@ -180,25 +180,32 @@
       topMinArea: 600,
       teamA: 1,
       teamB: 2,
-      domThrA: DOM_THR_DEFAULT,
-      domThrB: DOM_THR_DEFAULT,
-      yMinA: YMIN_DEFAULT,
-      yMinB: YMIN_DEFAULT,
+      domThr: [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
+      yMin:  [YMIN_DEFAULT,    YMIN_DEFAULT,    YMIN_DEFAULT,    YMIN_DEFAULT],
       topRadiusPx: RADIUS_DEFAULT
     };
 
     const Config = createConfig(DEFAULTS);
     Config.load();
     const cfg = Config.get();
+    cfg.domThr = Float32Array.from(cfg.domThr);
+    cfg.yMin = Float32Array.from(cfg.yMin);
+
+    let teamA = cfg.teamA;
+    let teamB = cfg.teamB;
+    let domThrA = cfg.domThr[teamA];
+    let domThrB = cfg.domThr[teamB];
+    let yMinA = cfg.yMin[teamA];
+    let yMinB = cfg.yMin[teamB];
 
     widthInput.value = cfg.topResW;
     heightInput.value = cfg.topResH;
     minAreaInput.value = cfg.topMinArea;
     radiusInput.value = cfg.topRadiusPx;
-    domAInput.value = cfg.domThrA;
-    domBInput.value = cfg.domThrB;
-    yMinAInput.value = cfg.yMinA;
-    yMinBInput.value = cfg.yMinB;
+    domAInput.value = domThrA;
+    domBInput.value = domThrB;
+    yMinAInput.value = yMinA;
+    yMinBInput.value = yMinB;
 
     function onWidthInput(e) {
       cfg.topResW = Math.max(1, +e.target.value);
@@ -221,23 +228,23 @@
     }
 
     function onDomAInput(e) {
-      cfg.domThrA = +e.target.value;
-      Config.save('domThrA', cfg.domThrA);
+      cfg.domThr[teamA] = domThrA = +e.target.value;
+      Config.save('domThr', Array.from(cfg.domThr));
     }
 
     function onDomBInput(e) {
-      cfg.domThrB = +e.target.value;
-      Config.save('domThrB', cfg.domThrB);
+      cfg.domThr[teamB] = domThrB = +e.target.value;
+      Config.save('domThr', Array.from(cfg.domThr));
     }
 
     function onYMinAInput(e) {
-      cfg.yMinA = +e.target.value;
-      Config.save('yMinA', cfg.yMinA);
+      cfg.yMin[teamA] = yMinA = +e.target.value;
+      Config.save('yMin', Array.from(cfg.yMin));
     }
 
     function onYMinBInput(e) {
-      cfg.yMinB = +e.target.value;
-      Config.save('yMinB', cfg.yMinB);
+      cfg.yMin[teamB] = yMinB = +e.target.value;
+      Config.save('yMin', Array.from(cfg.yMin));
     }
 
     widthInput.addEventListener('input', onWidthInput);
@@ -249,17 +256,25 @@
     yMinAInput.addEventListener('input', onYMinAInput);
     yMinBInput.addEventListener('input', onYMinBInput);
 
-    selA.value = String(cfg.teamA);
-    selB.value = String(cfg.teamB);
+    selA.value = String(teamA);
+    selB.value = String(teamB);
 
     function onChangeTeamA(e) {
-      cfg.teamA = +e.target.value;
-      Config.save('teamA', cfg.teamA);
+      teamA = cfg.teamA = +e.target.value;
+      Config.save('teamA', teamA);
+      domThrA = cfg.domThr[teamA];
+      yMinA = cfg.yMin[teamA];
+      domAInput.value = domThrA;
+      yMinAInput.value = yMinA;
     }
 
     function onChangeTeamB(e) {
-      cfg.teamB = +e.target.value;
-      Config.save('teamB', cfg.teamB);
+      teamB = cfg.teamB = +e.target.value;
+      Config.save('teamB', teamB);
+      domThrB = cfg.domThr[teamB];
+      yMinB = cfg.yMin[teamB];
+      domBInput.value = domThrB;
+      yMinBInput.value = yMinB;
     }
 
     selA.addEventListener('change', onChangeTeamA);
@@ -342,12 +357,12 @@
             const { a, b, w, h, resized } = await GPUShared.detect({
               key: 'demo',
               source: frame,
-              colorA: cfg.teamA,
-              colorB: cfg.teamB,
-              domThrA: cfg.domThrA,
-              domThrB: cfg.domThrB,
-              yMinA:  cfg.yMinA,
-              yMinB:  cfg.yMinB,
+              colorA: teamA,
+              colorB: teamB,
+              domThrA,
+              domThrB,
+              yMinA,
+              yMinB,
               rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
               previewCanvas: canvas,
               preview: true,
