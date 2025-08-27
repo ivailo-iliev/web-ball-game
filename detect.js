@@ -162,8 +162,6 @@
           layout: pipelines.computeSeed.getBindGroupLayout(0),
           entries: [
             // seed_grid uses: frame@1, BestA@2, BestB@3, U@6, maskOut@7
-
-            { binding: 0, resource: sampler },
             { binding: 1, resource: frameView },
             { binding: 2, resource: { buffer: pack.bestA } },
             { binding: 3, resource: { buffer: pack.bestB } },
@@ -181,7 +179,6 @@
           layout: pipelines.computeRefine.getBindGroupLayout(0),
           entries: [
             // refine_micro uses: frame@1, BestA@2, BestB@3, StatsA@4, StatsB@5, U@6, maskOut@7, Grid@8
-            { binding: 0, resource: sampler },
             { binding: 1, resource: frameView },
             { binding: 2, resource: { buffer: pack.bestA } },
             { binding: 3, resource: { buffer: pack.bestB } },
@@ -214,7 +211,7 @@
     if (!adapter) throw new Error('No WebGPU adapter');
     if (!adapter.features?.has?.('shader-f16')) throw new Error('shader-f16 not supported');
     _device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
-    _format = navigator.gpu.getPreferredCanvasFormat?.() || 'rgba8unorm';
+    _format = navigator.gpu.getPreferredCanvasFormat();
     return _device;
   }
 

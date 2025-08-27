@@ -6,8 +6,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 // Bindings (group = 0)
 //
-// @binding(0) : sampler samp
-// @binding(1) : texture_2d<f32> frame          // camera frame (create as rgba8unorm-srgb; sampling auto-decodes to linear)
+// @binding(1) : texture_2d<f32> frame          // camera frame (create as rgba8unorm-srgb; textureLoad gives linear)
 //
 // @binding(2) : storage BestA (seed for Team A)
 // @binding(3) : storage BestB (seed for Team B)
@@ -68,7 +67,6 @@ struct GridSync {
   done : atomic<u32>,
 }
 
-@group(0) @binding(0) var samp  : sampler;
 @group(0) @binding(1) var frame : texture_2d<f32>;
 
 @group(0) @binding(2) var<storage, read_write> BestA  : BestBuf;
@@ -138,12 +136,10 @@ fn pack_key(score: f32, idx: u32) -> u32 {
   return (q << 16) | (idx & 0xFFFFu);
 }
 
-// Sample a pixel in linear space by sampling at pixel center (auto SRGB decode)
+// Load a pixel in linear space (frame texture is created as -srgb)
 fn texelLinearAt(pi: vec2<i32>) -> vec3<f16> {
-  let p    = clampToFrame(pi);
-  let dims = vec2<f32>(textureDimensions(frame));
-  let uv   = (vec2<f32>(vec2<i32>(p)) + vec2<f32>(0.5, 0.5)) / dims;
-  let rgb32 = textureSampleLevel(frame, samp, uv, 0.0).rgb;
+  let p = clampToFrame(pi);
+  let rgb32 = textureLoad(frame, p, 0).rgb;
   return vec3<f16>(rgb32);
 }
 
