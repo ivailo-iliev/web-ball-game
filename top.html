@@ -109,7 +109,7 @@
     </fieldset>
     <fieldset>
       <input id="radiusPx" type="number" placeholder="radius" />
-      <input id="minArea" type="number" placeholder="min area" />
+      <input id="minArea" type="number" placeholder="score thr (0..1)" step="0.005" />
     </fieldset>
     <span id="info"></span>
   </div>
@@ -187,7 +187,7 @@
     const DEFAULTS = {
       topResW: 1280,
       topResH: 720,
-      topMinArea: 600,
+      topMinArea: 0.025,
       teamA: 1,
       teamB: 2,
       domThr:  [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
@@ -240,7 +240,7 @@
     }
 
     function onMinAreaInput(e) {
-      cfg.topMinArea = Math.max(0, +e.target.value);
+      cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
       Config.save('topMinArea', cfg.topMinArea);
     }
 
@@ -434,8 +434,11 @@
               infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               info.textContent = infoBase;
             }
-            const aOn = a[0] > cfg.topMinArea;
-            const bOn = b[0] > cfg.topMinArea;
+            // a[0]/b[0] are Best.key (Q16 score in high 16 bits)
+            const scoreA = (a[0] >>> 16) / 65535;
+            const scoreB = (b[0] >>> 16) / 65535;
+            const aOn = scoreA >= cfg.topMinArea;
+            const bOn = scoreB >= cfg.topMinArea;
             if (aOn || bOn) {
               let bit;
               if (aOn && bOn) bit = '2';
