@@ -31,8 +31,8 @@ const DEFAULTS = {
   topResH: 480,
   frontResW: 1280,
   frontResH: 590,
-  topMinArea: 400,
-  frontMinArea: 8000,
+  topMinArea: 0.025,   // seed score threshold (0..1), was "area"
+  frontMinArea: 8000,  // no longer used for decisions, kept for UI compatibility
   radiusPx: RADIUS_DEFAULT,
   domThr: [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
   satMin: [SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT],
@@ -151,7 +151,7 @@ const Setup = (() => {
       <button id=btnStart>►</button>
     </span>
     <label for=frontZoom>🔍 <input id=frontZoom type=number style="width:3ch"></label>
-    <label for=topMinInp>⚫ <input id=topMinInp   type=number min=0 step=25 style="width:6ch"></label>
+    <label for=topMinInp>⚫ <input id=topMinInp   type=number min=0 max=1 step=0.005 style="width:6ch"></label>
     <label for=topHInp>↕️ <input id=topHInp   type=number min=10 max=${cfg.topResH} step=1></label>
     <label for=frontMinInp>⚫ <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
     <label for=frontHInp>↕️ <input id=frontHInp type=number min=10 max=${cfg.frontResH} step=1></label>
@@ -431,7 +431,7 @@ const Setup = (() => {
         commit();
       });
       topMinInp.onchange = e => {
-        cfg.topMinArea = Math.max(0, +e.target.value);
+        cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
         Config.save('topMinArea', cfg.topMinArea);
       };
       frontMinInp.onchange = e => {
@@ -683,9 +683,12 @@ const Detect = (() => {
       activeB: true,
       flipY: true
     });
-    const cntA = a[0], cntB = b[0];
-    const topDetected = cntA > cfg.topMinArea || cntB > cfg.topMinArea;
-    return { detected: topDetected, cntA, cntB };
+    // a[0]/b[0] are Best.key (Q16 score in high 16 bits)
+    const scoreA = (a[0] >>> 16) / 65535;
+    const scoreB = (b[0] >>> 16) / 65535;
+    const presentA = scoreA >= cfg.topMinArea;
+    const presentB = scoreB >= cfg.topMinArea;
+    return { presentA, presentB, scoreA, scoreB };
   }
 
   let lastCaptureTime = 0;
@@ -720,13 +723,13 @@ const Detect = (() => {
         activeB: bActive,
         flipY: true
       });
-      const [cntA, xA, yA] = a;
-      const [cntB, xB, yB] = b;
+      const [keyA, xA, yA] = a; // Best.{key,x,y}; centroid already finalized in-shader
+      const [keyB, xB, yB] = b;
       const hits = [];
-      if (cntA > cfg.frontMinArea) {
+      if (aActive && keyA !== 0) {
         hits.push({ team: cfg.teamA, x: xA / cfg.frontResW, y: yA / cfg.frontResH });
       }
-      if (cntB > cfg.frontMinArea) {
+      if (bActive && keyB !== 0) {
         hits.push({ team: cfg.teamB, x: xB / cfg.frontResW, y: yB / cfg.frontResH });
       }
       if (preview && hits.length) {
@@ -755,11 +758,10 @@ const Controller = (() => {
     }
     lastTop = ts;
 
-    const { detected: topDetected, cntA, cntB } = await Detect.runTopDetection(preview);
-
-    if (topDetected) {
-      const aActive = cntA > cfg.topMinArea;
-      const bActive = cntB > cfg.topMinArea;
+    const { presentA, presentB } = await Detect.runTopDetection(preview);
+    if (presentA || presentB) {
+      const aActive = presentA;
+      const bActive = presentB;
       const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, preview);
 
       if (frontDetected) {
