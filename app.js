@@ -12,37 +12,19 @@ const TOP_MODE_WEBRTC = 'webrtc';
 
 // front-camera (device camera)
 
-/* HSV ranges per team */
-// const COLOR_TABLE = {
-//   red: [[0.00, 0.5, 0.7], [0.10, 1.00, 1.00]],
-//   yellow: [[0.10, 0.5, 0.5], [0.20, 1.00, 1.00]],
-//   blue: [[0.50, 0.4, 0.4], [0.70, 1.00, 1.00]],
-//   green: [[0.70, 0.2, 0.2], [0.90, 1.00, 1.00]],
-// };
-/* Flat HSV table: [loH,loS,loV, hiH,hiS,hiV] × 4 teams */
-const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
-const COLOR_TABLE = new Float32Array([
-  /* 🔴 */ 0.00 , 0.6 , 0.35 , 0.1 , 1 , 1 ,
-  /* 🟡 */ 0.05 , 0.7 , 0.40 , 0.2 , 1 , 1 ,
-  /* 🔵 */ 0.50 , 0.3 , 0.20 , 0.7 , 1 , 1 ,
-  /* 🟢 */ 0.70 , 0.6 , 0.25 , 0.9 , 1 , 1 
-]);
-const savedCT = localStorage.getItem('COLOR_TABLE');
-if (savedCT) {
-  try {
-    const arr = JSON.parse(savedCT);
-    if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
-      COLOR_TABLE.set(arr.map(Number));
-    }
-  } catch (e) {}
-}
+const TEAM_INDICES = { red: 0, green: 1, blue: 2, yellow: 3 };
 const COLOR_EMOJI = {
   red: '🔴',
-  yellow: '🟡',
   green: '🟢',
-  blue: '🔵'
+  blue: '🔵',
+  yellow: '🟡'
 };
-const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
+
+const DOM_THR_DEFAULT = 0.10;
+const SATMIN_DEFAULT  = 0.12;
+const YMIN_DEFAULT    = 0.00;
+const YMAX_DEFAULT    = 0.70;
+const RADIUS_DEFAULT  = 18;
 
 const DEFAULTS = {
   topResW: 640,
@@ -51,6 +33,11 @@ const DEFAULTS = {
   frontResH: 590,
   topMinArea: 400,
   frontMinArea: 8000,
+  radiusPx: RADIUS_DEFAULT,
+  domThr: [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
+  satMin: [SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT],
+  yMin:   [YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT],
+  yMax:   [YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT],
   url:    "http://192.168.43.1:8080/video",
   teamA:  "green",
   teamB:  "blue",
@@ -63,7 +50,7 @@ const DEFAULTS = {
 };
 
 const Config = createConfig(DEFAULTS);
-Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
+Config.load();
 
 const PreviewGfx = (() => {
   const cfg = Config.get();
@@ -174,8 +161,16 @@ const Setup = (() => {
     </select></label>
     <label for=topUrl>🔗 <input id=topUrl size=28><span id=urlWarn></span></label>
     <label for=teamA>🅰️ <select id=teamA>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
+    <label for=domA>domA <input id=domA type=number step=0.01 style="width:5ch"></label>
+    <label for=satMinA>satA <input id=satMinA type=number step=0.01 style="width:5ch"></label>
+    <label for=yMinA>yMinA <input id=yMinA type=number step=0.01 style="width:5ch"></label>
+    <label for=yMaxA>yMaxA <input id=yMaxA type=number step=0.01 style="width:5ch"></label>
     <label for=teamB>🅱️ <select id=teamB>${Object.entries(COLOR_EMOJI).map(([c, e]) => `<option value="${c}">${e}</option>`).join('')}</select></label>
-    <label>HSV <span id=teamAThresh></span></label>
+    <label for=domB>domB <input id=domB type=number step=0.01 style="width:5ch"></label>
+    <label for=satMinB>satB <input id=satMinB type=number step=0.01 style="width:5ch"></label>
+    <label for=yMinB>yMinB <input id=yMinB type=number step=0.01 style="width:5ch"></label>
+    <label for=yMaxB>yMaxB <input id=yMaxB type=number step=0.01 style="width:5ch"></label>
+    <label for=radiusPx>⌀ <input id=radiusPx type=number style="width:6ch"></label>
   </div>`;
 
   function initNumberSpinners() {
@@ -227,40 +222,83 @@ const Setup = (() => {
     const urlI = $('#topUrl');
     const urlWarn = $('#urlWarn');
     const selMode = $('#topMode');
-    const selA = $('#teamA');
-    const selB = $('#teamB');
-    const thCont = $('#teamAThresh');
-    const thInputs = [];
-    for (let i = 0; i < 6; i++) {
-      const inp = document.createElement('input');
-      inp.type = 'number';
-      inp.min = '0';
-      inp.max = '1';
-      inp.step = '0.05';
-      inp.style.width = '4ch';
-      inp.id = `threshA${i}`;
-      thCont?.appendChild(inp);
-      thInputs.push(inp);
-      // Use the `input` event so spinner buttons and manual typing
-      // both immediately update the threshold values and persist them.
-      inp.addEventListener('input', e => {
-        const base = TEAM_INDICES[cfg.teamA] * 6 + i;
-        COLOR_TABLE[base] = parseFloat(e.target.value);
-        localStorage.setItem('COLOR_TABLE', JSON.stringify(Array.from(COLOR_TABLE)));
-        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-      });
-    }
-    selMode.value = cfg.topMode;
-    selMode.onchange = e => {
-      cfg.topMode = e.target.value;
-      Config.save('topMode', cfg.topMode);
-    };
+      const selA = $('#teamA');
+      const selB = $('#teamB');
+      const domAInput = $('#domA');
+      const domBInput = $('#domB');
+      const satMinAInput = $('#satMinA');
+      const satMinBInput = $('#satMinB');
+      const yMinAInput = $('#yMinA');
+      const yMinBInput = $('#yMinB');
+      const yMaxAInput = $('#yMaxA');
+      const yMaxBInput = $('#yMaxB');
+      const radiusInput = $('#radiusPx');
 
-    initNumberSpinners();
-    function updateThreshInputs() {
-      const base = TEAM_INDICES[cfg.teamA] * 6;
-      for (let i = 0; i < 6; i++) thInputs[i].value = COLOR_TABLE[base + i];
-    }
+      let teamA = cfg.teamA;
+      let teamB = cfg.teamB;
+      let domThrA = cfg.domThr[TEAM_INDICES[teamA]];
+      let domThrB = cfg.domThr[TEAM_INDICES[teamB]];
+      let satMinA = cfg.satMin[TEAM_INDICES[teamA]];
+      let satMinB = cfg.satMin[TEAM_INDICES[teamB]];
+      let yMinA = cfg.yMin[TEAM_INDICES[teamA]];
+      let yMinB = cfg.yMin[TEAM_INDICES[teamB]];
+      let yMaxA = cfg.yMax[TEAM_INDICES[teamA]];
+      let yMaxB = cfg.yMax[TEAM_INDICES[teamB]];
+
+      domAInput.value = domThrA;
+      domBInput.value = domThrB;
+      satMinAInput.value = satMinA;
+      satMinBInput.value = satMinB;
+      yMinAInput.value = yMinA;
+      yMinBInput.value = yMinB;
+      yMaxAInput.value = yMaxA;
+      yMaxBInput.value = yMaxB;
+      radiusInput.value = cfg.radiusPx;
+
+      domAInput.addEventListener('input', e => {
+        cfg.domThr[TEAM_INDICES[teamA]] = domThrA = +e.target.value;
+        Config.save('domThr', Array.from(cfg.domThr));
+      });
+      domBInput.addEventListener('input', e => {
+        cfg.domThr[TEAM_INDICES[teamB]] = domThrB = +e.target.value;
+        Config.save('domThr', Array.from(cfg.domThr));
+      });
+      satMinAInput.addEventListener('input', e => {
+        cfg.satMin[TEAM_INDICES[teamA]] = satMinA = +e.target.value;
+        Config.save('satMin', Array.from(cfg.satMin));
+      });
+      satMinBInput.addEventListener('input', e => {
+        cfg.satMin[TEAM_INDICES[teamB]] = satMinB = +e.target.value;
+        Config.save('satMin', Array.from(cfg.satMin));
+      });
+      yMinAInput.addEventListener('input', e => {
+        cfg.yMin[TEAM_INDICES[teamA]] = yMinA = +e.target.value;
+        Config.save('yMin', Array.from(cfg.yMin));
+      });
+      yMinBInput.addEventListener('input', e => {
+        cfg.yMin[TEAM_INDICES[teamB]] = yMinB = +e.target.value;
+        Config.save('yMin', Array.from(cfg.yMin));
+      });
+      yMaxAInput.addEventListener('input', e => {
+        cfg.yMax[TEAM_INDICES[teamA]] = yMaxA = +e.target.value;
+        Config.save('yMax', Array.from(cfg.yMax));
+      });
+      yMaxBInput.addEventListener('input', e => {
+        cfg.yMax[TEAM_INDICES[teamB]] = yMaxB = +e.target.value;
+        Config.save('yMax', Array.from(cfg.yMax));
+      });
+      radiusInput.addEventListener('input', e => {
+        cfg.radiusPx = Math.max(0, +e.target.value);
+        Config.save('radiusPx', cfg.radiusPx);
+      });
+
+      selMode.value = cfg.topMode;
+      selMode.onchange = e => {
+        cfg.topMode = e.target.value;
+        Config.save('topMode', cfg.topMode);
+      };
+
+      initNumberSpinners();
     const topOv = $('#topOv');
     const frontOv = $('#frontOv');
     const btnStart = $('#btnStart');
@@ -404,10 +442,9 @@ const Setup = (() => {
       commit();
     })();
 
-      urlI.value = cfg.url;
-      selA.value = cfg.teamA;
-      selB.value = cfg.teamB;
-      updateThreshInputs();
+        urlI.value = cfg.url;
+        selA.value = teamA;
+        selB.value = teamB;
 
     urlI.onblur = () => {
       cfg.url = urlI.value;
@@ -415,18 +452,32 @@ const Setup = (() => {
       if (urlWarn) urlWarn.textContent = '';
     };
     
-      selA.onchange = e => {
-        cfg.teamA = e.target.value;
-        Config.save('teamA', cfg.teamA);
+      selA.addEventListener('change', e => {
+        teamA = cfg.teamA = e.target.value;
+        Config.save('teamA', teamA);
         Game.setTeams(cfg.teamA, cfg.teamB);
-        cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
-        updateThreshInputs();
-      };
-    selB.onchange = e => {
-      cfg.teamB = e.target.value;
-      Config.save('teamB', cfg.teamB);
-      Game.setTeams(cfg.teamA, cfg.teamB);
-    };
+        domThrA = cfg.domThr[TEAM_INDICES[teamA]];
+        satMinA = cfg.satMin[TEAM_INDICES[teamA]];
+        yMinA = cfg.yMin[TEAM_INDICES[teamA]];
+        yMaxA = cfg.yMax[TEAM_INDICES[teamA]];
+        domAInput.value = domThrA;
+        satMinAInput.value = satMinA;
+        yMinAInput.value = yMinA;
+        yMaxAInput.value = yMaxA;
+      });
+      selB.addEventListener('change', e => {
+        teamB = cfg.teamB = e.target.value;
+        Config.save('teamB', teamB);
+        Game.setTeams(cfg.teamA, cfg.teamB);
+        domThrB = cfg.domThr[TEAM_INDICES[teamB]];
+        satMinB = cfg.satMin[TEAM_INDICES[teamB]];
+        yMinB = cfg.yMin[TEAM_INDICES[teamB]];
+        yMaxB = cfg.yMax[TEAM_INDICES[teamB]];
+        domBInput.value = domThrB;
+        satMinBInput.value = satMinB;
+        yMinBInput.value = yMinB;
+        yMaxBInput.value = yMaxB;
+      });
   }
 
   return { bind };
@@ -608,12 +659,23 @@ const Detect = (() => {
     // rely on GPUShared.detect to throw if unsupported
     return true;
   }
-  async function runTopDetection(preview) {
+    async function runTopDetection(preview) {
+    const colorA = TEAM_INDICES[cfg.teamA];
+    const colorB = TEAM_INDICES[cfg.teamB];
     const { a, b } = await GPUShared.detect({
       key: 'top',
       source: Feeds.top(),
-      hsvA6: cfg.f16Ranges[cfg.teamA],  // Uint16Array f16 thresholds
-      hsvB6: cfg.f16Ranges[cfg.teamB],
+      colorA,
+      colorB,
+      domThrA: cfg.domThr[colorA],
+      satMinA: cfg.satMin[colorA],
+      yMinA: cfg.yMin[colorA],
+      yMaxA: cfg.yMax[colorA],
+      domThrB: cfg.domThr[colorB],
+      satMinB: cfg.satMin[colorB],
+      yMinB: cfg.yMin[colorB],
+      yMaxB: cfg.yMax[colorB],
+      radiusPx: cfg.radiusPx,
       rect: rectTop(),
       previewCanvas: preview ? document.getElementById('topTex') : null,
       preview,
@@ -635,11 +697,22 @@ const Detect = (() => {
       const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
       if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
       lastCaptureTime = meta.captureTime;
+      const colorA = TEAM_INDICES[cfg.teamA];
+      const colorB = TEAM_INDICES[cfg.teamB];
       const { a, b } = await GPUShared.detect({
         key: 'front',
         source: Feeds.front(),
-        hsvA6: cfg.f16Ranges[cfg.teamA],
-        hsvB6: cfg.f16Ranges[cfg.teamB],
+        colorA,
+        colorB,
+        domThrA: cfg.domThr[colorA],
+        satMinA: cfg.satMin[colorA],
+        yMinA: cfg.yMin[colorA],
+        yMaxA: cfg.yMax[colorA],
+        domThrB: cfg.domThr[colorB],
+        satMinB: cfg.satMin[colorB],
+        yMinB: cfg.yMin[colorB],
+        yMaxB: cfg.yMax[colorB],
+        radiusPx: cfg.radiusPx,
         rect: rectFront(),
         previewCanvas: preview ? document.getElementById('frontTex') : null,
         preview,
@@ -647,16 +720,14 @@ const Detect = (() => {
         activeB: bActive,
         flipY: true
       });
-      const [cntA, sumXA, sumYA] = a;
-      const [cntB, sumXB, sumYB] = b;
+      const [cntA, xA, yA] = a;
+      const [cntB, xB, yB] = b;
       const hits = [];
       if (cntA > cfg.frontMinArea) {
-        const cx = sumXA / cntA, cy = sumYA / cntA;
-        hits.push({ team: cfg.teamA, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
+        hits.push({ team: cfg.teamA, x: xA / cfg.frontResW, y: yA / cfg.frontResH });
       }
       if (cntB > cfg.frontMinArea) {
-        const cx = sumXB / cntB, cy = sumYB / cntB;
-        hits.push({ team: cfg.teamB, x: cx / cfg.frontResW, y: cy / cfg.frontResH });
+        hits.push({ team: cfg.teamB, x: xB / cfg.frontResW, y: yB / cfg.frontResH });
       }
       if (preview && hits.length) {
         for (const h of hits) PreviewGfx.drawHit(h);
