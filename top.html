@@ -91,7 +91,9 @@
       <option value="3">🟡</option>
     </select>
       <input id="domA" type="number" placeholder="domA" step="0.01" />
+      <input id="satMinA" type="number" placeholder="satMinA" step="0.01" />
       <input id="yMinA" type="number" placeholder="yMinA" step="0.01" />
+      <input id="yMaxA" type="number" placeholder="yMaxA" step="0.01" />
     </fieldset>
     <fieldset>
       <select id="teamB">
@@ -101,7 +103,9 @@
       <option value="3">🟡</option>
     </select>
       <input id="domB" type="number" placeholder="domB" step="0.01" />
+      <input id="satMinB" type="number" placeholder="satMinB" step="0.01" />
       <input id="yMinB" type="number" placeholder="yMinB" step="0.01" />
+      <input id="yMaxB" type="number" placeholder="yMaxB" step="0.01" />
     </fieldset>
     <fieldset>
       <input id="radiusPx" type="number" placeholder="radius" />
@@ -165,14 +169,20 @@
     const radiusInput = $('#radiusPx');
     const domAInput = $('#domA');
     const domBInput = $('#domB');
+    const satMinAInput = $('#satMinA');
+    const satMinBInput = $('#satMinB');
     const yMinAInput = $('#yMinA');
     const yMinBInput = $('#yMinB');
+    const yMaxAInput = $('#yMaxA');
+    const yMaxBInput = $('#yMaxB');
     const selA = $('#teamA');
     const selB = $('#teamB');
 
-    const DOM_THR_DEFAULT = 0.20; // try 0.15..0.25
-    const YMIN_DEFAULT    = 0.20; // try 0.18..0.25
-    const RADIUS_DEFAULT  = 60;
+    const DOM_THR_DEFAULT = 0.10; // try 0.05..0.15
+    const SATMIN_DEFAULT  = 0.12; // try 0.10..0.15
+    const YMIN_DEFAULT    = 0.00; // try 0.00..0.05
+    const YMAX_DEFAULT    = 0.70; // try 0.65..0.70
+    const RADIUS_DEFAULT  = 18;
 
     const DEFAULTS = {
       topResW: 1280,
@@ -180,8 +190,10 @@
       topMinArea: 600,
       teamA: 1,
       teamB: 2,
-      domThr: [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
-      yMin:  [YMIN_DEFAULT,    YMIN_DEFAULT,    YMIN_DEFAULT,    YMIN_DEFAULT],
+      domThr:  [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
+      satMin: [SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT],
+      yMin:   [YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT],
+      yMax:   [YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT],
       topRadiusPx: RADIUS_DEFAULT
     };
 
@@ -189,14 +201,20 @@
     Config.load();
     const cfg = Config.get();
     cfg.domThr = Float32Array.from(cfg.domThr);
+    cfg.satMin = Float32Array.from(cfg.satMin);
     cfg.yMin = Float32Array.from(cfg.yMin);
+    cfg.yMax = Float32Array.from(cfg.yMax);
 
     let teamA = cfg.teamA;
     let teamB = cfg.teamB;
     let domThrA = cfg.domThr[teamA];
     let domThrB = cfg.domThr[teamB];
+    let satMinA = cfg.satMin[teamA];
+    let satMinB = cfg.satMin[teamB];
     let yMinA = cfg.yMin[teamA];
     let yMinB = cfg.yMin[teamB];
+    let yMaxA = cfg.yMax[teamA];
+    let yMaxB = cfg.yMax[teamB];
 
     widthInput.value = cfg.topResW;
     heightInput.value = cfg.topResH;
@@ -204,8 +222,12 @@
     radiusInput.value = cfg.topRadiusPx;
     domAInput.value = domThrA;
     domBInput.value = domThrB;
+    satMinAInput.value = satMinA;
+    satMinBInput.value = satMinB;
     yMinAInput.value = yMinA;
     yMinBInput.value = yMinB;
+    yMaxAInput.value = yMaxA;
+    yMaxBInput.value = yMaxB;
 
     function onWidthInput(e) {
       cfg.topResW = Math.max(1, +e.target.value);
@@ -237,6 +259,16 @@
       Config.save('domThr', Array.from(cfg.domThr));
     }
 
+    function onSatMinAInput(e) {
+      cfg.satMin[teamA] = satMinA = +e.target.value;
+      Config.save('satMin', Array.from(cfg.satMin));
+    }
+
+    function onSatMinBInput(e) {
+      cfg.satMin[teamB] = satMinB = +e.target.value;
+      Config.save('satMin', Array.from(cfg.satMin));
+    }
+
     function onYMinAInput(e) {
       cfg.yMin[teamA] = yMinA = +e.target.value;
       Config.save('yMin', Array.from(cfg.yMin));
@@ -247,14 +279,28 @@
       Config.save('yMin', Array.from(cfg.yMin));
     }
 
+    function onYMaxAInput(e) {
+      cfg.yMax[teamA] = yMaxA = +e.target.value;
+      Config.save('yMax', Array.from(cfg.yMax));
+    }
+
+    function onYMaxBInput(e) {
+      cfg.yMax[teamB] = yMaxB = +e.target.value;
+      Config.save('yMax', Array.from(cfg.yMax));
+    }
+
     widthInput.addEventListener('input', onWidthInput);
     heightInput.addEventListener('input', onHeightInput);
     minAreaInput.addEventListener('input', onMinAreaInput);
     radiusInput.addEventListener('input', onRadiusInput);
     domAInput.addEventListener('input', onDomAInput);
     domBInput.addEventListener('input', onDomBInput);
+    satMinAInput.addEventListener('input', onSatMinAInput);
+    satMinBInput.addEventListener('input', onSatMinBInput);
     yMinAInput.addEventListener('input', onYMinAInput);
     yMinBInput.addEventListener('input', onYMinBInput);
+    yMaxAInput.addEventListener('input', onYMaxAInput);
+    yMaxBInput.addEventListener('input', onYMaxBInput);
 
     selA.value = String(teamA);
     selB.value = String(teamB);
@@ -263,18 +309,26 @@
       teamA = cfg.teamA = +e.target.value;
       Config.save('teamA', teamA);
       domThrA = cfg.domThr[teamA];
+      satMinA = cfg.satMin[teamA];
       yMinA = cfg.yMin[teamA];
+      yMaxA = cfg.yMax[teamA];
       domAInput.value = domThrA;
+      satMinAInput.value = satMinA;
       yMinAInput.value = yMinA;
+      yMaxAInput.value = yMaxA;
     }
 
     function onChangeTeamB(e) {
       teamB = cfg.teamB = +e.target.value;
       Config.save('teamB', teamB);
       domThrB = cfg.domThr[teamB];
+      satMinB = cfg.satMin[teamB];
       yMinB = cfg.yMin[teamB];
+      yMaxB = cfg.yMax[teamB];
       domBInput.value = domThrB;
+      satMinBInput.value = satMinB;
       yMinBInput.value = yMinB;
+      yMaxBInput.value = yMaxB;
     }
 
     selA.addEventListener('change', onChangeTeamA);
@@ -360,9 +414,13 @@
               colorA: teamA,
               colorB: teamB,
               domThrA,
-              domThrB,
+              satMinA,
               yMinA,
+              yMaxA,
+              domThrB,
+              satMinB,
               yMinB,
+              yMaxB,
               rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
               previewCanvas: canvas,
               preview: true,
