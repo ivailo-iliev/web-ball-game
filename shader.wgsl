@@ -437,9 +437,9 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let video = textureSample(frame,  samp2, i.uv).rgb;
   let mask  = textureSample(maskTex, samp2, i.uv).rgb;
 
-  // Start with video + mask overlay
+  // Start with video + mask overlay (mask uses full color)
   let m = clamp(max(mask.r, max(mask.g, mask.b)), 0.0, 1.0);
-  var outRgb = mix(video, mask, m * 0.6);
+  var outRgb = mix(video, mask, m);
 
   // --------- Debug overlay: grid dots + detected centers ----------
   let dims   = vec2<f32>(textureDimensions(frame));
