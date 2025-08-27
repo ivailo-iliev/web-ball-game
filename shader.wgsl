@@ -7,7 +7,7 @@
 // Bindings (group = 0)
 //
 // @binding(0) : sampler samp
-// @binding(1) : texture_2d<f32> frame          // camera frame
+// @binding(1) : texture_2d<f32> frame          // camera frame (create as rgba8unorm-srgb; sampling auto-decodes to linear)
 //
 // @binding(2) : storage BestA (seed for Team A)
 // @binding(3) : storage BestB (seed for Team B)
@@ -15,7 +15,8 @@
 // @binding(4) : storage StatsA (refined sums for Team A)
 // @binding(5) : storage StatsB (refined sums for Team B)
 //
-// @binding(6) : uniform U                      // calibration + ROI
+// @binding(6) : uniform U                      // ROI + single knob + per-team gates
+// @binding(8) : storage Grid (one atomic counter used to finalize inside refine)
 //
 // (Optional) If you want a debug overlay later, add a storage texture and a
 // simple fragment shader, but this core keeps things minimal & fast.
@@ -23,31 +24,30 @@
 
 enable f16;
 
-// ─────────────── Uniforms you asked to expose (and a few structural fields) ───────────────
+// ─────────────── Uniforms (64 bytes) ───────────────
 struct Uniform {
-  // ROI in pixel coords: [min, max)  (inclusive min, exclusive max)
-  rMin         : vec2<u32>,
-  rMax         : vec2<u32>,
+  // ROI
+  rMin         : vec2<u32>,   //  0
+  rMax         : vec2<u32>,   //  8
 
-  // Known ball radius (pixels). Grid stride derives from this.
-  radiusPx     : f32,
+  // Scale + color ids
+  radiusPx     : f32,         // 16  (single knob; stride & refine derive from this)
+  colorA       : u32,         // 20  (0=R,1=G,2=B,3=Y)
+  colorB       : u32,         // 24
 
-  // Team color indices (0=R, 1=G, 2=B)
-  colorA       : u32,
-  colorB       : u32,
+  // Per-team gates (same logic for both “impact” and “coordinate” use)
+  domThrA      : f32,         // 28
+  satMinA      : f32,         // 32
+  yMinA        : f32,         // 36
+  yMaxA        : f32,         // 40
 
-  // Thresholds you want to calibrate (per team)
-  domThrA      : f32, // minimum dominance (e.g., 0.10..0.30)
-  domThrB      : f32,
-  yMinA        : f32, // minimum luma (0..1)
-  yMinB        : f32,
+  domThrB      : f32,         // 44
+  satMinB      : f32,         // 48
+  yMinB        : f32,         // 52
+  yMaxB        : f32,         // 56
 
-  // Flags (bit0: A active, bit1: B active). If you don't need on/off, set 3 (both on).
-  activeMask   : u32,
-
-  // Reserved for alignment / future use
-  _pad0        : vec3<u32>,
-};
+  activeMask   : u32,         // 60  (bit0=A, bit1=B)
+}
 
 // ─────────────── Small storage buffers ───────────────
 
@@ -55,13 +55,18 @@ struct BestBuf {
   key : atomic<u32>,     // (scoreQ16<<16)|idx16  (so atomicMax prefers higher score, then tie-breaker)
   x   : atomic<u32>,     // seed pixel x
   y   : atomic<u32>,     // seed pixel y
-};
+}
 
 struct Stats {
   cnt  : atomic<u32>,    // count of accepted pixels
   sumX : atomic<u32>,    // sum of x
   sumY : atomic<u32>,    // sum of y
-};
+}
+
+// Single uint counter: number of completed tiles in refine
+struct GridSync {
+  done : atomic<u32>,
+}
 
 @group(0) @binding(0) var samp  : sampler;
 @group(0) @binding(1) var frame : texture_2d<f32>;
@@ -73,6 +78,7 @@ struct Stats {
 @group(0) @binding(5) var<storage, read_write> StatsB : Stats;
 
 @group(0) @binding(6) var<uniform> U : Uniform;
+@group(0) @binding(8) var<storage, read_write> Grid : GridSync;
 
 // Preview bindings (match your original render bind group):
 @group(0) @binding(4) var maskTex : texture_2d<f32>;                      // sampled in fs
@@ -100,14 +106,19 @@ fn sat_val(rgb: vec3<f16>) -> f16 {
   return mx - mn;
 }
 
-fn dom_color(rgb: vec3<f16>, colorIdx: u32) -> f16 {
+// Normalized dominance (brightness-invariant) with small epsilon
+fn dom_norm(rgb: vec3<f16>, colorIdx: u32) -> f16 {
+  const EPS: f16 = 0.001h;
+  let sum = rgb.r + rgb.g + rgb.b + EPS;
+  var d: f16 = 0.0h;
   switch colorIdx {
-    case 0u: { return rgb.r - max(rgb.g, rgb.b); }  // Red
-    case 1u: { return rgb.g - max(rgb.r, rgb.b); }  // Green
-    case 2u: { return rgb.b - max(rgb.r, rgb.g); }  // Blue
-    case 3u: { return min(rgb.r, rgb.g) - rgb.b; }  // Yellow
-    default: { return 0.0h; }
+    case 0u: { d = rgb.r - max(rgb.g, rgb.b); }         // Red
+    case 1u: { d = rgb.g - max(rgb.r, rgb.b); }         // Green
+    case 2u: { d = rgb.b - max(rgb.r, rgb.g); }         // Blue
+    case 3u: { d = min(rgb.r, rgb.g) - rgb.b; }         // Yellow
+    default: { d = 0.0h; }
   }
+  return d / sum;
 }
 
 // RGB preview color for index (0=R,1=G,2=B,3=Y)
@@ -127,18 +138,37 @@ fn pack_key(score: f32, idx: u32) -> u32 {
   return (q << 16) | (idx & 0xFFFFu);
 }
 
-// 4-tap ring mean of dominance at +/-x, +/-y with integer radius (no trig)
-fn ring_dom4(center: vec2<i32>, radius: i32, colorIdx: u32) -> f16 {
-  let pR = clampToFrame(center + vec2<i32>( radius, 0));
-  let pL = clampToFrame(center + vec2<i32>(-radius, 0));
-  let pU = clampToFrame(center + vec2<i32>(0,  radius));
-  let pD = clampToFrame(center + vec2<i32>(0, -radius));
-  let rR = vec3<f16>(textureLoad(frame, pR, 0).rgb);
-  let rL = vec3<f16>(textureLoad(frame, pL, 0).rgb);
-  let rU = vec3<f16>(textureLoad(frame, pU, 0).rgb);
-  let rD = vec3<f16>(textureLoad(frame, pD, 0).rgb);
-  let d  = dom_color(rR, colorIdx) + dom_color(rL, colorIdx)
-         + dom_color(rU, colorIdx) + dom_color(rD, colorIdx);
+// Sample a pixel in linear space by sampling at pixel center (auto SRGB decode)
+fn texelLinearAt(pi: vec2<i32>) -> vec3<f16> {
+  let p    = clampToFrame(pi);
+  let dims = vec2<f32>(textureDimensions(frame));
+  let uv   = (vec2<f32>(vec2<i32>(p)) + vec2<f32>(0.5, 0.5)) / dims;
+  let rgb32 = textureSampleLevel(frame, samp, uv, 0.0).rgb;
+  return vec3<f16>(rgb32);
+}
+
+// 5-tap cross average around pixel center
+fn cross5_rgb(p: vec2<i32>) -> vec3<f16> {
+  let c0 = texelLinearAt(p + vec2<i32>( 0, 0));
+  let c1 = texelLinearAt(p + vec2<i32>( 1, 0));
+  let c2 = texelLinearAt(p + vec2<i32>(-1, 0));
+  let c3 = texelLinearAt(p + vec2<i32>( 0, 1));
+  let c4 = texelLinearAt(p + vec2<i32>( 0,-1));
+  return (c0 + c1 + c2 + c3 + c4) * (1.0h / 5.0h);
+}
+
+// 4-tap ring mean of *normalized dominance* at +/-x, +/-y with integer radius (no trig)
+fn ring_dom4_norm(center: vec2<i32>, radius: i32, colorIdx: u32) -> f16 {
+  let pR = center + vec2<i32>( radius, 0);
+  let pL = center + vec2<i32>(-radius, 0);
+  let pU = center + vec2<i32>(0,  radius);
+  let pD = center + vec2<i32>(0, -radius);
+  let rR = texelLinearAt(pR);
+  let rL = texelLinearAt(pL);
+  let rU = texelLinearAt(pU);
+  let rD = texelLinearAt(pD);
+  let d  = dom_norm(rR, colorIdx) + dom_norm(rL, colorIdx)
+         + dom_norm(rU, colorIdx) + dom_norm(rD, colorIdx);
   return d * (1.0h / 4.0h);
 }
 
@@ -155,9 +185,10 @@ fn seed_grid(
   let r1 = U.rMax;
   let roi = r1 - r0;
 
-  // Grid stride ≈ 2/3 * R, with clamp
+  // Grid stride ≈ 2/3 * R
   let R      = max(1.0, U.radiusPx);
   let S      = max(1u, u32(round(R * 0.6666667)));
+  let iR     = i32(clamp(S, 4u, 16u)); // ring distance for local-contrast
   let gx     = gid.x;
   let gy     = gid.y;
   if (gx * S >= roi.x || gy * S >= roi.y) { return; }
@@ -167,33 +198,27 @@ fn seed_grid(
   let sy = r0.y + min(roi.y - 1u, gy * S + S / 2u);
   let p  = vec2<i32>(i32(sx), i32(sy));
 
-  // Cheap, robust cross-average (5 taps) to reduce single-pixel noise
-  var sum : vec3<f16> = vec3<f16>(0.0h);
-  {
-    let c0 = vec3<f16>(textureLoad(frame, clampToFrame(p + vec2<i32>( 0, 0)), 0).rgb);
-    let c1 = vec3<f16>(textureLoad(frame, clampToFrame(p + vec2<i32>( 1, 0)), 0).rgb);
-    let c2 = vec3<f16>(textureLoad(frame, clampToFrame(p + vec2<i32>(-1, 0)), 0).rgb);
-    let c3 = vec3<f16>(textureLoad(frame, clampToFrame(p + vec2<i32>( 0, 1)), 0).rgb);
-    let c4 = vec3<f16>(textureLoad(frame, clampToFrame(p + vec2<i32>( 0,-1)), 0).rgb);
-    sum = c0 + c1 + c2 + c3 + c4;
-  }
-  let rgb  = sum * (1.0h / 5.0h);
+  // 5-tap cross average in linear RGB
+  let rgb  = cross5_rgb(p);
   let y    = luma(rgb);
   let sat  = sat_val(rgb);
 
-  // Small hardcoded sat gate helps in poor light; tweak if you like.
-  const SAT_MIN : f16 = 0.10h;
+  // Seed score threshold (local-contrast). 0.02–0.03 works well.
+  const SEED_CTHR : f16 = 0.025h;
 
-  // Compute scores for A/B (dominance − 4-tap ring mean), gated by luma/sat
+  // Compute scores for A/B (normalized dominance − 4-tap ring mean), gated by sat + luma window
   let dims = textureDimensions(frame);
   let idx  = u32(sy) * u32(dims.x) + u32(sx);
-  let iR   = i32(max(1.0, U.radiusPx));
 
   if (activeA) {
-    let domA   = dom_color(rgb, U.colorA);
-    let scoreA = select(0.0h, domA - ring_dom4(p, iR, U.colorA),
-                        (y >= f16(U.yMinA)) && (sat >= SAT_MIN) && (domA >= f16(U.domThrA)));
-    if (scoreA > 0.0h) {
+    let domA   = dom_norm(rgb, U.colorA);
+    let passA  = (sat >= f16(U.satMinA)) &&
+                 (domA >= f16(U.domThrA)) &&
+                 (y >= f16(U.yMinA)) && (y <= f16(U.yMaxA));
+    let scoreA = select(0.0h, domA - ring_dom4_norm(p, iR, U.colorA), passA);
+    if (scoreA >= SEED_CTHR) {
+      // tiny preview mark at the sample
+      textureStore(maskOut, vec2<i32>(i32(sx), i32(sy)), vec4<f32>(color_from_index(U.colorA), 1.0));
       let key  = pack_key(f32(clamp(scoreA, 0.0h, 1.0h)), idx);
       let prev = atomicMax(&BestA.key, key);
       if (key > prev) {
@@ -204,10 +229,13 @@ fn seed_grid(
   }
 
   if (activeB) {
-    let domB   = dom_color(rgb, U.colorB);
-    let scoreB = select(0.0h, domB - ring_dom4(p, iR, U.colorB),
-                        (y >= f16(U.yMinB)) && (sat >= SAT_MIN) && (domB >= f16(U.domThrB)));
-    if (scoreB > 0.0h) {
+    let domB   = dom_norm(rgb, U.colorB);
+    let passB  = (sat >= f16(U.satMinB)) &&
+                 (domB >= f16(U.domThrB)) &&
+                 (y >= f16(U.yMinB)) && (y <= f16(U.yMaxB));
+    let scoreB = select(0.0h, domB - ring_dom4_norm(p, iR, U.colorB), passB);
+    if (scoreB >= SEED_CTHR) {
+      textureStore(maskOut, vec2<i32>(i32(sx), i32(sy)), vec4<f32>(color_from_index(U.colorB), 1.0));
       let key  = pack_key(f32(clamp(scoreB, 0.0h, 1.0h)), idx);
       let prev = atomicMax(&BestB.key, key);
       if (key > prev) {
@@ -295,10 +323,11 @@ fn refine_micro(
   // Load pixel & gates once (only if needed); declare defaults so all lanes proceed to barriers
   var rgb : vec3<f16> = vec3<f16>(0.0h);
   var y   : f16       = 0.0h;
+  var sat : f16       = 0.0h;
   if (inBounds && sampleThis && (processA || processB)) {
-    let rgb32 = textureLoad(frame, vec2<i32>(i32(gx), i32(gy)), 0).rgb;
-    rgb = vec3<f16>(rgb32);
+    rgb = texelLinearAt(vec2<i32>(i32(gx), i32(gy)));
     y   = luma(rgb);
+    sat = sat_val(rgb);
   }
 
   // A
@@ -307,8 +336,8 @@ fn refine_micro(
     let dxA = f32(gx) - cA.x;
     let dyA = f32(gy) - cA.y;
     if (dxA*dxA + dyA*dyA <= Rr2) {
-      let dA = dom_color(rgb, U.colorA);
-      if ((y >= f16(U.yMinA)) && (dA >= f16(U.domThrA))) {
+      let dA = dom_norm(rgb, U.colorA);
+      if ((sat >= f16(U.satMinA)) && (dA >= f16(U.domThrA)) && (y >= f16(U.yMinA)) && (y <= f16(U.yMaxA))) {
         atomicAdd(&wgCntA,  1u);
         atomicAdd(&wgSumXA, gx);
         atomicAdd(&wgSumYA, gy);
@@ -324,8 +353,8 @@ fn refine_micro(
     let dxB = f32(gx) - cB.x;
     let dyB = f32(gy) - cB.y;
     if (dxB*dxB + dyB*dyB <= Rr2) {
-      let dB = dom_color(rgb, U.colorB);
-      if ((y >= f16(U.yMinB)) && (dB >= f16(U.domThrB))) {
+      let dB = dom_norm(rgb, U.colorB);
+      if ((sat >= f16(U.satMinB)) && (dB >= f16(U.domThrB)) && (y >= f16(U.yMinB)) && (y <= f16(U.yMaxB))) {
         atomicAdd(&wgCntB,  1u);
         atomicAdd(&wgSumXB, gx);
         atomicAdd(&wgSumYB, gy);
@@ -351,12 +380,42 @@ fn refine_micro(
       atomicAdd(&StatsB.sumX, atomicLoad(&wgSumXB));
       atomicAdd(&StatsB.sumY, atomicLoad(&wgSumYB));
     }
+
+    // ── Grid completion + on-the-spot finalize (no extra pass) ──
+    // Compute total tiles this dispatch should cover (ceil(roi/8))
+    let tilesX = (roi.x + 7u) / 8u;
+    let tilesY = (roi.y + 7u) / 8u;
+    let total  = tilesX * tilesY;
+    // Mark this tile done; the *last* tile performs the centroid division.
+    let prev = atomicAdd(&Grid.done, 1u);
+    if (prev + 1u == total) {
+      // A
+      let cntA2 = atomicLoad(&StatsA.cnt);
+      if (cntA2 > 0u) {
+        let sxA = atomicLoad(&StatsA.sumX);
+        let syA = atomicLoad(&StatsA.sumY);
+        let xA  = (sxA + cntA2 / 2u) / cntA2; // rounded integer centroid
+        let yA  = (syA + cntA2 / 2u) / cntA2;
+        atomicStore(&BestA.x, xA);
+        atomicStore(&BestA.y, yA);
+      }
+      // B
+      let cntB2 = atomicLoad(&StatsB.cnt);
+      if (cntB2 > 0u) {
+        let sxB = atomicLoad(&StatsB.sumX);
+        let syB = atomicLoad(&StatsB.sumY);
+        let xB  = (sxB + cntB2 / 2u) / cntB2;
+        let yB  = (syB + cntB2 / 2u) / cntB2;
+        atomicStore(&BestB.x, xB);
+        atomicStore(&BestB.y, yB);
+      }
+      // (Optional) clear Grid.done here; recommended to clear in JS before dispatch instead.
+    }
   }
 }
 
-
 // ─────────────── Fullscreen preview: video + mask overlay ───────────────
-struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
+struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, }
 
 @vertex
 fn vs(@builtin(vertex_index) vi : u32) -> VSOut {
