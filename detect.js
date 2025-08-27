@@ -237,7 +237,7 @@
     colorB = 2,
     domThrA = 0.10, satMinA = 0.12, yMinA = 0.00, yMaxA = 0.70,
     domThrB = 0.10, satMinB = 0.12, yMinB = 0.00, yMaxB = 0.70,
-    radiusPx = 45         // single knob; grid/refine derive from this
+    radiusPx = 18         // single knob; grid/refine derive from this
     } = {}) {
     const device = await _ensureDevice();
     if (!source) throw new Error('detect: source required');

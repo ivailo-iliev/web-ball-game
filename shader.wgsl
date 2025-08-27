@@ -204,7 +204,7 @@ fn seed_grid(
   let sat  = sat_val(rgb);
 
   // Seed score threshold (local-contrast). 0.02–0.03 works well.
-  const SEED_CTHR : f16 = 0.025h;
+  const SEED_CTHR : f16 = 0.025h; // default
 
   // Compute scores for A/B (normalized dominance − 4-tap ring mean), gated by sat + luma window
   let dims = textureDimensions(frame);
