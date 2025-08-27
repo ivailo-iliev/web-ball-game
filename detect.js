@@ -47,23 +47,29 @@
     // Seeds (BestA/BestB): (key,x,y)
     const bestA  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     const bestB  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-    const readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-    const readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    // Grid completion counter for in-pass finalize (binding @8)
+    const grid   = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    const readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }); // will read BestA
+    const readB = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }); // will read BestB
     const zero3  = new Uint32Array(3);
     const zero12 = new Uint32Array(3); // for BestA/BestB too
+    const zero1  = new Uint32Array(1); // for Grid.done
     const buffer = new ArrayBuffer(64);
     const f32 = new Float32Array(buffer);
     const u32 = new Uint32Array(buffer);
 
-    // New Uniform layout (byte offsets):
+    // Uniform layout (64B):
     //  0: u32 rMin.x,  4: u32 rMin.y
     //  8: u32 rMax.x, 12: u32 rMax.y
     // 16: f32 radiusPx
     // 20: u32 colorA, 24: u32 colorB
-    // 28: f32 domThrA, 32: f32 domThrB
-    // 36: f32 yMinA,   40: f32 yMinB
-    // 44: u32 activeMask (bit0=A, bit1=B)
-    function writeUniform(queue, rect, radiusPx, colorA, colorB, domThrA, domThrB, yMinA, yMinB, activeMask) {
+    // 28: f32 domThrA, 32: f32 satMinA, 36: f32 yMinA, 40: f32 yMaxA
+    // 44: f32 domThrB, 48: f32 satMinB, 52: f32 yMinB, 56: f32 yMaxB
+    // 60: u32 activeMask (bit0=A, bit1=B)
+    function writeUniform(queue, rect, radiusPx, colorA, colorB,
+                          domThrA, satMinA, yMinA, yMaxA,
+                          domThrB, satMinB, yMinB, yMaxB,
+                          activeMask) {
       u32[0] = rect.min[0] >>> 0;
       u32[1] = rect.min[1] >>> 0;
       u32[2] = rect.max[0] >>> 0;
@@ -71,11 +77,15 @@
       f32[4] = radiusPx;
       u32[5] = (colorA >>> 0);
       u32[6] = (colorB >>> 0);
-      f32[7] = domThrA;
-      f32[8] = domThrB;
-      f32[9] = yMinA;
-      f32[10] = yMinB;
-      u32[11] = (activeMask >>> 0);
+      f32[7]  = domThrA;
+      f32[8]  = satMinA;
+      f32[9]  = yMinA;
+      f32[10] = yMaxA;
+      f32[11] = domThrB;
+      f32[12] = satMinB;
+      f32[13] = yMinB;
+      f32[14] = yMaxB;
+      u32[15] = (activeMask >>> 0);
       queue.writeBuffer(uni, 0, buffer);
     }
 
@@ -84,38 +94,40 @@
       queue.writeBuffer(statsB, 0, zero3);
       queue.writeBuffer(bestA,  0, zero12);
       queue.writeBuffer(bestB,  0, zero12);
+      queue.writeBuffer(grid,   0, zero1);
     }
 
-    async function readStats() {
+    async function readBest() {
       await Promise.all([
         readA.mapAsync(GPUMapMode.READ),
         readB.mapAsync(GPUMapMode.READ)
       ]);
-      const a = new Uint32Array(readA.getMappedRange()).slice(0, 3);
-      const b = new Uint32Array(readB.getMappedRange()).slice(0, 3);
+      const a = new Uint32Array(readA.getMappedRange()).slice(0, 3); // [key, x, y]
+      const b = new Uint32Array(readB.getMappedRange()).slice(0, 3); // [key, x, y]
       readA.unmap();
       readB.unmap();
       return { a, b };
     }
 
-    return { uni, statsA, statsB, bestA, bestB, readA, readB, writeUniform, resetStats, readStats };
+    return { uni, statsA, statsB, bestA, bestB, grid, readA, readB, writeUniform, resetStats, readBest };
   }
 
   function createFeed(device, pipelines, sampler, w, h) {
-    // Use an explicit RGBA format for textures that may be bound as storage.
+    // Use explicit formats. Frame is SRGB so sampling auto-decodes to linear.
     // "bgra8unorm" (the common canvas format) is not allowed with
     // GPUTextureUsage.STORAGE_BINDING, which caused validation failures in
     // Chrome when creating the mask texture.
-    const texFormat = 'rgba8unorm';
+    const frameFormat = 'rgba8unorm-srgb';
+    const maskFormat  = 'rgba8unorm';
 
     const frameTex = device.createTexture({
       size: { width: w, height: h },
-      format: texFormat,
+      format: frameFormat,
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     });
     const maskTex = device.createTexture({
       size: [w, h],
-      format: texFormat,
+      format: maskFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING
     });
     const frameView = frameTex.createView();
@@ -149,11 +161,12 @@
         bgSeed = device.createBindGroup({
           layout: pipelines.computeSeed.getBindGroupLayout(0),
           entries: [
-            // seed_grid uses: frame@1, BestA@2, BestB@3, U@6
+            // seed_grid uses: frame@1, BestA@2, BestB@3, U@6, maskOut@7
             { binding: 1, resource: frameView },
             { binding: 2, resource: { buffer: pack.bestA } },
             { binding: 3, resource: { buffer: pack.bestB } },
-            { binding: 6, resource: { buffer: pack.uni } }
+            { binding: 6, resource: { buffer: pack.uni } },
+            { binding: 7, resource: maskView }
           ]
         });
       }
@@ -165,14 +178,15 @@
         bgRefine = device.createBindGroup({
           layout: pipelines.computeRefine.getBindGroupLayout(0),
           entries: [
-            // refine_micro uses: frame@1, BestA@2, BestB@3, StatsA@4, StatsB@5, U@6, maskOut@7
+            // refine_micro uses: frame@1, BestA@2, BestB@3, StatsA@4, StatsB@5, U@6, maskOut@7, Grid@8
             { binding: 1, resource: frameView },
             { binding: 2, resource: { buffer: pack.bestA } },
             { binding: 3, resource: { buffer: pack.bestB } },
             { binding: 4, resource: { buffer: pack.statsA } },
             { binding: 5, resource: { buffer: pack.statsB } },
             { binding: 6, resource: { buffer: pack.uni } },
-            { binding: 7, resource: maskView }
+            { binding: 7, resource: maskView },
+            { binding: 8, resource: { buffer: pack.grid } }
           ]
         });
       }
@@ -219,13 +233,11 @@
     activeB = true,
     flipY = true,
     // Calibration knobs for the new WGSL:
-    colorA = 0,           // 0=R, 1=G, 2=B
+    colorA = 0,           // 0=R,1=G,2=B,3=Y
     colorB = 2,
-    domThrA = 0.18,       // dominance thresholds (0..1)
-    domThrB = 0.18,
-    yMinA  = 0.20,        // luma floors (0..1)
-    yMinB  = 0.20,
-    radiusPx = 45         // known ball radius in pixels
+    domThrA = 0.10, satMinA = 0.12, yMinA = 0.00, yMaxA = 0.70,
+    domThrB = 0.10, satMinB = 0.12, yMinB = 0.00, yMaxB = 0.70,
+    radiusPx = 45         // single knob; grid/refine derive from this
     } = {}) {
     const device = await _ensureDevice();
     if (!source) throw new Error('detect: source required');
@@ -284,8 +296,8 @@
       rect || ctx.defaultRect,
       radiusPx,
       colorA, colorB,
-      domThrA, domThrB,
-      yMinA, yMinB,
+      domThrA, satMinA, yMinA, yMaxA,
+      domThrB, satMinB, yMinB, yMaxB,
       activeMask
     );
 
@@ -319,9 +331,9 @@
     c2.dispatchWorkgroups(Math.ceil(roiW / 8), Math.ceil(roiH / 8));
     c2.end();
 
-    // Read back refined stats
-    enc.copyBufferToBuffer(ctx.pack.statsA, 0, ctx.pack.readA, 0, 12);
-    enc.copyBufferToBuffer(ctx.pack.statsB, 0, ctx.pack.readB, 0, 12);
+    // Read back winning seeds (BestA/BestB: key,x,y) — centroid finalized on GPU
+    enc.copyBufferToBuffer(ctx.pack.bestA, 0, ctx.pack.readA, 0, 12);
+    enc.copyBufferToBuffer(ctx.pack.bestB, 0, ctx.pack.readB, 0, 12);
 
     if (view && state.pipelines.render) {
       const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
@@ -332,8 +344,8 @@
     }
 
     device.queue.submit([enc.finish()]);
-    const { a, b } = await ctx.pack.readStats();
-
+    const { a, b } = await ctx.pack.readBest();
+    // a/b are [key, x, y]; key packs score in high bits if you need it
     return { a, b, w, h, resized };
   }
 
