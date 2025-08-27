@@ -45,8 +45,8 @@
     const statsA = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
     const statsB = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
     // Seeds (BestA/BestB): (key,x,y)
-    const bestA  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-    const bestB  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    const bestA  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
+    const bestB  = device.createBuffer({ size: 12, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC });
     // Grid completion counter for in-pass finalize (binding @8)
     const grid   = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     const readA = device.createBuffer({ size: 12, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }); // will read BestA
@@ -162,6 +162,8 @@
           layout: pipelines.computeSeed.getBindGroupLayout(0),
           entries: [
             // seed_grid uses: frame@1, BestA@2, BestB@3, U@6, maskOut@7
+
+            { binding: 0, resource: sampler },
             { binding: 1, resource: frameView },
             { binding: 2, resource: { buffer: pack.bestA } },
             { binding: 3, resource: { buffer: pack.bestB } },
@@ -179,6 +181,7 @@
           layout: pipelines.computeRefine.getBindGroupLayout(0),
           entries: [
             // refine_micro uses: frame@1, BestA@2, BestB@3, StatsA@4, StatsB@5, U@6, maskOut@7, Grid@8
+            { binding: 0, resource: sampler },
             { binding: 1, resource: frameView },
             { binding: 2, resource: { buffer: pack.bestA } },
             { binding: 3, resource: { buffer: pack.bestB } },
