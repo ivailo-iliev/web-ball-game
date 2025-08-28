@@ -417,12 +417,23 @@
           lastFrameTS = now;
           busy = true;
           // Center crop using zero-copy VideoFrame API for maximum performance
-          const cropW = cfg.topResW;
-          const cropH = cfg.topResH;
-          const ox = Math.max(0, (frame.codedWidth - cropW) >> 1);
-          const oy = Math.max(0, (frame.codedHeight - cropH) >> 1);
-          const cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
+          let cropW = cfg.topResW;
+          let cropH = cfg.topResH;
+          const frameW = frame.codedWidth;
+          const frameH = frame.codedHeight;
+          if (cropW > frameW) {
+            cropW = frameW;
+            cropH = Math.round(cropW * ASPECT);
+          }
+          if (cropH > frameH) {
+            cropH = frameH;
+            cropW = Math.round(cropH / ASPECT);
+          }
+          const ox = Math.max(0, (frameW - cropW) >> 1);
+          const oy = Math.max(0, (frameH - cropH) >> 1);
+          let cropped;
           try {
+            cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
             const { a, b, w, h, resized } = await GPUShared.detect({
               key: 'demo',
               source: cropped,
@@ -436,7 +447,7 @@
               satMinB,
               yMinB,
               yMaxB,
-              rect: { min: new Float32Array([0, 0]), max: new Float32Array([cropped.codedWidth, cropped.codedHeight]) },
+              rect: { min: new Float32Array([0, 0]), max: new Float32Array([cropW, cropH]) },
               previewCanvas: canvas,
               preview: true,
               activeA: true, activeB: true,
@@ -449,7 +460,6 @@
               infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               info.textContent = infoBase;
             }
-            // a[0]/b[0] are Best.key (Q16 score in high 16 bits)
             const scoreA = (a[0] >>> 16) / 65535;
             const scoreB = (b[0] >>> 16) / 65535;
             const aOn = scoreA >= cfg.topMinArea;
@@ -462,8 +472,8 @@
               if (bit !== undefined && window.sendBit) window.sendBit(bit);
             }
           } finally {
-            cropped.close();
-            frame.close(); // always release
+            if (cropped) cropped.close();
+            frame.close();
             busy = false;
           }
         }
