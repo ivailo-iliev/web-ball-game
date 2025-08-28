@@ -442,6 +442,7 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let dimsF = vec2<f32>(dims);
   let uv    = clamp(i.uv, vec2<f32>(0.0), vec2<f32>(1.0));
   let px    = uv * dimsF;
+  let pxC   = floor(px) + vec2<f32>(0.5, 0.5);  // pixel center
 
   let r0u = vec2<u32>(U.rMin);
   let r1u = vec2<u32>(U.rMax);
@@ -453,14 +454,14 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let S_u = max(1u, u32(round(U.radiusPx * 0.6666667)));
   let S_f = f32(S_u);
   let g0i = vec2<i32>(r0u) + vec2<i32>(i32(S_u / 2u));
-  let g0f = vec2<f32>(g0i);
+  let g0f = vec2<f32>(g0i) + vec2<f32>(0.5, 0.5);  // center of texel
 
   // Nearest grid center for this fragment
-  let loc = px - g0f;
+  let loc = pxC - g0f;
   let nx  = i32(round(loc.x / S_f));
   let ny  = i32(round(loc.y / S_f));
   let gcI = g0i + vec2<i32>(nx * i32(S_u), ny * i32(S_u));
-  let gcF = vec2<f32>(gcI);
+  let gcF = vec2<f32>(gcI) + vec2<f32>(0.5, 0.5);
 
   // Read mask at EXACT grid-center pixel
   let dimsI = vec2<i32>(i32(dims.x), i32(dims.y));
@@ -475,8 +476,8 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let hasMask = max(maskC.r, max(maskC.g, maskC.b)) > 0.0;
 
   // ---- All passing grid dots as SOLID color (overwrite) ----
-  const DOT_R : f32 = 1.5;  // adjust size as needed
-  if (inROI && hasMask && distance(px, gcF) <= DOT_R) {
+  const DOT_R : f32 = 2.0;  // slightly bigger for visibility
+  if (inROI && hasMask && distance(pxC, gcF) <= DOT_R) {
     outRgb = maskC;
   }
 
@@ -488,7 +489,7 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   if (hasA) {
     let cA   = vec2<f32>(f32(atomicLoad(&BestA.x)) + 0.5, f32(atomicLoad(&BestA.y)) + 0.5);
     let colA = color_from_index(U.colorA);
-    let dA   = distance(px, cA);
+    let dA   = distance(pxC, cA);
 
     // radius ring at U.radiusPx
     if (abs(dA - U.radiusPx) <= RING_W * 0.5) {
@@ -504,7 +505,7 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   if (hasB) {
     let cB   = vec2<f32>(f32(atomicLoad(&BestB.x)) + 0.5, f32(atomicLoad(&BestB.y)) + 0.5);
     let colB = color_from_index(U.colorB);
-    let dB   = distance(px, cB);
+    let dB   = distance(pxC, cB);
 
     if (abs(dB - U.radiusPx) <= RING_W * 0.5) {
       outRgb = colB;
