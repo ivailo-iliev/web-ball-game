@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iPhone Zoom Compare</title>
+  <style>
+    :root { --bg:#0b0f14; --card:#121821; --muted:#8aa0b3; --text:#e6eef6; --accent:#5ab0ff; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{padding:18px 20px;border-bottom:1px solid #1f2a36;background:linear-gradient(180deg,#0e1218,#0b0f14)}
+    h1{margin:0;font-size:20px;letter-spacing:.3px}
+    main{padding:16px;display:grid;gap:16px;grid-template-columns:1fr}
+    .row{display:grid;gap:16px}
+    .controls,.status,.outputs{background:var(--card);border:1px solid #1f2a36;border-radius:16px;padding:14px}
+    .controls h2,.outputs h2,.status h2{font-size:16px;margin:0 0 10px 0;color:#c9d7e3}
+    button{appearance:none;border:1px solid #2a3a4d;background:#17202b;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer}
+    button.primary{background:var(--accent);color:#021321;border-color:#77c2ff}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .btns{display:flex;gap:10px;flex-wrap:wrap}
+    .hint{color:var(--muted);font-size:12px}
+    .grid{display:grid;gap:14px}
+    .grid.two{grid-template-columns:1fr 1fr}
+    .grid.three{grid-template-columns:1fr 1fr 1fr}
+    .videoWrap{position:relative;width:100%;max-width:640px;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid #283447;background:#000}
+    video{width:100%;height:100%;object-fit:cover;transform-origin:center center}
+    .stat{font-size:12px;color:#cbd7e5}
+    .kvs{display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:6px}
+    .kv{display:flex;justify-content:space-between;background:#0f141c;border:1px solid #263243;border-radius:8px;padding:6px 8px}
+    label{font-size:12px;color:#cbd7e5}
+    input[type="range"]{width:100%}
+    .captureGrid{display:grid;gap:16px}
+    @media (min-width: 1000px){
+      main{grid-template-columns: 0.8fr 1.2fr}
+    }
+    .histWrap{display:flex;gap:12px;align-items:flex-end}
+    canvas.hist{width:160px;height:80px;border:1px solid #2a3a4d;border-radius:8px;background:#0f141c}
+    .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid #2a3a4d;background:#0f141c;color:#9fb4c7}
+    .warning{color:#ffca6a}
+    .ok{color:#80ffb0}
+    .err{color:#ff8b8b}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>iPhone Zoom Compare — Emulated 2× vs Real 2×</h1>
+    <div class="hint">This version captures an <b>emulated 2×</b> (center crop from a 1× frame) on the left, and a <b>real 2×</b> (camera zoom constraint) on the right. Compare histograms to see exposure/tonemapping differences.</div>
+  </header>
+  
+  <main>
+    <section class="controls">
+      <h2>1) Camera Controls</h2>
+      <div class="grid">
+        <div class="btns">
+          <button id="startBtn" class="primary">Start rear camera</button>
+          <button id="stopBtn" disabled>Stop</button>
+          <button id="torchBtn" disabled>Toggle torch</button>
+        </div>
+        <div class="videoWrap">
+          <video id="video" playsinline muted></video>
+        </div>
+        <div class="grid two">
+          <div>
+            <label for="zoomSlider">Live Preview Zoom <span id="zoomRead" class="pill">—</span></label>
+            <input id="zoomSlider" type="range" min="1" max="2" value="1" step="0.01" disabled>
+            <div class="btns" style="margin-top:8px">
+              <button id="z1">Set 1×</button>
+              <button id="z2">Set 2×</button>
+              <button id="stabilizeBtn" title="Wait a bit for AE to settle after zoom change">Stabilize 0.8s</button>
+            </div>
+            <div class="hint">"Emulated" means the browser doesn't expose native camera zoom. In that case, <b>Real 2×</b> won't be possible and will fall back to a crop.</div>
+          </div>
+          <div>
+            <label for="delay">AE settle delay (ms)</label>
+            <input id="delay" type="number" value="800" min="0" step="100" style="width:120px" />
+            <div class="kvs" style="margin-top:8px">
+              <div class="kv"><span>Zoom supported</span><span id="zoomSupport">—</span></div>
+              <div class="kv"><span>Torch supported</span><span id="torchSupport">—</span></div>
+              <div class="kv"><span>Resolution</span><span id="res">—</span></div>
+              <div class="kv"><span>Track zoom</span><span id="trackZoom">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="outputs">
+      <h2>2) Capture & Compare</h2>
+      <div class="btns" style="margin-bottom:10px">
+        <button id="capEmu" disabled>Capture Emulated 2× (from 1×)</button>
+        <button id="capReal" disabled>Capture Real 2× (camera)</button>
+        <button id="resetBtn">Reset captures</button>
+      </div>
+      <div class="captureGrid grid two">
+        <div>
+          <div class="pill">Emulated 2× (crop from 1×)</div>
+          <canvas id="c1" width="0" height="0" style="display:block;max-width:100%;border:1px solid #2a3a4d;border-radius:12px;background:#0f141c"></canvas>
+          <div class="histWrap" style="margin-top:8px">
+            <canvas id="h1" class="hist" width="256" height="128"></canvas>
+            <div class="stat" id="s1">—</div>
+          </div>
+          <div class="btns" style="margin-top:8px">
+            <button id="dl1" disabled>Download Emulated</button>
+          </div>
+        </div>
+        <div>
+          <div class="pill">Real 2× (camera zoom)</div>
+          <canvas id="c2" width="0" height="0" style="display:block;max-width:100%;border:1px solid #2a3a4d;border-radius:12px;background:#0f141c"></canvas>
+          <div class="histWrap" style="margin-top:8px">
+            <canvas id="h2" class="hist" width="256" height="128"></canvas>
+            <div class="stat" id="s2">—</div>
+          </div>
+          <div class="btns" style="margin-top:8px">
+            <button id="dl2" disabled>Download Real</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="status">
+      <h2>Notes & Tips</h2>
+      <ul>
+        <li>Step 1: Tap <em>Set 1×</em> and then <em>Capture Emulated 2×</em>. This crops the center of the 1× feed.</li>
+        <li>Step 2: Tap <em>Set 2×</em>, wait for AE settle, then <em>Capture Real 2×</em>. This uses camera zoom if supported.</li>
+        <li>Compare histograms/metrics to see if exposure or tone mapping differs between the two pipelines.</li>
+      </ul>
+      <div class="hint">Privacy: everything runs locally in your browser. No images are uploaded.</div>
+    </section>
+  </main>
+
+<script>
+(() => {
+  const els = {
+    start: document.getElementById('startBtn'),
+    stop: document.getElementById('stopBtn'),
+    torch: document.getElementById('torchBtn'),
+    video: document.getElementById('video'),
+    zSlider: document.getElementById('zoomSlider'),
+    zRead: document.getElementById('zoomRead'),
+    z1: document.getElementById('z1'),
+    z2: document.getElementById('z2'),
+    stabilize: document.getElementById('stabilizeBtn'),
+    delay: document.getElementById('delay'),
+    res: document.getElementById('res'),
+    trackZoom: document.getElementById('trackZoom'),
+    zoomSupport: document.getElementById('zoomSupport'),
+    torchSupport: document.getElementById('torchSupport'),
+    capEmu: document.getElementById('capEmu'),
+    capReal: document.getElementById('capReal'),
+    c1: document.getElementById('c1'),
+    c2: document.getElementById('c2'),
+    h1: document.getElementById('h1'),
+    h2: document.getElementById('h2'),
+    s1: document.getElementById('s1'),
+    s2: document.getElementById('s2'),
+    dl1: document.getElementById('dl1'),
+    dl2: document.getElementById('dl2'),
+  };
+
+  let stream = null;
+  let track = null;
+  let usingEmulatedZoom = false; // whether LIVE zoom is emulated
+
+  function sleep(ms){return new Promise(r=>setTimeout(r, ms));}
+  function clamp(v,min,max){return Math.max(min, Math.min(max, v));}
+
+  function updateRes(){
+    const w = els.video.videoWidth || 0;
+    const h = els.video.videoHeight || 0;
+    els.res.textContent = w && h ? `${w}×${h}` : '—';
+  }
+
+  function setUIEnabled(on){
+    els.stop.disabled = !on;
+    els.capEmu.disabled = !on;
+    els.capReal.disabled = !on;
+    els.z1.disabled = !on;
+    els.z2.disabled = !on;
+    els.zSlider.disabled = !on;
+    els.torch.disabled = !on;
+  }
+
+  async function start(){
+    try{
+      els.start.disabled = true;
+      usingEmulatedZoom = false;
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      });
+      els.video.srcObject = stream;
+      await els.video.play();
+      track = stream.getVideoTracks()[0];
+
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+
+      // Zoom support detection
+      let zoomCap = caps.zoom;
+      if (zoomCap && typeof zoomCap.min === 'number' && typeof zoomCap.max === 'number') {
+        els.zoomSupport.innerHTML = '<span class="ok">Yes</span>';
+        const min = Math.max(1, zoomCap.min);
+        const max = Math.max(min, zoomCap.max);
+        const step = zoomCap.step || 0.01;
+        els.zSlider.min = String(min);
+        els.zSlider.max = String(max);
+        els.zSlider.step = String(step);
+        await applyZoom(1);
+      } else {
+        els.zoomSupport.innerHTML = '<span class="warning">Emulated</span>';
+        usingEmulatedZoom = true;
+        els.zSlider.min = '1';
+        els.zSlider.max = '3';
+        els.zSlider.step = '0.01';
+        applyEmulatedZoom(1);
+      }
+
+      // Torch support
+      const torchOK = !!caps.torch;
+      els.torchSupport.textContent = torchOK ? 'Yes' : 'No';
+      els.torch.disabled = !torchOK;
+
+      setUIEnabled(true);
+      els.stop.disabled = false;
+
+      updateRes();
+      requestAnimationFrame(function raf(){updateRes(); requestAnimationFrame(raf)});
+
+      // track zoom readout
+      const upd = () => {
+        const s = track.getSettings ? track.getSettings() : {};
+        const z = typeof s.zoom === 'number' ? s.zoom : (usingEmulatedZoom ? parseFloat(els.zSlider.value) : '—');
+        els.trackZoom.textContent = (z==='—')? '—' : `${(+z).toFixed(2)}×`;
+      };
+      setInterval(upd, 250);
+
+    }catch(err){
+      console.error(err);
+      alert('Could not start camera: ' + err.message);
+      els.start.disabled = false;
+    }
+  }
+
+  function stop(){
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
+      stream = null; track = null;
+      els.video.srcObject = null;
+      setUIEnabled(false);
+      els.start.disabled = false;
+      els.res.textContent = '—';
+      els.trackZoom.textContent = '—';
+    }
+  }
+
+  async function applyZoom(z){
+    z = parseFloat(z);
+    if (!track) return;
+    if (usingEmulatedZoom) return applyEmulatedZoom(z);
+    try{
+      await track.applyConstraints({ advanced: [{ zoom: z }] });
+    }catch(e){
+      try{ await track.applyConstraints({ zoom: z }); }
+      catch(e2){ console.warn('Zoom failed, emulating', e2); usingEmulatedZoom = true; applyEmulatedZoom(z); els.zoomSupport.innerHTML = '<span class="warning">Emulated</span>'; }
+    }
+    els.zSlider.value = String(z);
+    els.zRead.textContent = `${z.toFixed(2)}×`;
+  }
+
+  function applyEmulatedZoom(z){
+    z = Math.max(1, parseFloat(z));
+    els.video.style.transform = `scale(${z})`;
+    els.zRead.textContent = `${z.toFixed(2)}× (emulated)`;
+  }
+
+  async function stabilize(){
+    const ms = parseInt(els.delay.value||0,10);
+    if (ms>0) await sleep(ms);
+  }
+
+  // Capture helper
+  async function capture(toCanvas, {emulatedCrop=false}={}){
+    if(!els.video.videoWidth){ alert('Camera not ready yet.'); return; }
+    const ctx = toCanvas.getContext('2d');
+    const w = els.video.videoWidth;
+    const h = els.video.videoHeight;
+    toCanvas.width = w; toCanvas.height = h;
+
+    if (emulatedCrop){
+      const cropW = Math.floor(w/2);
+      const cropH = Math.floor(h/2);
+      const sx = Math.floor((w - cropW)/2);
+      const sy = Math.floor((h - cropH)/2);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(els.video, sx, sy, cropW, cropH, 0, 0, w, h);
+    } else {
+      ctx.drawImage(els.video, 0, 0, w, h);
+    }
+  }
+
+  function analyze(canvas, histCanvas, statEl){
+    const w = canvas.width; const h = canvas.height;
+    if(!w || !h){ statEl.textContent = '—'; return; }
+    const ctx = canvas.getContext('2d');
+    const { data } = ctx.getImageData(0,0,w,h);
+    const bins = new Array(64).fill(0);
+    let sum=0, pix=0, hi=0, lo=0;
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i], g=data[i+1], b=data[i+2];
+      const y = 0.2126*r + 0.7152*g + 0.0722*b; // luma 0..255
+      sum += y; pix++;
+      if (y>=240) hi++; else if (y<=15) lo++;
+      const bi = Math.min(63, Math.max(0, Math.floor(y/4))); // 64 bins
+      bins[bi]++;
+    }
+    const mean = sum/pix;
+    // median approx from histogram
+    let cumulative = 0, medianBin = 0;
+    const half = pix/2;
+    for(let i=0;i<bins.length;i++){
+      cumulative += bins[i];
+      if(cumulative>=half){ medianBin = i; break; }
+    }
+    const median = medianBin*4 + 2;
+    const hiPct = (hi/pix*100).toFixed(1);
+    const loPct = (lo/pix*100).toFixed(1);
+
+    // draw histogram
+    const hc = histCanvas; const hctx = hc.getContext('2d');
+    hctx.clearRect(0,0,hc.width,hc.height);
+    const maxBin = Math.max(...bins);
+    const barW = hc.width / bins.length;
+    for(let i=0;i<bins.length;i++){
+      const val = bins[i]/maxBin*hc.height;
+      hctx.fillStyle = '#4aa3ff';
+      hctx.fillRect(i*barW, hc.height - val, barW*0.95, val);
+    }
+
+    statEl.innerHTML = `Mean Luma: <b>${mean.toFixed(1)}</b><br>Median Luma: <b>${median.toFixed(0)}</b><br>Shadows (≤15): <b>${loPct}%</b><br>Highlights (≥240): <b>${hiPct}%</b>`;
+  }
+
+  function download(canvas, name){
+    if(!canvas.width){ return; }
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+    }, 'image/png');
+  }
+
+  // wire up
+  els.start.addEventListener('click', start);
+  els.stop.addEventListener('click', stop);
+  els.zSlider.addEventListener('input', e => applyZoom(e.target.value));
+  els.z1.addEventListener('click', ()=>applyZoom(1));
+  els.z2.addEventListener('click', ()=>applyZoom(2));
+  els.stabilize.addEventListener('click', stabilize);
+
+  // Emulated 2×: force 1× live preview, then crop center when capturing
+  els.capEmu.addEventListener('click', async() => {
+    await applyZoom(1);
+    await stabilize();
+    await capture(els.c1, { emulatedCrop: true });
+    analyze(els.c1, els.h1, els.s1);
+    els.dl1.disabled = false;
+  });
+
+  // Real 2×: request camera zoom=2; if unsupported, we fall back to crop and label it
+  els.capReal.addEventListener('click', async () => {
+    const realSupported = !usingEmulatedZoom; // if live zoom is emulated, we can't do real
+    if (!realSupported) {
+      alert('Native camera zoom is not available in this browser. Falling back to an emulated 2× crop for the "Real" capture.');
+    }
+    await applyZoom(2);
+    await stabilize();
+    await capture(els.c2, { emulatedCrop: !realSupported });
+    analyze(els.c2, els.h2, els.s2);
+    els.dl2.disabled = true;
+    els.dl2.disabled = false;
+  });
+
+  els.dl1.addEventListener('click', ()=>download(els.c1, 'capture-emulated-2x.png'));
+  els.dl2.addEventListener('click', ()=>download(els.c2, 'capture-real-2x.png'));
+
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    [els.c1,els.c2].forEach(c=>{c.width=0;c.height=0;});
+    [els.h1,els.h2].forEach(h=>{const x=h.getContext('2d'); x.clearRect(0,0,h.width,h.height)});
+    els.s1.textContent='—'; els.s2.textContent='—';
+    els.dl1.disabled = true; els.dl2.disabled = true;
+  });
+
+  // Torch toggle if supported
+  els.torch.addEventListener('click', async()=>{
+    if (!track) return;
+    try{
+      const caps = track.getCapabilities?.() || {};
+      if (!caps.torch) return;
+      const curr = track.getSettings?.().torch;
+      await track.applyConstraints({ advanced: [{ torch: !curr }] });
+    }catch(e){ console.warn('Torch toggle failed', e); }
+  });
+
+  els.zSlider.addEventListener('input', ()=>{
+    const z = parseFloat(els.zSlider.value);
+    els.zRead.textContent = `${z.toFixed(2)}×${usingEmulatedZoom?' (emulated)':''}`;
+  });
+})();
+</script>
+</body>
+</html>
