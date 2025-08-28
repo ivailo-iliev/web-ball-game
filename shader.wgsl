@@ -433,39 +433,36 @@ fn vs(@builtin(vertex_index) vi : u32) -> VSOut {
 
 @fragment
 fn fs(i: VSOut) -> @location(0) vec4<f32> {
-  // Base: just the video
+  // Base video
   let video = textureSample(frame, samp2, i.uv).rgb;
   var outRgb = video;
 
-  // ── Only show dots that passed ─────────────────────────────────────
+  // Coords / ROI
   let dims  = vec2<u32>(textureDimensions(frame));
   let dimsF = vec2<f32>(dims);
-
-  let uv  = clamp(i.uv, vec2<f32>(0.0), vec2<f32>(1.0));
-  let px  = uv * dimsF; // pixel coords (float)
+  let uv    = clamp(i.uv, vec2<f32>(0.0), vec2<f32>(1.0));
+  let px    = uv * dimsF;
 
   let r0u = vec2<u32>(U.rMin);
   let r1u = vec2<u32>(U.rMax);
-  let r0  = vec2<i32>(r0u);
-  let r1  = vec2<i32>(r1u);
-  let inROI = all(px >= vec2<f32>(r0)) && all(px < vec2<f32>(r1));
+  let r0  = vec2<f32>(r0u);
+  let r1  = vec2<f32>(r1u);
+  let inROI = all(px >= r0) && all(px < r1);
 
-  // Match compute’s grid exactly: S_u = round(R * 2/3), using integer half
+  // Grid layout (match compute)
   let S_u = max(1u, u32(round(U.radiusPx * 0.6666667)));
   let S_f = f32(S_u);
-
-  // Start center in ROI uses integer half (S_u/2u), just like compute’s sx/sy
-  let g0i = r0 + vec2<i32>(i32(S_u / 2u));
+  let g0i = vec2<i32>(r0u) + vec2<i32>(i32(S_u / 2u));
   let g0f = vec2<f32>(g0i);
 
-  // Nearest grid center
+  // Nearest grid center to this fragment
   let loc = px - g0f;
   let nx  = i32(round(loc.x / S_f));
   let ny  = i32(round(loc.y / S_f));
   let gcF = g0f + vec2<f32>(f32(nx) * S_f, f32(ny) * S_f);
   let gcI = g0i + vec2<i32>(nx * i32(S_u), ny * i32(S_u));
 
-  // Clamp center to frame and fetch mask color at the EXACT grid center pixel
+  // Sample mask color at the EXACT grid center pixel
   let dimsI = vec2<i32>(i32(dims.x), i32(dims.y));
   let gcClamped = vec2<i32>(
     clamp(gcI.x, 0, dimsI.x - 1),
@@ -474,29 +471,31 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let maskC = textureLoad(maskTex, gcClamped, 0).rgb;
   let hit   = clamp(max(maskC.r, max(maskC.g, maskC.b)), 0.0, 1.0);
 
-  // Tiny dot (~1px radius) only if that center was marked by compute
-  let dotR  = 1.0;
-  let dotA  = (1.0 - smoothstep(dotR, dotR + 1.0, distance(px, gcF)))
-              * select(0.0, 1.0, inROI)
-              * step(0.5, hit); // gate by mask presence
+  // ---- ALL passing grid dots, as SOLID color (overwrite) ----
+  let DOT_R : f32 = 1.5; // tweak as you like
+  let dotInside = (distance(px, gcF) <= DOT_R);
+  let showDot = inROI && (hit >= 0.5) && dotInside;
+  if (showDot) {
+    outRgb = maskC; // solid dot tint = detected color
+  }
 
-  // Tint with detected team color stored in maskTex
-  outRgb = mix(outRgb, maskC, dotA);
+  // ---- ONLY the best refined center per color, as SOLID disks ----
+  let CENTER_R : f32 = 3.0; // tweak as you like
 
-  // (Optional) keep the small colored rings for the final refined centers
   let hasA = atomicLoad(&BestA.key) != 0u;
   if (hasA) {
     let cA = vec2<f32>(f32(atomicLoad(&BestA.x)) + 0.5, f32(atomicLoad(&BestA.y)) + 0.5);
-    let dA = distance(px, cA);
-    let ringA = smoothstep(2.0, 3.0, dA) * (1.0 - smoothstep(3.0, 4.0, dA));
-    outRgb = mix(outRgb, color_from_index(U.colorA), ringA);
+    if (distance(px, cA) <= CENTER_R) {
+      outRgb = color_from_index(U.colorA); // solid center A
+    }
   }
+
   let hasB = atomicLoad(&BestB.key) != 0u;
   if (hasB) {
     let cB = vec2<f32>(f32(atomicLoad(&BestB.x)) + 0.5, f32(atomicLoad(&BestB.y)) + 0.5);
-    let dB = distance(px, cB);
-    let ringB = smoothstep(2.0, 3.0, dB) * (1.0 - smoothstep(3.0, 4.0, dB));
-    outRgb = mix(outRgb, color_from_index(U.colorB), ringB);
+    if (distance(px, cB) <= CENTER_R) {
+      outRgb = color_from_index(U.colorB); // solid center B
+    }
   }
 
   return vec4<f32>(outRgb, 1.0);
