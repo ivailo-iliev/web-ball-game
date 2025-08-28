@@ -342,7 +342,7 @@
       infoBase = '';
       try {
         // 1) Camera → WebCodecs VideoFrame (no <video> element)
-        const videoConstraints = { facingMode: 'user', frameRate: { ideal: 60 } };
+        const videoConstraints = { facingMode: 'environment', frameRate: { ideal: 60 } };
         const w = parseInt(widthInput.value, 10);
         if (!isNaN(w)) videoConstraints.width = { ideal: w };
         const h = parseInt(heightInput.value, 10);
