@@ -184,9 +184,18 @@
     const YMAX_DEFAULT    = 0.70; // try 0.65..0.70
     const RADIUS_DEFAULT  = 18;
 
+    // Camera runs at 19.5:9 (1920×886). Crop width is configurable but
+    // height always maintains the aspect ratio.
+    const CAM_W = 1920;
+    const CAM_H = 886;
+    const ASPECT = CAM_H / CAM_W; // ≈0.4615
+
+    const DEFAULT_CROP_W = 1280;
+    const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT);
+
     const DEFAULTS = {
-      topResW: 1280,
-      topResH: 720,
+      topResW: DEFAULT_CROP_W,
+      topResH: DEFAULT_CROP_H,
       topMinArea: 0.025,
       teamA: 1,
       teamB: 2,
@@ -216,8 +225,10 @@
     let yMaxA = cfg.yMax[teamA];
     let yMaxB = cfg.yMax[teamB];
 
+    cfg.topResH = Math.round(cfg.topResW * ASPECT);
     widthInput.value = cfg.topResW;
     heightInput.value = cfg.topResH;
+    heightInput.disabled = true;
     minAreaInput.value = cfg.topMinArea;
     radiusInput.value = cfg.topRadiusPx;
     domAInput.value = domThrA;
@@ -231,11 +242,9 @@
 
     function onWidthInput(e) {
       cfg.topResW = Math.max(1, +e.target.value);
+      cfg.topResH = Math.round(cfg.topResW * ASPECT);
+      heightInput.value = cfg.topResH;
       Config.save('topResW', cfg.topResW);
-    }
-
-    function onHeightInput(e) {
-      cfg.topResH = Math.max(1, +e.target.value);
       Config.save('topResH', cfg.topResH);
     }
 
@@ -290,7 +299,6 @@
     }
 
     widthInput.addEventListener('input', onWidthInput);
-    heightInput.addEventListener('input', onHeightInput);
     minAreaInput.addEventListener('input', onMinAreaInput);
     radiusInput.addEventListener('input', onRadiusInput);
     domAInput.addEventListener('input', onDomAInput);
@@ -342,11 +350,12 @@
       infoBase = '';
       try {
         // 1) Camera → WebCodecs VideoFrame (no <video> element)
-        const videoConstraints = { facingMode: 'environment', frameRate: { ideal: 60 } };
-        const w = parseInt(widthInput.value, 10);
-        if (!isNaN(w)) videoConstraints.width = { ideal: w };
-        const h = parseInt(heightInput.value, 10);
-        if (!isNaN(h)) videoConstraints.height = { ideal: h };
+        const videoConstraints = {
+          facingMode: 'environment',
+          frameRate: { ideal: 60 },
+          width: { ideal: CAM_W },
+          height: { ideal: CAM_H }
+        };
         const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
         const track = stream.getVideoTracks()[0];
 
@@ -407,10 +416,16 @@
           }
           lastFrameTS = now;
           busy = true;
+          // Center crop using zero-copy VideoFrame API for maximum performance
+          const cropW = cfg.topResW;
+          const cropH = cfg.topResH;
+          const ox = Math.max(0, (frame.codedWidth - cropW) >> 1);
+          const oy = Math.max(0, (frame.codedHeight - cropH) >> 1);
+          const cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
           try {
             const { a, b, w, h, resized } = await GPUShared.detect({
               key: 'demo',
-              source: frame,
+              source: cropped,
               colorA: teamA,
               colorB: teamB,
               domThrA,
@@ -421,7 +436,7 @@
               satMinB,
               yMinB,
               yMaxB,
-              rect: { min: new Float32Array([0, 0]), max: new Float32Array([frame.codedWidth, frame.codedHeight]) },
+              rect: { min: new Float32Array([0, 0]), max: new Float32Array([cropped.codedWidth, cropped.codedHeight]) },
               previewCanvas: canvas,
               preview: true,
               activeA: true, activeB: true,
@@ -429,8 +444,8 @@
               radiusPx: cfg.topRadiusPx,
             });
             if (resized) {
-              canvas.width = frame.displayWidth;
-              canvas.height = frame.displayHeight;
+              canvas.width = cropped.displayWidth;
+              canvas.height = cropped.displayHeight;
               infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               info.textContent = infoBase;
             }
@@ -447,6 +462,7 @@
               if (bit !== undefined && window.sendBit) window.sendBit(bit);
             }
           } finally {
+            cropped.close();
             frame.close(); // always release
             busy = false;
           }
