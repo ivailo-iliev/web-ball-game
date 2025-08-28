@@ -80,8 +80,7 @@
     </fieldset>
     <fieldset>
       <button id="start">Start</button>
-      <input id="videoWidth" type="number" placeholder="width" />
-      <input id="videoHeight" type="number" placeholder="height" />
+      <input id="zoom" type="number" placeholder="zoom" step="0.01" />
     </fieldset>
     <fieldset>
       <select id="teamA">
@@ -163,8 +162,7 @@
       let lastFrameTS;
     const start = $('#start');
     const canvas = $('#gfx');
-    const widthInput = $('#videoWidth');
-    const heightInput = $('#videoHeight');
+    const zoomInput = $('#zoom');
     const minAreaInput = $('#minArea');
     const radiusInput = $('#radiusPx');
     const domAInput = $('#domA');
@@ -192,8 +190,10 @@
 
     const DEFAULT_CROP_W = 1280;
     const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT);
+    const DEFAULT_ZOOM = CAM_W / DEFAULT_CROP_W;
 
     const DEFAULTS = {
+      topZoom: DEFAULT_ZOOM,
       topResW: DEFAULT_CROP_W,
       topResH: DEFAULT_CROP_H,
       topMinArea: 0.025,
@@ -225,10 +225,9 @@
     let yMaxA = cfg.yMax[teamA];
     let yMaxB = cfg.yMax[teamB];
 
+    cfg.topResW = Math.round(CAM_W / cfg.topZoom);
     cfg.topResH = Math.round(cfg.topResW * ASPECT);
-    widthInput.value = cfg.topResW;
-    heightInput.value = cfg.topResH;
-    heightInput.disabled = true;
+    zoomInput.value = cfg.topZoom;
     minAreaInput.value = cfg.topMinArea;
     radiusInput.value = cfg.topRadiusPx;
     domAInput.value = domThrA;
@@ -240,10 +239,11 @@
     yMaxAInput.value = yMaxA;
     yMaxBInput.value = yMaxB;
 
-    function onWidthInput(e) {
-      cfg.topResW = Math.max(1, +e.target.value);
+    function onZoomInput(e) {
+      cfg.topZoom = Math.max(1, +e.target.value);
+      cfg.topResW = Math.round(CAM_W / cfg.topZoom);
       cfg.topResH = Math.round(cfg.topResW * ASPECT);
-      heightInput.value = cfg.topResH;
+      Config.save('topZoom', cfg.topZoom);
       Config.save('topResW', cfg.topResW);
       Config.save('topResH', cfg.topResH);
     }
@@ -298,7 +298,7 @@
       Config.save('yMax', Array.from(cfg.yMax));
     }
 
-    widthInput.addEventListener('input', onWidthInput);
+    zoomInput.addEventListener('input', onZoomInput);
     minAreaInput.addEventListener('input', onMinAreaInput);
     radiusInput.addEventListener('input', onRadiusInput);
     domAInput.addEventListener('input', onDomAInput);
