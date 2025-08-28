@@ -433,7 +433,7 @@ fn vs(@builtin(vertex_index) vi : u32) -> VSOut {
 
 @fragment
 fn fs(i: VSOut) -> @location(0) vec4<f32> {
-  // Base video
+  // Base: just the video
   let video = textureSample(frame, samp2, i.uv).rgb;
   var outRgb = video;
 
@@ -449,52 +449,68 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let r1  = vec2<f32>(r1u);
   let inROI = all(px >= r0) && all(px < r1);
 
-  // Grid layout (match compute)
+  // Grid (match compute: stride ≈ 2/3 * radius, origin at ROI + half stride)
   let S_u = max(1u, u32(round(U.radiusPx * 0.6666667)));
   let S_f = f32(S_u);
   let g0i = vec2<i32>(r0u) + vec2<i32>(i32(S_u / 2u));
   let g0f = vec2<f32>(g0i);
 
-  // Nearest grid center to this fragment
+  // Nearest grid center for this fragment
   let loc = px - g0f;
   let nx  = i32(round(loc.x / S_f));
   let ny  = i32(round(loc.y / S_f));
-  let gcF = g0f + vec2<f32>(f32(nx) * S_f, f32(ny) * S_f);
   let gcI = g0i + vec2<i32>(nx * i32(S_u), ny * i32(S_u));
+  let gcF = vec2<f32>(gcI);
 
-  // Sample mask color at the EXACT grid center pixel
+  // Read mask at EXACT grid-center pixel
   let dimsI = vec2<i32>(i32(dims.x), i32(dims.y));
   let gcClamped = vec2<i32>(
     clamp(gcI.x, 0, dimsI.x - 1),
     clamp(gcI.y, 0, dimsI.y - 1)
   );
-  let maskC = textureLoad(maskTex, gcClamped, 0).rgb;
-  let hit   = clamp(max(maskC.r, max(maskC.g, maskC.b)), 0.0, 1.0);
+  let m = textureLoad(maskTex, gcClamped, 0);
+  let maskC = m.rgb;
 
-  // ---- ALL passing grid dots, as SOLID color (overwrite) ----
-  let DOT_R : f32 = 1.5; // tweak as you like
-  let dotInside = (distance(px, gcF) <= DOT_R);
-  let showDot = inROI && (hit >= 0.5) && dotInside;
-  if (showDot) {
-    outRgb = maskC; // solid dot tint = detected color
+  // ⬅️ Gate change: was (>= 0.5). Now draw if > 0.0.
+  let hasMask = max(maskC.r, max(maskC.g, maskC.b)) > 0.0;
+
+  // ---- All passing grid dots as SOLID color (overwrite) ----
+  const DOT_R : f32 = 1.5;  // adjust size as needed
+  if (inROI && hasMask && distance(px, gcF) <= DOT_R) {
+    outRgb = maskC;
   }
 
-  // ---- ONLY the best refined center per color, as SOLID disks ----
-  let CENTER_R : f32 = 3.0; // tweak as you like
+  // ---- Best refined centers: solid disk + radius ring (both solid) ----
+  const CENTER_R : f32 = 5.0; // larger = more prominent
+  const RING_W   : f32 = 2.0; // ring thickness in px
 
   let hasA = atomicLoad(&BestA.key) != 0u;
   if (hasA) {
-    let cA = vec2<f32>(f32(atomicLoad(&BestA.x)) + 0.5, f32(atomicLoad(&BestA.y)) + 0.5);
-    if (distance(px, cA) <= CENTER_R) {
-      outRgb = color_from_index(U.colorA); // solid center A
+    let cA   = vec2<f32>(f32(atomicLoad(&BestA.x)) + 0.5, f32(atomicLoad(&BestA.y)) + 0.5);
+    let colA = color_from_index(U.colorA);
+    let dA   = distance(px, cA);
+
+    // radius ring at U.radiusPx
+    if (abs(dA - U.radiusPx) <= RING_W * 0.5) {
+      outRgb = colA;
+    }
+    // solid center on top
+    if (dA <= CENTER_R) {
+      outRgb = colA;
     }
   }
 
   let hasB = atomicLoad(&BestB.key) != 0u;
   if (hasB) {
-    let cB = vec2<f32>(f32(atomicLoad(&BestB.x)) + 0.5, f32(atomicLoad(&BestB.y)) + 0.5);
-    if (distance(px, cB) <= CENTER_R) {
-      outRgb = color_from_index(U.colorB); // solid center B
+    let cB   = vec2<f32>(f32(atomicLoad(&BestB.x)) + 0.5, f32(atomicLoad(&BestB.y)) + 0.5);
+    let colB = color_from_index(U.colorB);
+    let dB   = distance(px, cB);
+
+    if (abs(dB - U.radiusPx) <= RING_W * 0.5) {
+      outRgb = colB;
+    }
+    if (dB <= CENTER_R) {
+      outRgb = colB;
     }
   }
 
