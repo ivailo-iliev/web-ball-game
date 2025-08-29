@@ -1,30 +1,20 @@
 (async function (global) {
-  const WG_SIZE = { X: 8, Y: 32 };
   const FLAGS = { PREVIEW: 1, TEAM_A: 2, TEAM_B: 4 };
 
-  function float32ToFloat16(val) {
-    const f32 = new Float32Array([val]);
-    const u32 = new Uint32Array(f32.buffer)[0];
-    const sign = (u32 >> 16) & 0x8000;
-    let exp = ((u32 >> 23) & 0xff) - 127 + 15;
-    let mant = u32 & 0x7fffff;
-    if (exp <= 0) return sign;
-    if (exp >= 0x1f) return sign | 0x7c00;
-    return sign | (exp << 10) | (mant >> 13);
-  }
-
   async function createPipelines(device, { url = 'shader.wgsl', elementId = null, format = 'rgba8unorm' } = {}) {
-    let code;
-    if (elementId) {
-      const el = document.getElementById(elementId);
-      code = el ? el.textContent : '';
-    } else {
-      code = await fetch(url).then(r => r.text());
-    }
+    const code = elementId
+      ? document.getElementById(elementId)?.textContent || ''
+      : await fetch(url).then(r => r.text());
     const mod = device.createShaderModule({ code });
     // New entry points in WGSL: 'seed_grid' (sparse grid) and 'refine_micro' (tiny refine)
-    const computeSeed   = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'seed_grid' } });
-    const computeRefine = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'refine_micro' } });
+    const computeSeed = device.createComputePipeline({
+      layout: 'auto',
+      compute: { module: mod, entryPoint: 'seed_grid' }
+    });
+    const computeRefine = device.createComputePipeline({
+      layout: 'auto',
+      compute: { module: mod, entryPoint: 'refine_micro' }
+    });
     // Preview is optional; your WGSL may not include vs/fs
     let render = null;
     try {
@@ -193,7 +183,7 @@
       return bgRefine;
     }
 
-  function destroy() {
+    function destroy() {
       frameTex.destroy();
       maskTex.destroy();
     }
@@ -272,12 +262,8 @@
 
     let view = null;
     if (preview && previewCanvas) {
-      if (!ctx.canvasCtx) {
-        ctx.canvasCtx = previewCanvas.getContext('webgpu');
-        previewCanvas.width = w;
-        previewCanvas.height = h;
-        ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
-      } else if (resized) {
+      if (!ctx.canvasCtx || resized) {
+        ctx.canvasCtx = ctx.canvasCtx || previewCanvas.getContext('webgpu');
         previewCanvas.width = w;
         previewCanvas.height = h;
         ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
@@ -285,15 +271,13 @@
       view = ctx.canvasCtx.getCurrentTexture().createView();
     }
 
-    const FLAGS_PREVIEW = 1, FLAGS_A = 2, FLAGS_B = 4;
-    const flags = (preview ? FLAGS_PREVIEW : 0) | (activeA ? FLAGS_A : 0) | (activeB ? FLAGS_B : 0);
-
     // activeMask for the new WGSL: bit0(A), bit1(B)
     const activeMask = (activeA ? 1 : 0) | (activeB ? 2 : 0);
     ctx.pack.resetStats(device.queue);
+    const roi = rect || ctx.defaultRect;
     ctx.pack.writeUniform(
       device.queue,
-      rect || ctx.defaultRect,
+      roi,
       radiusPx,
       colorA, colorB,
       domThrA, satMinA, yMinA, yMaxA,
@@ -312,24 +296,24 @@
     enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
 
     // Pass 1: sparse grid seed
-    const c1 = enc.beginComputePass({ label: 'detect:seed_grid' });
-    c1.setPipeline(state.pipelines.computeSeed);
-    c1.setBindGroup(0, ctx.feed.computeBGSeed(ctx.pack));
+    const seedPass = enc.beginComputePass({ label: 'detect:seed_grid' });
+    seedPass.setPipeline(state.pipelines.computeSeed);
+    seedPass.setBindGroup(0, ctx.feed.computeBGSeed(ctx.pack));
     // Dispatch over the GRID, not full image:
-    const roiW = (rect || ctx.defaultRect).max[0] - (rect || ctx.defaultRect).min[0];
-    const roiH = (rect || ctx.defaultRect).max[1] - (rect || ctx.defaultRect).min[1];
-    const gridStride = Math.max(1, Math.round(radiusPx * 0.6666667));
+    const roiW = roi.max[0] - roi.min[0];
+    const roiH = roi.max[1] - roi.min[1];
+    const gridStride = Math.max(1, Math.round((radiusPx * 2) / 3));
     const gridW = Math.ceil(roiW / gridStride);
     const gridH = Math.ceil(roiH / gridStride);
-    c1.dispatchWorkgroups(gridW, gridH);
-    c1.end();
+    seedPass.dispatchWorkgroups(gridW, gridH);
+    seedPass.end();
 
     // Pass 2: tiny refine around seeds (tile grid)
-    const c2 = enc.beginComputePass({ label: 'detect:refine_micro' });
-    c2.setPipeline(state.pipelines.computeRefine);
-    c2.setBindGroup(0, ctx.feed.computeBGRefine(ctx.pack));
-    c2.dispatchWorkgroups(Math.ceil(roiW / 8), Math.ceil(roiH / 8));
-    c2.end();
+    const refinePass = enc.beginComputePass({ label: 'detect:refine_micro' });
+    refinePass.setPipeline(state.pipelines.computeRefine);
+    refinePass.setBindGroup(0, ctx.feed.computeBGRefine(ctx.pack));
+    refinePass.dispatchWorkgroups(Math.ceil(roiW / 8), Math.ceil(roiH / 8));
+    refinePass.end();
 
     // Read back winning seeds (BestA/BestB: key,x,y) — centroid finalized on GPU
     enc.copyBufferToBuffer(ctx.pack.bestA, 0, ctx.pack.readA, 0, 12);
