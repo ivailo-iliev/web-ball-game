@@ -189,7 +189,9 @@
     const ASPECT = CAM_H / CAM_W; // ≈0.4615
 
     const DEFAULT_CROP_W = 1280;
-    const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT);
+    // iOS Safari requires even crop sizes when using VideoFrame visibleRect.
+    // Round and mask off the lowest bit to guarantee an even height.
+    const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT) & ~1;
     const DEFAULT_ZOOM = CAM_W / DEFAULT_CROP_W;
 
     const DEFAULTS = {
@@ -225,8 +227,8 @@
     let yMaxA = cfg.yMax[teamA];
     let yMaxB = cfg.yMax[teamB];
 
-    cfg.topResW = Math.round(CAM_W / cfg.topZoom);
-    cfg.topResH = Math.round(cfg.topResW * ASPECT);
+    cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
+    cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
     zoomInput.value = cfg.topZoom;
     minAreaInput.value = cfg.topMinArea;
     radiusInput.value = cfg.topRadiusPx;
@@ -241,8 +243,8 @@
 
     function onZoomInput(e) {
       cfg.topZoom = Math.max(1, +e.target.value);
-      cfg.topResW = Math.round(CAM_W / cfg.topZoom);
-      cfg.topResH = Math.round(cfg.topResW * ASPECT);
+      cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
+      cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
       Config.save('topZoom', cfg.topZoom);
       Config.save('topResW', cfg.topResW);
       Config.save('topResH', cfg.topResH);
@@ -429,8 +431,11 @@
             cropH = frameH;
             cropW = Math.round(cropH / ASPECT);
           }
-          const ox = Math.max(0, (frameW - cropW) >> 1);
-          const oy = Math.max(0, (frameH - cropH) >> 1);
+          // Safari's VideoFrame cropping requires even alignment for 4:2:0 formats.
+          cropW &= ~1;
+          cropH &= ~1;
+          const ox = Math.max(0, (frameW - cropW) >> 1) & ~1;
+          const oy = Math.max(0, (frameH - cropH) >> 1) & ~1;
           let cropped;
           try {
             cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
