@@ -421,8 +421,16 @@
           // Center crop using zero-copy VideoFrame API for maximum performance
           let cropW = cfg.topResW;
           let cropH = cfg.topResH;
-          const frameW = frame.codedWidth;
-          const frameH = frame.codedHeight;
+          // Use the frame's visible rect if available so the crop is
+          // centred within the already-visible portion of the frame.
+          const baseRect = frame.visibleRect || {
+            x: 0,
+            y: 0,
+            width: frame.codedWidth,
+            height: frame.codedHeight
+          };
+          const frameW = baseRect.width;
+          const frameH = baseRect.height;
           if (cropW > frameW) {
             cropW = frameW;
             cropH = Math.round(cropW * ASPECT);
@@ -434,8 +442,11 @@
           // Safari's VideoFrame cropping requires even alignment for 4:2:0 formats.
           cropW &= ~1;
           cropH &= ~1;
-          const ox = Math.max(0, (frameW - cropW) >> 1) & ~1;
-          const oy = Math.max(0, (frameH - cropH) >> 1) & ~1;
+          // Offset into the middle of the base rect.  Mask the result to even
+          // values to satisfy Safari's cropping requirements for 4:2:0
+          // formats.
+          const ox = (baseRect.x + Math.max(0, (frameW - cropW) >> 1)) & ~1;
+          const oy = (baseRect.y + Math.max(0, (frameH - cropH) >> 1)) & ~1;
           let cropped;
           try {
             cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
