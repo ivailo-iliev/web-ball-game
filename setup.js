@@ -38,7 +38,7 @@
           type: 'button',
           className: 'down',
           textContent: '−',
-          onclick() {
+          onclick: () => {
             input.stepDown();
             input.dispatchEvent(new Event('input', { bubbles: true }));
             update();
@@ -48,7 +48,7 @@
           type: 'button',
           className: 'up',
           textContent: '+',
-          onclick() {
+          onclick: () => {
             input.stepUp();
             input.dispatchEvent(new Event('input', { bubbles: true }));
             update();
@@ -99,40 +99,27 @@
       } else {
         cfg = Config.get();
       }
-      const urlI = $('#topUrl');
-      const urlWarn = $('#urlWarn');
-      const selMode = $('#topMode');
-      const frontZoomEl = $('#frontZoom');
-      const zoomInput = $('#zoom');
-      const minAreaInput = $('#topMinInp');
-      const topTex = $('#topTex');
-      const topOv = $('#topOv');
-      const frontTex = $('#frontTex');
-      const frontOv = $('#frontOv');
-      const topHInp = $('#topHInp');
-      const frontHInp = $('#frontHInp');
-      if (topTex) { topTex.width = cfg.topResW; topTex.height = cfg.topResH; }
-      if (topOv) { topOv.width = cfg.topResW; topOv.height = cfg.topResH; }
-      if (frontTex) { frontTex.width = cfg.frontResW; frontTex.height = cfg.frontResH; }
-      if (frontOv) { frontOv.width = cfg.frontResW; frontOv.height = cfg.frontResH; }
-      if (topHInp) topHInp.max = cfg.topResH;
-      if (frontHInp) frontHInp.max = cfg.frontResH;
-      frontZoomEl?.setAttribute('data-spinner', '');
-      if (frontZoomEl) frontZoomEl.value = cfg.frontZoom;
-      function onFrontZoomInput(e) {
-        cfg.frontZoom = Math.max(1, +e.target.value);
-        cfg.frontResW = Math.round(CAM_W / cfg.frontZoom) & ~1;
-        cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
-        Config.save('frontZoom', cfg.frontZoom);
-        Config.save('frontResW', cfg.frontResW);
-        Config.save('frontResH', cfg.frontResH);
-        if (frontTex) { frontTex.width = cfg.frontResW; frontTex.height = cfg.frontResH; }
-        if (frontOv) { frontOv.width = cfg.frontResW; frontOv.height = cfg.frontResH; }
-      }
-      frontZoomEl?.addEventListener('input', onFrontZoomInput);
-      if (zoomInput) {
-        zoomInput.value = cfg.topZoom;
-        zoomInput.addEventListener('input', e => {
+        if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
+        if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
+        if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
+        if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
+        if ($('#topHInp')) $('#topHInp').max = cfg.topResH;
+        if ($('#frontHInp')) $('#frontHInp').max = cfg.frontResH;
+        $('#frontZoom')?.setAttribute('data-spinner', '');
+        if ($('#frontZoom')) $('#frontZoom').value = cfg.frontZoom;
+        $('#frontZoom')?.addEventListener('input', e => {
+          cfg.frontZoom = Math.max(1, +e.target.value);
+          cfg.frontResW = Math.round(CAM_W / cfg.frontZoom) & ~1;
+          cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+          Config.save('frontZoom', cfg.frontZoom);
+          Config.save('frontResW', cfg.frontResW);
+          Config.save('frontResH', cfg.frontResH);
+          if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
+          if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
+        });
+        if ($('#zoom')) {
+          $('#zoom').value = cfg.topZoom;
+          $('#zoom').addEventListener('input', e => {
           cfg.topZoom = Math.max(1, +e.target.value);
           cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
           cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
@@ -141,24 +128,13 @@
           Config.save('topResH', cfg.topResH);
         });
       }
-      if (minAreaInput) {
-        minAreaInput.value = cfg.topMinArea;
-        minAreaInput.addEventListener('input', e => {
+        if ($('#topMinInp')) {
+          $('#topMinInp').value = cfg.topMinArea;
+          $('#topMinInp').addEventListener('input', e => {
           cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
           Config.save('topMinArea', cfg.topMinArea);
         });
-      }
-      const selA = $('#teamA');
-        const selB = $('#teamB');
-        const domAInput = $('#domA');
-        const domBInput = $('#domB');
-        const satMinAInput = $('#satMinA');
-        const satMinBInput = $('#satMinB');
-        const yMinAInput = $('#yMinA');
-        const yMinBInput = $('#yMinB');
-        const yMaxAInput = $('#yMaxA');
-        const yMaxBInput = $('#yMaxB');
-        const radiusInput = $('#radiusPx');
+        }
 
         let teamA = cfg.teamA;
         let teamB = cfg.teamB;
@@ -171,95 +147,86 @@
         let yMaxA = cfg.yMax[TEAM_INDICES[teamA]];
         let yMaxB = cfg.yMax[TEAM_INDICES[teamB]];
 
-        domAInput.value = domThrA;
-        domBInput.value = domThrB;
-        satMinAInput.value = satMinA;
-        satMinBInput.value = satMinB;
-        yMinAInput.value = yMinA;
-        yMinBInput.value = yMinB;
-        yMaxAInput.value = yMaxA;
-        yMaxBInput.value = yMaxB;
-        radiusInput.value = cfg.radiusPx;
+        if ($('#domA')) $('#domA').value = domThrA;
+        if ($('#domB')) $('#domB').value = domThrB;
+        if ($('#satMinA')) $('#satMinA').value = satMinA;
+        if ($('#satMinB')) $('#satMinB').value = satMinB;
+        if ($('#yMinA')) $('#yMinA').value = yMinA;
+        if ($('#yMinB')) $('#yMinB').value = yMinB;
+        if ($('#yMaxA')) $('#yMaxA').value = yMaxA;
+        if ($('#yMaxB')) $('#yMaxB').value = yMaxB;
+        if ($('#radiusPx')) $('#radiusPx').value = cfg.radiusPx;
 
-        domAInput?.addEventListener('input', e => {
+        $('#domA')?.addEventListener('input', e => {
           cfg.domThr[TEAM_INDICES[teamA]] = domThrA = +e.target.value;
           Config.save('domThr', Array.from(cfg.domThr));
         });
-        domBInput?.addEventListener('input', e => {
+        $('#domB')?.addEventListener('input', e => {
           cfg.domThr[TEAM_INDICES[teamB]] = domThrB = +e.target.value;
           Config.save('domThr', Array.from(cfg.domThr));
         });
-        satMinAInput?.addEventListener('input', e => {
+        $('#satMinA')?.addEventListener('input', e => {
           cfg.satMin[TEAM_INDICES[teamA]] = satMinA = +e.target.value;
           Config.save('satMin', Array.from(cfg.satMin));
         });
-        satMinBInput?.addEventListener('input', e => {
+        $('#satMinB')?.addEventListener('input', e => {
           cfg.satMin[TEAM_INDICES[teamB]] = satMinB = +e.target.value;
           Config.save('satMin', Array.from(cfg.satMin));
         });
-        yMinAInput?.addEventListener('input', e => {
+        $('#yMinA')?.addEventListener('input', e => {
           cfg.yMin[TEAM_INDICES[teamA]] = yMinA = +e.target.value;
           Config.save('yMin', Array.from(cfg.yMin));
         });
-        yMinBInput?.addEventListener('input', e => {
+        $('#yMinB')?.addEventListener('input', e => {
           cfg.yMin[TEAM_INDICES[teamB]] = yMinB = +e.target.value;
           Config.save('yMin', Array.from(cfg.yMin));
         });
-        yMaxAInput?.addEventListener('input', e => {
+        $('#yMaxA')?.addEventListener('input', e => {
           cfg.yMax[TEAM_INDICES[teamA]] = yMaxA = +e.target.value;
           Config.save('yMax', Array.from(cfg.yMax));
         });
-        yMaxBInput?.addEventListener('input', e => {
+        $('#yMaxB')?.addEventListener('input', e => {
           cfg.yMax[TEAM_INDICES[teamB]] = yMaxB = +e.target.value;
           Config.save('yMax', Array.from(cfg.yMax));
         });
-        radiusInput?.addEventListener('input', e => {
+        $('#radiusPx')?.addEventListener('input', e => {
           cfg.radiusPx = Math.max(0, +e.target.value);
           Config.save('radiusPx', cfg.radiusPx);
         });
 
-        if (selMode) selMode.value = cfg.topMode;
-        selMode?.addEventListener('change', e => {
+        if ($('#topMode')) $('#topMode').value = cfg.topMode;
+        $('#topMode')?.addEventListener('change', e => {
           cfg.topMode = e.target.value;
           Config.save('topMode', cfg.topMode);
         });
 
         initNumberSpinners();
-      const btnStart = $('#btnStart');
-      const btnTop   = $('#btnTop');
-      const btnFront = $('#btnFront');
-      const btnBoth  = $('#btnBoth');
+      $('#btnStart')?.addEventListener('click', () => snapTo(1));
+      $('#btnTop')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyTop'));
+      $('#btnFront')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyFront'));
+      $('#btnBoth')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = ''));
 
-      const cfgScreen = $('#configScreen');
-      btnStart?.addEventListener('click', () => snapTo(1));
-      btnTop?.addEventListener('click', () => cfgScreen.className = 'onlyTop');
-      btnFront?.addEventListener('click', () => cfgScreen.className = 'onlyFront');
-      btnBoth?.addEventListener('click', () => cfgScreen.className = '');
-
-      const startDemo = $('#start');
-      const info = $('#info');
-      const canvas = $('#gfx');
       let infoBase = '';
       let lastFrameTS;
 
-      startDemo?.addEventListener('click', async function onStartClick() {
-        startDemo.disabled = true;
+      $('#start')?.addEventListener('click', async () => {
+        $('#start').disabled = true;
         infoBase = '';
         try {
           if (!await Feeds.init()) {
-            if (info) info.textContent = 'Feed init failed';
-            startDemo.disabled = false;
+            if ($('#info')) $('#info').textContent = 'Feed init failed';
+            $('#start').disabled = false;
             return;
           }
           let busy = false;
-          async function loop() {
+          const loop = async () => {
             const frame = await Feeds.frontFrame();
             if (!frame) { requestAnimationFrame(loop); return; }
             if (busy) { frame.close(); requestAnimationFrame(loop); return; }
             const now = performance.now();
-            if (lastFrameTS !== undefined && info) {
+            if (lastFrameTS !== undefined && $('#info')) {
               const fps = 1000 / (now - lastFrameTS);
-              info.textContent = `${infoBase} ${fps.toFixed(1)} fps`;
+              $('#info').textContent = `${infoBase} ${fps.toFixed(1)} fps`;
             }
             lastFrameTS = now;
             busy = true;
@@ -282,17 +249,17 @@
                 yMinB: cfg.yMin[colorB],
                 yMaxB: cfg.yMax[colorB],
                 rect: { min: new Float32Array([0, 0]), max: new Float32Array([cropW, cropH]) },
-                previewCanvas: canvas,
+                previewCanvas: $('#gfx'),
                 preview: true,
                 activeA: true, activeB: true,
                 flipY: true,
                 radiusPx: cfg.radiusPx,
               });
-              if (resized && canvas) {
-                canvas.width = frame.displayWidth;
-                canvas.height = frame.displayHeight;
+              if (resized && $('#gfx')) {
+                $('#gfx').width = frame.displayWidth;
+                $('#gfx').height = frame.displayHeight;
                 infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
-                if (info) info.textContent = infoBase;
+                if ($('#info')) $('#info').textContent = infoBase;
               }
               const scoreA = (a[0] >>> 16) / 65535;
               const scoreB = (b[0] >>> 16) / 65535;
@@ -307,11 +274,11 @@
               busy = false;
             }
             requestAnimationFrame(loop);
-          }
+          };
           requestAnimationFrame(loop);
         } catch (err) {
-          if (info) info.textContent = (err && err.message) ? err.message : String(err);
-          startDemo.disabled = false;
+          if ($('#info')) $('#info').textContent = (err && err.message) ? err.message : String(err);
+          $('#start').disabled = false;
           console.error(err);
         }
       });
@@ -335,31 +302,30 @@
         topROI.h = Math.max(...ys) - topROI.y;
       }
 
-      if (topOv) {
-        /* vertical drag on overlay */
-        let dragY = null;
-        topOv.style.touchAction = 'none';
-        topOv.addEventListener('pointerdown', e => {
-          if (!Controller.isPreview()) return;
-          const r = topOv.getBoundingClientRect();
-          dragY = (e.clientY - r.top) * cfg.topResH / r.height;
-          topOv.setPointerCapture(e.pointerId);
-        });
-        topOv.addEventListener('pointermove', e => {
-          if (dragY == null || !Controller.isPreview()) return;
-          const r = topOv.getBoundingClientRect();
-          const curY = (e.clientY - r.top) * cfg.topResH / r.height;
-          topROI.y += curY - dragY;
-          dragY = curY;
-          commitTop();
-        });
-        topOv.addEventListener('pointerup', () => dragY = null);
-        topOv.addEventListener('pointercancel', () => dragY = null);
-      }
+        if ($('#topOv')) {
+          /* vertical drag on overlay */
+          let dragY = null;
+          $('#topOv').style.touchAction = 'none';
+          $('#topOv').addEventListener('pointerdown', e => {
+            if (!Controller.isPreview()) return;
+            const r = $('#topOv').getBoundingClientRect();
+            dragY = (e.clientY - r.top) * cfg.topResH / r.height;
+            $('#topOv').setPointerCapture(e.pointerId);
+          });
+          $('#topOv').addEventListener('pointermove', e => {
+            if (dragY == null || !Controller.isPreview()) return;
+            const r = $('#topOv').getBoundingClientRect();
+            const curY = (e.clientY - r.top) * cfg.topResH / r.height;
+            topROI.y += curY - dragY;
+            dragY = curY;
+            commitTop();
+          });
+          $('#topOv').addEventListener('pointerup', () => dragY = null);
+          $('#topOv').addEventListener('pointercancel', () => dragY = null);
+        }
 
       commitTop();
 
-      (function () {
         // Front ROI: fixed aspect, height-driven; gesture = drag only
         const ASPECT = cfg.frontResW / cfg.frontResH;
         let roi = { x: 0, y: 0, w: cfg.frontH * ASPECT, h: cfg.frontH };
@@ -388,7 +354,7 @@
         }
 
         function toCanvas(e) {
-          const r = frontOv.getBoundingClientRect();
+          const r = $('#frontOv').getBoundingClientRect();
           return {
             x: (e.clientX - r.left) * cfg.frontResW / r.width,
             y: (e.clientY - r.top) * cfg.frontResH / r.height
@@ -397,66 +363,63 @@
 
         // Drag-only gesture
         let dragStart, roiStart;
-        frontOv?.addEventListener('pointerdown', e => {
+        $('#frontOv')?.addEventListener('pointerdown', e => {
           if (!Controller.isPreview()) return;
-          frontOv.setPointerCapture(e.pointerId);
+          $('#frontOv').setPointerCapture(e.pointerId);
           dragStart = toCanvas(e);
           roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
         });
-        frontOv?.addEventListener('pointermove', e => {
+        $('#frontOv')?.addEventListener('pointermove', e => {
           if (!dragStart || !Controller.isPreview()) return;
           const cur = toCanvas(e);
           roi.x = roiStart.x + (cur.x - dragStart.x);
           roi.y = roiStart.y + (cur.y - dragStart.y);
           commit();
         });
-        function lift() { dragStart = null; roiStart = null; }
-        frontOv?.addEventListener('pointerup', lift);
-        frontOv?.addEventListener('pointercancel', lift);
+        const lift = () => { dragStart = null; roiStart = null; };
+        $('#frontOv')?.addEventListener('pointerup', lift);
+        $('#frontOv')?.addEventListener('pointercancel', lift);
 
-        if (frontOv) frontOv.style.touchAction = 'none';
-        const topMinInp = $('#topMinInp');
-        const frontMinInp = $('#frontMinInp');
-        if (topHInp) topHInp.value = cfg.topH;
-        if (frontHInp) frontHInp.value = cfg.frontH;
-        if (topMinInp) topMinInp.value = cfg.topMinArea;
-        if (frontMinInp) frontMinInp.value = cfg.frontMinArea;
+        if ($('#frontOv')) $('#frontOv').style.touchAction = 'none';
+        if ($('#topHInp')) $('#topHInp').value = cfg.topH;
+        if ($('#frontHInp')) $('#frontHInp').value = cfg.frontH;
+        if ($('#topMinInp')) $('#topMinInp').value = cfg.topMinArea;
+        if ($('#frontMinInp')) $('#frontMinInp').value = cfg.frontMinArea;
 
-        topHInp?.addEventListener('input', e => {
+        $('#topHInp')?.addEventListener('input', e => {
           cfg.topH = Math.max(10, Math.min(cfg.topResH, +e.target.value));
           Config.save('topH', cfg.topH);
           topROI.h = cfg.topH;
           commitTop();
         });
-        frontHInp?.addEventListener('input', e => {
+        $('#frontHInp')?.addEventListener('input', e => {
           cfg.frontH = Math.max(10, Math.min(cfg.frontResH, +e.target.value));
           Config.save('frontH', cfg.frontH);
           roi.h = cfg.frontH;               // width is recomputed in commit()
           commit();
         });
-        if (topMinInp) topMinInp.onchange = e => {
+        if ($('#topMinInp')) $('#topMinInp').onchange = e => {
           cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
           Config.save('topMinArea', cfg.topMinArea);
         };
-        if (frontMinInp) frontMinInp.onchange = e => {
+        if ($('#frontMinInp')) $('#frontMinInp').onchange = e => {
           cfg.frontMinArea = Math.max(0, +e.target.value);
           Config.save('frontMinArea', cfg.frontMinArea);
         };
 
         commit();
-      })();
 
-          if (urlI) urlI.value = cfg.url;
-          if (selA) selA.value = teamA;
-          if (selB) selB.value = teamB;
+        if ($('#topUrl')) $('#topUrl').value = cfg.url;
+        if ($('#teamA')) $('#teamA').value = teamA;
+        if ($('#teamB')) $('#teamB').value = teamB;
 
-      if (urlI) urlI.onblur = () => {
-        cfg.url = urlI.value;
-        Config.save('url', cfg.url);
-        if (urlWarn) urlWarn.textContent = '';
-      };
+        if ($('#topUrl')) $('#topUrl').onblur = () => {
+          cfg.url = $('#topUrl').value;
+          Config.save('url', cfg.url);
+          if ($('#urlWarn')) $('#urlWarn').textContent = '';
+        };
 
-        selA?.addEventListener('change', e => {
+        $('#teamA')?.addEventListener('change', e => {
           teamA = cfg.teamA = e.target.value;
           Config.save('teamA', teamA);
           window.Game?.setTeams(cfg.teamA, cfg.teamB);
@@ -464,12 +427,12 @@
           satMinA = cfg.satMin[TEAM_INDICES[teamA]];
           yMinA = cfg.yMin[TEAM_INDICES[teamA]];
           yMaxA = cfg.yMax[TEAM_INDICES[teamA]];
-          if (domAInput) domAInput.value = domThrA;
-          if (satMinAInput) satMinAInput.value = satMinA;
-          if (yMinAInput) yMinAInput.value = yMinA;
-          if (yMaxAInput) yMaxAInput.value = yMaxA;
+          if ($('#domA')) $('#domA').value = domThrA;
+          if ($('#satMinA')) $('#satMinA').value = satMinA;
+          if ($('#yMinA')) $('#yMinA').value = yMinA;
+          if ($('#yMaxA')) $('#yMaxA').value = yMaxA;
         });
-        selB?.addEventListener('change', e => {
+        $('#teamB')?.addEventListener('change', e => {
           teamB = cfg.teamB = e.target.value;
           Config.save('teamB', teamB);
           window.Game?.setTeams(cfg.teamA, cfg.teamB);
@@ -477,10 +440,10 @@
           satMinB = cfg.satMin[TEAM_INDICES[teamB]];
           yMinB = cfg.yMin[TEAM_INDICES[teamB]];
           yMaxB = cfg.yMax[TEAM_INDICES[teamB]];
-          if (domBInput) domBInput.value = domThrB;
-          if (satMinBInput) satMinBInput.value = satMinB;
-          if (yMinBInput) yMinBInput.value = yMinB;
-          if (yMaxBInput) yMaxBInput.value = yMaxB;
+          if ($('#domB')) $('#domB').value = domThrB;
+          if ($('#satMinB')) $('#satMinB').value = satMinB;
+          if ($('#yMinB')) $('#yMinB').value = yMinB;
+          if ($('#yMaxB')) $('#yMaxB').value = yMaxB;
         });
     }
 
