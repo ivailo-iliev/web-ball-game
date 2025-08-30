@@ -547,10 +547,10 @@ const Feeds = (() => {
       frontStream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-          width: { exact: cfg.frontResW },
-          height: { exact: cfg.frontResH },
+          width: { ideal: cfg.frontResW },
+          height: { ideal: cfg.frontResH },
           facingMode: 'environment',
-          frameRate: { ideal: 60, max: 120 }
+          frameRate: { ideal: 60 }
         }
       });
     } catch (err) {
@@ -644,13 +644,16 @@ const Detect = (() => {
 
   function rectTop() {
     const ys = cfg.polyT.map(p => p[1]);
-    return { min: [0, Math.min(...ys)], max: [cfg.topResW, Math.max(...ys)] };
+    return {
+      min: new Float32Array([0, Math.min(...ys)]),
+      max: new Float32Array([cfg.topResW, Math.max(...ys)])
+    };
   }
   function rectFront() {
     const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
     return {
-      min: [Math.min(...xs), Math.min(...ys)],
-      max: [Math.max(...xs), Math.max(...ys)]
+      min: new Float32Array([Math.min(...xs), Math.min(...ys)]),
+      max: new Float32Array([Math.max(...xs), Math.max(...ys)])
     };
   }
 
