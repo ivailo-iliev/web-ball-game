@@ -27,6 +27,32 @@
   const Setup = (() => {
     let cfg;
 
+    function applyFrontZoom(val) {
+      if (!cfg) return;
+      cfg.frontZoom = Math.max(1, +val);
+      cfg.frontResW = Math.round(CAM_W / cfg.frontZoom) & ~1;
+      cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+      Config.save('frontZoom', cfg.frontZoom);
+      Config.save('frontResW', cfg.frontResW);
+      Config.save('frontResH', cfg.frontResH);
+      if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
+      if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
+      Feeds?.setCrop?.(cfg.frontResW, cfg.frontResH);
+    }
+
+    function applyTopZoom(val) {
+      if (!cfg) return;
+      cfg.topZoom = Math.max(1, +val);
+      cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
+      cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
+      Config.save('topZoom', cfg.topZoom);
+      Config.save('topResW', cfg.topResW);
+      Config.save('topResH', cfg.topResH);
+      if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
+      if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
+      Feeds?.setCrop?.(cfg.topResW, cfg.topResH);
+    }
+
     function initNumberSpinners() {
       document.querySelectorAll('input[type=number]:not([data-spinner])').forEach(input => {
         input.setAttribute('data-spinner', '');
@@ -107,28 +133,18 @@
         if ($('#topHInp')) $('#topHInp').max = cfg.topResH;
         if ($('#frontHInp')) $('#frontHInp').max = cfg.frontResH;
         $('#frontZoom')?.setAttribute('data-spinner', '');
-        if ($('#frontZoom')) $('#frontZoom').value = cfg.frontZoom;
-        $('#frontZoom')?.addEventListener('input', e => {
-          cfg.frontZoom = Math.max(1, +e.target.value);
-          cfg.frontResW = Math.round(CAM_W / cfg.frontZoom) & ~1;
-          cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
-          Config.save('frontZoom', cfg.frontZoom);
-          Config.save('frontResW', cfg.frontResW);
-          Config.save('frontResH', cfg.frontResH);
-          if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
-          if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
-        });
+        if ($('#frontZoom')) {
+          $('#frontZoom').value = cfg.frontZoom;
+          $('#frontZoom').addEventListener('input', e => {
+            applyFrontZoom(e.target.value);
+          });
+        }
         if ($('#zoom')) {
           $('#zoom').value = cfg.topZoom;
           $('#zoom').addEventListener('input', e => {
-          cfg.topZoom = Math.max(1, +e.target.value);
-          cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
-          cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
-          Config.save('topZoom', cfg.topZoom);
-          Config.save('topResW', cfg.topResW);
-          Config.save('topResH', cfg.topResH);
-        });
-      }
+            applyTopZoom(e.target.value);
+          });
+        }
         if ($('#topMinInp')) {
           $('#topMinInp').value = cfg.topMinArea;
           $('#topMinInp').addEventListener('input', e => {
@@ -468,6 +484,8 @@
     return {
       bind,
       updateFrontCrop,
+      applyFrontZoom,
+      applyTopZoom,
       get cfg() { return cfg; },
       get Config() { return Config; }
     };
