@@ -5,6 +5,7 @@
   let Config = App.Config;
   const PreviewGfx = App.PreviewGfx;
   const Controller = App.Controller;
+  const Feeds = App.Feeds;
   const TOP_MODE_MJPEG = 'mjpeg';
   const TOP_MODE_WEBRTC = 'webrtc';
   const TEAM_INDICES = { red: 0, green: 1, blue: 2, yellow: 3 };
@@ -218,6 +219,7 @@
             $('#start').disabled = false;
             return;
           }
+          updateFrontCrop();
           let busy = false;
           const loop = async () => {
             const frame = await Feeds.frontFrame();
@@ -447,8 +449,25 @@
         });
     }
 
+    function updateFrontCrop() {
+      if (!Feeds) return;
+      const cfg = Config.get();
+      const zEl = $('#frontZoom');
+      const z = Feeds.frontCropRatio();
+      if (zEl) zEl.value = z.toFixed(2);
+      cfg.frontZoom = z;
+      cfg.frontResW = Math.round(CAM_W / z) & ~1;
+      cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+      Config.save('frontZoom', cfg.frontZoom);
+      Config.save('frontResW', cfg.frontResW);
+      Config.save('frontResH', cfg.frontResH);
+      if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
+      if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
+    }
+
     return {
       bind,
+      updateFrontCrop,
       get cfg() { return cfg; },
       get Config() { return Config; }
     };

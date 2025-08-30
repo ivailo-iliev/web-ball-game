@@ -317,15 +317,7 @@ const Controller = (() => {
     Setup.bind();
     if (!await Feeds.init()) return;
     const cfg = Config.get();
-    const zEl = $('#frontZoom');
-    const z = Feeds.frontCropRatio();
-    zEl.value = z.toFixed(2);
-    cfg.frontZoom = z;
-    cfg.frontResW = Math.round(CAM_W / z) & ~1;
-    cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
-    Config.save('frontZoom', cfg.frontZoom);
-    Config.save('frontResW', cfg.frontResW);
-    Config.save('frontResH', cfg.frontResH);
+    Setup.updateFrontCrop();
     if (!await Detect.init()) return;
     lastTop = 0;
     if (cfg.topMode === TOP_MODE_MJPEG) {
