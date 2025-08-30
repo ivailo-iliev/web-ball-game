@@ -84,11 +84,11 @@
     </fieldset>
     <fieldset>
       <select id="teamA">
-      <option value="0">🔴</option>
-      <option value="1">🟢</option>
-      <option value="2">🔵</option>
-      <option value="3">🟡</option>
-    </select>
+        <option value="red">🔴</option>
+        <option value="green">🟢</option>
+        <option value="blue">🔵</option>
+        <option value="yellow">🟡</option>
+      </select>
       <input id="domA" type="number" placeholder="domA" step="0.01" />
       <input id="satMinA" type="number" placeholder="satMinA" step="0.01" />
       <input id="yMinA" type="number" placeholder="yMinA" step="0.01" />
@@ -96,11 +96,11 @@
     </fieldset>
     <fieldset>
       <select id="teamB">
-      <option value="0">🔴</option>
-      <option value="1">🟢</option>
-      <option value="2">🔵</option>
-      <option value="3">🟡</option>
-    </select>
+        <option value="red">🔴</option>
+        <option value="green">🟢</option>
+        <option value="blue">🔵</option>
+        <option value="yellow">🟡</option>
+      </select>
       <input id="domB" type="number" placeholder="domB" step="0.01" />
       <input id="satMinB" type="number" placeholder="satMinB" step="0.01" />
       <input id="yMinB" type="number" placeholder="yMinB" step="0.01" />
@@ -108,7 +108,7 @@
     </fieldset>
     <fieldset>
       <input id="radiusPx" type="number" placeholder="radius" />
-      <input id="minArea" type="number" placeholder="score thr (0..1)" step="0.005" />
+      <input id="topMinInp" type="number" placeholder="score thr (0..1)" step="0.005" />
     </fieldset>
     <span id="info"></span>
   </div>
@@ -118,306 +118,47 @@
   <script src="config.js"></script>
   <script src="detect.js"></script>
   <script src="feeds.js"></script>
+  <script src="setup.js"></script>
   <script>
     (function () {
       'use strict';
-      const { createConfig } = window;
-    const state = $('#state');
-    const b0 = $('#b0');
+      const state = $('#state');
+      const b0 = $('#b0');
 
-    function handleOpen() {
-      state.textContent = 'Connected';
-      b0.disabled = false;
-      b0.onclick = () => sendBit('0');
-    }
-
-    let dc;
-
-    function handleDcOpen() {
-      state.textContent = 'dc: open';
-      dc.send('hello from A');
-      handleOpen();
-    }
-
-    function handleStartCtrl(ctrl) {
-      dc = ctrl.channel;
-      if (!dc) { state.textContent = 'No data channel'; return; }
-      dc.onopen = handleDcOpen;
-      dc.onmessage = e => console.log('msg:', e.data);
-    }
-
-    StartA().then(handleStartCtrl).catch(err => {
-      state.textContent = 'ERR: ' + (err && (err.stack || err));
-    });
-
-    function sendBit(bit) {
-      if (dc && dc.readyState === 'open') {
-        dc.send(bit);
-        console.log(`[${new Date().toISOString()}] sent hit ${bit}`);
+      function handleOpen() {
+        state.textContent = 'Connected';
+        b0.disabled = false;
+        b0.onclick = () => sendBit('0');
       }
-    }
-    window.sendBit = sendBit;
 
-    const info = $('#info');
-      let infoBase = '';
-      let lastFrameTS;
-    const start = $('#start');
-    const canvas = $('#gfx');
-    const zoomInput = $('#zoom');
-    const minAreaInput = $('#minArea');
-    const radiusInput = $('#radiusPx');
-    const domAInput = $('#domA');
-    const domBInput = $('#domB');
-    const satMinAInput = $('#satMinA');
-    const satMinBInput = $('#satMinB');
-    const yMinAInput = $('#yMinA');
-    const yMinBInput = $('#yMinB');
-    const yMaxAInput = $('#yMaxA');
-    const yMaxBInput = $('#yMaxB');
-    const selA = $('#teamA');
-    const selB = $('#teamB');
+      let dc;
 
-    const DOM_THR_DEFAULT = 0.10; // try 0.05..0.15
-    const SATMIN_DEFAULT  = 0.12; // try 0.10..0.15
-    const YMIN_DEFAULT    = 0.00; // try 0.00..0.05
-    const YMAX_DEFAULT    = 0.70; // try 0.65..0.70
-    const RADIUS_DEFAULT  = 18;
+      function handleDcOpen() {
+        state.textContent = 'dc: open';
+        dc.send('hello from A');
+        handleOpen();
+      }
 
-    // Camera runs at 19.5:9 (1920×886). Crop width is configurable but
-    // height always maintains the aspect ratio.
-    const CAM_W = 1920;
-    const CAM_H = 886;
-    const ASPECT = CAM_H / CAM_W; // ≈0.4615
+      function handleStartCtrl(ctrl) {
+        dc = ctrl.channel;
+        if (!dc) { state.textContent = 'No data channel'; return; }
+        dc.onopen = handleDcOpen;
+        dc.onmessage = e => console.log('msg:', e.data);
+      }
 
-    const DEFAULT_CROP_W = 1280;
-    // iOS Safari requires even crop sizes when using VideoFrame visibleRect.
-    // Round and mask off the lowest bit to guarantee an even height.
-    const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT) & ~1;
-    const DEFAULT_ZOOM = CAM_W / DEFAULT_CROP_W;
+      StartA().then(handleStartCtrl).catch(err => {
+        state.textContent = 'ERR: ' + (err && (err.stack || err));
+      });
 
-    const DEFAULTS = {
-      topZoom: DEFAULT_ZOOM,
-      topResW: DEFAULT_CROP_W,
-      topResH: DEFAULT_CROP_H,
-      topMinArea: 0.025,
-      teamA: 1,
-      teamB: 2,
-      domThr:  [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
-      satMin: [SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT],
-      yMin:   [YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT],
-      yMax:   [YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT],
-      topRadiusPx: RADIUS_DEFAULT
-    };
-
-    const Config = createConfig(DEFAULTS);
-    Config.load();
-    const cfg = Config.get();
-    cfg.domThr = Float32Array.from(cfg.domThr);
-    cfg.satMin = Float32Array.from(cfg.satMin);
-    cfg.yMin = Float32Array.from(cfg.yMin);
-    cfg.yMax = Float32Array.from(cfg.yMax);
-
-    let teamA = cfg.teamA;
-    let teamB = cfg.teamB;
-    let domThrA = cfg.domThr[teamA];
-    let domThrB = cfg.domThr[teamB];
-    let satMinA = cfg.satMin[teamA];
-    let satMinB = cfg.satMin[teamB];
-    let yMinA = cfg.yMin[teamA];
-    let yMinB = cfg.yMin[teamB];
-    let yMaxA = cfg.yMax[teamA];
-    let yMaxB = cfg.yMax[teamB];
-
-    cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
-    cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
-    zoomInput.value = cfg.topZoom;
-    minAreaInput.value = cfg.topMinArea;
-    radiusInput.value = cfg.topRadiusPx;
-    domAInput.value = domThrA;
-    domBInput.value = domThrB;
-    satMinAInput.value = satMinA;
-    satMinBInput.value = satMinB;
-    yMinAInput.value = yMinA;
-    yMinBInput.value = yMinB;
-    yMaxAInput.value = yMaxA;
-    yMaxBInput.value = yMaxB;
-
-    function onZoomInput(e) {
-      cfg.topZoom = Math.max(1, +e.target.value);
-      cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
-      cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
-      Config.save('topZoom', cfg.topZoom);
-      Config.save('topResW', cfg.topResW);
-      Config.save('topResH', cfg.topResH);
-    }
-
-    function onMinAreaInput(e) {
-      cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
-      Config.save('topMinArea', cfg.topMinArea);
-    }
-
-    function onRadiusInput(e) {
-      cfg.topRadiusPx = Math.max(0, +e.target.value);
-      Config.save('topRadiusPx', cfg.topRadiusPx);
-    }
-
-    function onDomAInput(e) {
-      cfg.domThr[teamA] = domThrA = +e.target.value;
-      Config.save('domThr', Array.from(cfg.domThr));
-    }
-
-    function onDomBInput(e) {
-      cfg.domThr[teamB] = domThrB = +e.target.value;
-      Config.save('domThr', Array.from(cfg.domThr));
-    }
-
-    function onSatMinAInput(e) {
-      cfg.satMin[teamA] = satMinA = +e.target.value;
-      Config.save('satMin', Array.from(cfg.satMin));
-    }
-
-    function onSatMinBInput(e) {
-      cfg.satMin[teamB] = satMinB = +e.target.value;
-      Config.save('satMin', Array.from(cfg.satMin));
-    }
-
-    function onYMinAInput(e) {
-      cfg.yMin[teamA] = yMinA = +e.target.value;
-      Config.save('yMin', Array.from(cfg.yMin));
-    }
-
-    function onYMinBInput(e) {
-      cfg.yMin[teamB] = yMinB = +e.target.value;
-      Config.save('yMin', Array.from(cfg.yMin));
-    }
-
-    function onYMaxAInput(e) {
-      cfg.yMax[teamA] = yMaxA = +e.target.value;
-      Config.save('yMax', Array.from(cfg.yMax));
-    }
-
-    function onYMaxBInput(e) {
-      cfg.yMax[teamB] = yMaxB = +e.target.value;
-      Config.save('yMax', Array.from(cfg.yMax));
-    }
-
-    zoomInput.addEventListener('input', onZoomInput);
-    minAreaInput.addEventListener('input', onMinAreaInput);
-    radiusInput.addEventListener('input', onRadiusInput);
-    domAInput.addEventListener('input', onDomAInput);
-    domBInput.addEventListener('input', onDomBInput);
-    satMinAInput.addEventListener('input', onSatMinAInput);
-    satMinBInput.addEventListener('input', onSatMinBInput);
-    yMinAInput.addEventListener('input', onYMinAInput);
-    yMinBInput.addEventListener('input', onYMinBInput);
-    yMaxAInput.addEventListener('input', onYMaxAInput);
-    yMaxBInput.addEventListener('input', onYMaxBInput);
-
-    selA.value = String(teamA);
-    selB.value = String(teamB);
-
-    function onChangeTeamA(e) {
-      teamA = cfg.teamA = +e.target.value;
-      Config.save('teamA', teamA);
-      domThrA = cfg.domThr[teamA];
-      satMinA = cfg.satMin[teamA];
-      yMinA = cfg.yMin[teamA];
-      yMaxA = cfg.yMax[teamA];
-      domAInput.value = domThrA;
-      satMinAInput.value = satMinA;
-      yMinAInput.value = yMinA;
-      yMaxAInput.value = yMaxA;
-    }
-
-    function onChangeTeamB(e) {
-      teamB = cfg.teamB = +e.target.value;
-      Config.save('teamB', teamB);
-      domThrB = cfg.domThr[teamB];
-      satMinB = cfg.satMin[teamB];
-      yMinB = cfg.yMin[teamB];
-      yMaxB = cfg.yMax[teamB];
-      domBInput.value = domThrB;
-      satMinBInput.value = satMinB;
-      yMinBInput.value = yMinB;
-      yMaxBInput.value = yMaxB;
-    }
-
-    selA.addEventListener('change', onChangeTeamA);
-    selB.addEventListener('change', onChangeTeamB);
-
-    start.addEventListener('click', onStartClick);
-
-
-    async function onStartClick() {
-      start.disabled = true;
-      infoBase = '';
-      try {
-        if (!await Feeds.init()) { info.textContent = 'Feed init failed'; start.disabled = false; return; }
-        let busy = false;
-        async function loop() {
-          const frame = await Feeds.frontFrame();
-          if (!frame) { requestAnimationFrame(loop); return; }
-          if (busy) { frame.close(); requestAnimationFrame(loop); return; }
-          const now = performance.now();
-          if (lastFrameTS !== undefined) {
-            const fps = 1000 / (now - lastFrameTS);
-            info.textContent = `${infoBase} ${fps.toFixed(1)} fps`;
-          }
-          lastFrameTS = now;
-          busy = true;
-          try {
-            const cropW = frame.displayWidth || frame.codedWidth;
-            const cropH = frame.displayHeight || frame.codedHeight;
-            const { a, b, w, h, resized } = await GPUShared.detect({
-              key: 'demo',
-              source: frame,
-              colorA: teamA,
-              colorB: teamB,
-              domThrA,
-              satMinA,
-              yMinA,
-              yMaxA,
-              domThrB,
-              satMinB,
-              yMinB,
-              yMaxB,
-              rect: { min: new Float32Array([0, 0]), max: new Float32Array([cropW, cropH]) },
-              previewCanvas: canvas,
-              preview: true,
-              activeA: true, activeB: true,
-              flipY: true,
-              radiusPx: cfg.topRadiusPx,
-            });
-            if (resized) {
-              canvas.width = frame.displayWidth;
-              canvas.height = frame.displayHeight;
-              infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
-              info.textContent = infoBase;
-            }
-            const scoreA = (a[0] >>> 16) / 65535;
-            const scoreB = (b[0] >>> 16) / 65535;
-            const aOn = scoreA >= cfg.topMinArea;
-            const bOn = scoreB >= cfg.topMinArea;
-            if (aOn || bOn) {
-              let bit;
-              if (aOn && bOn) bit = '2';
-              else if (aOn) bit = '0';
-              else if (bOn) bit = '1';
-              if (bit !== undefined && window.sendBit) window.sendBit(bit);
-            }
-          } finally {
-            frame.close();
-            busy = false;
-          }
-          requestAnimationFrame(loop);
+      function sendBit(bit) {
+        if (dc && dc.readyState === 'open') {
+          dc.send(bit);
+          console.log(`[${new Date().toISOString()}] sent hit ${bit}`);
         }
-        requestAnimationFrame(loop);
-      } catch (err) {
-        info.textContent = (err && err.message) ? err.message : String(err);
-        start.disabled = false;
-        console.error(err);
       }
-    }
+      window.sendBit = sendBit;
+      Setup.bind();
+
     })();
   </script>
 
