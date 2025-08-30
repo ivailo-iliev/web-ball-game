@@ -39,6 +39,7 @@
     const cfg = Config.get();
     let videoTop, track, dc, videoWorker;
     let lastFrame, cropRatio = 1;
+    let desiredW, desiredH;
 
     async function initRTC() {
       const stateEl = $('#state');
@@ -72,6 +73,8 @@
     async function init() {
       const reqResW = cfg.frontResW ?? cfg.topResW;
       const reqResH = cfg.frontResH ?? cfg.topResH;
+      desiredW = reqResW;
+      desiredH = reqResH;
 
       if (cfg.url || cfg.topMode) {
         const mode = cfg.topMode ?? TOP_MODE_WEBRTC;
@@ -120,8 +123,6 @@
         cropRatio = Math.max(w / reqResW, h / reqResH);
         const workerTrack = track.clone();
         videoWorker = startVideoWorker(workerTrack, (frame) => {
-          const desiredW = reqResW;
-          const desiredH = reqResH;
           let cropW = desiredW;
           let cropH = desiredH;
           const baseRect = frame.visibleRect || {
@@ -200,6 +201,11 @@
       return true;
     }
 
+    function setCrop(w, h) {
+      desiredW = w;
+      desiredH = h;
+    }
+
     return {
       init,
       top: () => videoTop,
@@ -208,7 +214,8 @@
         lastFrame = null;
         return frame;
       },
-      frontCropRatio: () => cropRatio
+      frontCropRatio: () => cropRatio,
+      setCrop
     };
   })();
 
