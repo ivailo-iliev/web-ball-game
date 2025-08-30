@@ -117,6 +117,7 @@
   <script src="webrtc.js"></script>
   <script src="config.js"></script>
   <script src="detect.js"></script>
+  <script src="feeds.js"></script>
   <script>
     (function () {
       'use strict';
@@ -351,66 +352,12 @@
       start.disabled = true;
       infoBase = '';
       try {
-        // 1) Camera → WebCodecs VideoFrame (no <video> element)
-        const videoConstraints = {
-          facingMode: 'environment',
-          frameRate: { ideal: 60 },
-          width: { ideal: CAM_W },
-          height: { ideal: CAM_H }
-        };
-        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
-        const track = stream.getVideoTracks()[0];
-
-        // 2) detection will internally init WebGPU; just keep a simple busy flag
-        let busy = false; // drop frames when main thread is busy
-        // 5) Worker: iOS Safari exposes MediaStreamTrackProcessor only in a Dedicated Worker.
-        //    We transfer the camera track to the worker; it posts VideoFrames back to main.
-        const workerSrc = /* js */`
-        self.onmessage = async (e) => {
-          const { op } = e.data || {};
-          if (op === 'init-track') {
-            const { track } = e.data;
-            if (!track) return;
-            // Create MSTP in worker and stream frames to main
-            const processor = new MediaStreamTrackProcessor({ track });
-            const reader = processor.readable.getReader();
-            for (;;) {
-              const { value: frame, done } = await reader.read();
-              if (done || !frame) break;
-              self.postMessage(frame, [frame]); // transfer ownership
-            }
-          } else if (op === 'init-stream') {
-            const { stream } = e.data;
-            if (!stream) return;
-            const reader = stream.getReader();
-            for (;;) {
-              const { value: frame, done } = await reader.read();
-              if (done || !frame) break;
-              self.postMessage(frame, [frame]); // transfer ownership
-            }
-          } // else ignore
-        };
-      `;
-        const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
-        const videoWorker = new Worker(workerURL);
-        URL.revokeObjectURL(workerURL);
-
-        // Try to transfer the MediaStreamTrack to the worker first (iOS-friendly).
-        // If this throws (e.g., Chrome Windows), fall back to sending a ReadableStream.
-        try {
-          videoWorker.postMessage({ op: 'init-track', track }, [track]);
-        } catch (e) {
-          const processor = new MediaStreamTrackProcessor({ track });
-          videoWorker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
-        }
-
-        // 6) Main-thread pump: CEITT → compute(main) → render(vs/fs)
-        videoWorker.onmessage = onWorkerMessage;
-
-        async function onWorkerMessage(ev) {
-          const frame = ev.data; // VideoFrame (transferred)
-          if (!frame) return;
-          if (busy) { frame.close(); return; }
+        if (!await Feeds.init()) { info.textContent = 'Feed init failed'; start.disabled = false; return; }
+        let busy = false;
+        async function loop() {
+          const frame = await Feeds.frontFrame();
+          if (!frame) { requestAnimationFrame(loop); return; }
+          if (busy) { frame.close(); requestAnimationFrame(loop); return; }
           const now = performance.now();
           if (lastFrameTS !== undefined) {
             const fps = 1000 / (now - lastFrameTS);
@@ -418,41 +365,12 @@
           }
           lastFrameTS = now;
           busy = true;
-          // Center crop using zero-copy VideoFrame API for maximum performance
-          let cropW = cfg.topResW;
-          let cropH = cfg.topResH;
-          // Use the frame's visible rect if available so the crop is
-          // centred within the already-visible portion of the frame.
-          const baseRect = frame.visibleRect || {
-            x: 0,
-            y: 0,
-            width: frame.codedWidth,
-            height: frame.codedHeight
-          };
-          const frameW = baseRect.width;
-          const frameH = baseRect.height;
-          if (cropW > frameW) {
-            cropW = frameW;
-            cropH = Math.round(cropW * ASPECT);
-          }
-          if (cropH > frameH) {
-            cropH = frameH;
-            cropW = Math.round(cropH / ASPECT);
-          }
-          // Safari's VideoFrame cropping requires even alignment for 4:2:0 formats.
-          cropW &= ~1;
-          cropH &= ~1;
-          // Offset into the middle of the base rect.  Mask the result to even
-          // values to satisfy Safari's cropping requirements for 4:2:0
-          // formats.
-          const ox = (baseRect.x + Math.max(0, (frameW - cropW) >> 1)) & ~1;
-          const oy = (baseRect.y + Math.max(0, (frameH - cropH) >> 1)) & ~1;
-          let cropped;
           try {
-            cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
+            const cropW = frame.displayWidth || frame.codedWidth;
+            const cropH = frame.displayHeight || frame.codedHeight;
             const { a, b, w, h, resized } = await GPUShared.detect({
               key: 'demo',
-              source: cropped,
+              source: frame,
               colorA: teamA,
               colorB: teamB,
               domThrA,
@@ -471,8 +389,8 @@
               radiusPx: cfg.topRadiusPx,
             });
             if (resized) {
-              canvas.width = cropped.displayWidth;
-              canvas.height = cropped.displayHeight;
+              canvas.width = frame.displayWidth;
+              canvas.height = frame.displayHeight;
               infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               info.textContent = infoBase;
             }
@@ -488,12 +406,12 @@
               if (bit !== undefined && window.sendBit) window.sendBit(bit);
             }
           } finally {
-            if (cropped) cropped.close();
             frame.close();
             busy = false;
           }
+          requestAnimationFrame(loop);
         }
-
+        requestAnimationFrame(loop);
       } catch (err) {
         info.textContent = (err && err.message) ? err.message : String(err);
         start.disabled = false;
