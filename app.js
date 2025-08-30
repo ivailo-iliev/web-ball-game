@@ -26,11 +26,23 @@ const YMIN_DEFAULT    = 0.00;
 const YMAX_DEFAULT    = 0.70;
 const RADIUS_DEFAULT  = 18;
 
+// Camera runs at 19.5:9 (1920×886). Crop width is configurable but
+// height always maintains the aspect ratio.
+const CAM_W = 1920;
+const CAM_H = 886;
+const ASPECT = CAM_H / CAM_W;
+const DEFAULT_CROP_W = 1280;
+// iOS Safari requires even crop sizes when using VideoFrame visibleRect.
+// Round and mask off the lowest bit to guarantee an even height.
+const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT) & ~1;
+const DEFAULT_ZOOM = CAM_W / DEFAULT_CROP_W;
+
 const DEFAULTS = {
   topResW: 640,
   topResH: 480,
-  frontResW: 1280,
-  frontResH: 590,
+  frontZoom: DEFAULT_ZOOM,
+  frontResW: DEFAULT_CROP_W,
+  frontResH: DEFAULT_CROP_H,
   topMinArea: 0.025,   // seed score threshold (0..1), was "area"
   frontMinArea: 8000,  // no longer used for decisions, kept for UI compatibility
   radiusPx: RADIUS_DEFAULT,
@@ -43,7 +55,6 @@ const DEFAULTS = {
   teamB:  "blue",
   polyT:  [],
   polyF:  [],
-  zoom:   1.0,
   topH:   160,
   frontH: 220,
   topMode: TOP_MODE_WEBRTC
@@ -51,6 +62,9 @@ const DEFAULTS = {
 
 const Config = createConfig(DEFAULTS);
 Config.load();
+const cfgInit = Config.get();
+cfgInit.frontResW = Math.round(CAM_W / (cfgInit.frontZoom || DEFAULT_ZOOM)) & ~1;
+cfgInit.frontResH = Math.round(cfgInit.frontResW * ASPECT) & ~1;
 
 const PreviewGfx = (() => {
   const cfg = Config.get();
@@ -150,7 +164,7 @@ const Setup = (() => {
       <button onclick="location.reload()">⟳</button>
       <button id=btnStart>►</button>
     </span>
-    <label for=frontZoom>🔍 <input id=frontZoom type=number style="width:3ch"></label>
+    <label for=frontZoom>🔍 <input id=frontZoom type=number step=0.01 style="width:3ch"></label>
     <label for=topMinInp>⚫ <input id=topMinInp   type=number min=0 max=1 step=0.005 style="width:6ch"></label>
     <label for=topHInp>↕️ <input id=topHInp   type=number min=10 max=${cfg.topResH} step=1></label>
     <label for=frontMinInp>⚫ <input id=frontMinInp type=number min=0 step=100  style="width:6ch"></label>
@@ -222,7 +236,23 @@ const Setup = (() => {
     const urlI = $('#topUrl');
     const urlWarn = $('#urlWarn');
     const selMode = $('#topMode');
-      const selA = $('#teamA');
+    const frontZoomEl = $('#frontZoom');
+    frontZoomEl.setAttribute('data-spinner', '');
+    frontZoomEl.value = cfg.frontZoom;
+    function onFrontZoomInput(e) {
+      cfg.frontZoom = Math.max(1, +e.target.value);
+      cfg.frontResW = Math.round(CAM_W / cfg.frontZoom) & ~1;
+      cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+      Config.save('frontZoom', cfg.frontZoom);
+      Config.save('frontResW', cfg.frontResW);
+      Config.save('frontResH', cfg.frontResH);
+      const tex = $('#frontTex');
+      const ov = $('#frontOv');
+      if (tex) { tex.width = cfg.frontResW; tex.height = cfg.frontResH; }
+      if (ov) { ov.width = cfg.frontResW; ov.height = cfg.frontResH; }
+    }
+    frontZoomEl.addEventListener('input', onFrontZoomInput);
+    const selA = $('#teamA');
       const selB = $('#teamB');
       const domAInput = $('#domA');
       const domBInput = $('#domB');
@@ -483,161 +513,6 @@ const Setup = (() => {
   return { bind };
 })();
 
-const Feeds = (() => {
-  const cfg = Config.get();
-  let videoTop, videoFront, track, dc;
-
-  async function initRTC() {
-    const stateEl = $('#state');
-    const log = msg => { if (stateEl) stateEl.textContent = msg; };
-    log('Connecting…');
-
-    let ctrl;
-    try {
-      ctrl = await StartB({ log });
-    } catch (err) {
-      log('ERR: ' + (err && (err.stack || err)));
-      return false;
-    }
-
-    const pc = ctrl && ctrl.pc;
-    if (!pc) { log('no offer found — open A first'); return false; }
-
-    pc.ondatachannel = e => {
-      dc = e.channel;
-      log('connected');
-      dc.onmessage = ev => {
-        const bit = parseInt(ev.data, 10);
-        if (!isNaN(bit)) Controller.handleBit(bit);
-      };
-    };
-
-    window.sendBit = bit => { if (dc && dc.readyState === 'open') dc.send(bit); };
-    return true;
-  }
-
-  async function init() {
-    videoFront = $('#vid');
-
-    if (cfg.topMode === TOP_MODE_MJPEG) {
-      const urlWarnEl = $('#urlWarn');
-      videoTop = new Image();
-      videoTop.crossOrigin = 'anonymous';
-      videoTop.src = cfg.url;
-      try {
-        await videoTop.decode();
-      } catch (err) {
-        if (urlWarnEl) urlWarnEl.textContent = '⚠️';
-        console.log('Failed to load top camera feed', err);
-        return false;
-      }
-    } else if (cfg.topMode === TOP_MODE_WEBRTC) {
-      if (!await initRTC()) return false;
-    } else {
-      console.log('Unknown topMode', cfg.topMode);
-      return false;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      console.log('getUserMedia not supported');
-      return false;
-    }
-    let frontStream;
-    try {
-      frontStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          width: { ideal: cfg.frontResW },
-          height: { ideal: cfg.frontResH },
-          facingMode: 'environment',
-          frameRate: { ideal: 60 }
-        }
-      });
-    } catch (err) {
-      console.log('Front camera init failed', err);
-      return false;
-    }
-
-    videoFront.srcObject = frontStream;
-    track = frontStream.getVideoTracks()[0];
-
-    const cap = track.getCapabilities();
-    const advConstraints = [];
-
-    if (cap.powerEfficient) advConstraints.push({ powerEfficient: false });
-
-    if (cap.zoom) {
-      const zoomInput = $('#frontZoom');
-      const { min, max, step } = cap.zoom;
-      zoomInput.min = min;
-      zoomInput.max = Math.min(2, max);
-      zoomInput.step = step || 0.1;
-      zoomInput.value = cfg.zoom;
-      advConstraints.push({ zoom: cfg.zoom });
-      zoomInput.addEventListener('input', async () => {
-        const z = parseFloat(zoomInput.value);
-        cfg.zoom = z;
-        Config.save('zoom', cfg.zoom);
-        try {
-          await track.applyConstraints({ advanced: [{ zoom: z }] });
-        } catch (err) {
-          console.log('Zoom apply failed:', err);
-        }
-      });
-    }
-
-    try {
-      await videoFront.play();
-    } catch (err) {
-      console.log('Front video play failed', err);
-      return false;
-    }
-    if (
-      cap.exposureMode &&
-      cap.exposureMode.includes('manual') &&
-      cap.exposureTime &&
-      cap.iso
-    ) {
-      advConstraints.push({
-        exposureMode: 'manual',
-        exposureTime: 1 / 500,
-        iso: 400,
-      });
-    }
-    if (
-      cap.focusMode &&
-      cap.focusMode.includes('manual') &&
-      cap.focusDistance
-    ) {
-      advConstraints.push({ focusMode: 'manual', focusDistance: 3.0 });
-    }
-    if (
-      cap.whiteBalanceMode &&
-      cap.whiteBalanceMode.includes('manual') &&
-      cap.colorTemperature
-    ) {
-      advConstraints.push({
-        whiteBalanceMode: 'manual',
-        colorTemperature: 5600,
-      });
-    }
-    if (advConstraints.length) {
-      try {
-        await new Promise((r) => setTimeout(r, 1500));
-        await track.applyConstraints({ advanced: advConstraints });
-      } catch (err) {
-        console.log('Advanced constraints apply failed:', err);
-      }
-    }
-    return true;
-  }
-
-  return {
-    init,
-    top: () => videoTop,
-    front: () => videoFront
-  };
-})();
 
 const Detect = (() => {
   const cfg = Config.get();
@@ -649,8 +524,13 @@ const Detect = (() => {
       max: new Float32Array([cfg.topResW, Math.max(...ys)])
     };
   }
+
   function rectFront() {
-    const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
+    if (cfg.polyF.length !== 4) {
+      return { min: new Float32Array([0, 0]), max: new Float32Array([cfg.frontResW, cfg.frontResH]) };
+    }
+    const xs = cfg.polyF.map(p => p[0]);
+    const ys = cfg.polyF.map(p => p[1]);
     return {
       min: new Float32Array([Math.min(...xs), Math.min(...ys)]),
       max: new Float32Array([Math.max(...xs), Math.max(...ys)])
@@ -694,20 +574,20 @@ const Detect = (() => {
     return { presentA, presentB, scoreA, scoreB };
   }
 
-  let lastCaptureTime = 0;
   let frontRunning = false;
   async function runFrontDetection(aActive, bActive, preview) {
     if (frontRunning) return { detected: false, hits: [] };
     frontRunning = true;
+    let frame;
     try {
-      const meta = await new Promise(res => Feeds.front().requestVideoFrameCallback((_n, m) => res(m)));
-      if (meta.captureTime === lastCaptureTime) return { detected: false, hits: [] };
-      lastCaptureTime = meta.captureTime;
+      frame = await Feeds.frontFrame();
+      if (!frame) return { detected: false, hits: [] };
+      const canvas = preview ? document.getElementById('frontTex') : null;
       const colorA = TEAM_INDICES[cfg.teamA];
       const colorB = TEAM_INDICES[cfg.teamB];
-      const { a, b } = await GPUShared.detect({
+      const { a, b, w, h, resized } = await GPUShared.detect({
         key: 'front',
-        source: Feeds.front(),
+        source: frame,
         colorA,
         colorB,
         domThrA: cfg.domThr[colorA],
@@ -720,13 +600,17 @@ const Detect = (() => {
         yMaxB: cfg.yMax[colorB],
         radiusPx: cfg.radiusPx,
         rect: rectFront(),
-        previewCanvas: preview ? document.getElementById('frontTex') : null,
+        previewCanvas: canvas,
         preview,
         activeA: aActive,
         activeB: bActive,
         flipY: true
       });
-      const [keyA, xA, yA] = a; // Best.{key,x,y}; centroid already finalized in-shader
+      if (resized && canvas) {
+        canvas.width = frame.displayWidth;
+        canvas.height = frame.displayHeight;
+      }
+      const [keyA, xA, yA] = a;
       const [keyB, xB, yB] = b;
       const hits = [];
       if (aActive && keyA !== 0) {
@@ -740,6 +624,7 @@ const Detect = (() => {
       }
       return { detected: hits.length > 0, hits };
     } finally {
+      if (frame) frame.close();
       frontRunning = false;
     }
   }
@@ -801,6 +686,16 @@ const Controller = (() => {
   async function start() {
     Setup.bind();
     if (!await Feeds.init()) return;
+    const cfg = Config.get();
+    const zEl = $('#frontZoom');
+    const z = Feeds.frontCropRatio();
+    zEl.value = z.toFixed(2);
+    cfg.frontZoom = z;
+    cfg.frontResW = Math.round(CAM_W / z) & ~1;
+    cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+    Config.save('frontZoom', cfg.frontZoom);
+    Config.save('frontResW', cfg.frontResW);
+    Config.save('frontResH', cfg.frontResH);
     if (!await Detect.init()) return;
     lastTop = 0;
     if (cfg.topMode === TOP_MODE_MJPEG) {
