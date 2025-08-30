@@ -5,33 +5,27 @@
   const TOP_MODE_WEBRTC = 'webrtc';
 
   function startVideoWorker(track, onFrame) {
-    const workerSrc = `self.onmessage = async (e) => {
-  const { op } = e.data || {};
-  if (op === 'init-track') {
-    const { track } = e.data;
-    if (!track) return;
+    const workerSrc = `self.onmessage = async ({ data }) => {
+  const post = frame => self.postMessage(frame, [frame]);
+  const readFrames = async reader => {
+    for (;;) {
+      const { value: frame, done } = await reader.read();
+      if (done || !frame) break;
+      post(frame);
+    }
+  };
+  const { op, track, stream } = data || {};
+  if (op === 'init-track' && track) {
     const processor = new MediaStreamTrackProcessor({ track });
-    const reader = processor.readable.getReader();
-    for (;;) {
-      const { value: frame, done } = await reader.read();
-      if (done || !frame) break;
-      self.postMessage(frame, [frame]);
-    }
-  } else if (op === 'init-stream') {
-    const { stream } = e.data;
-    if (!stream) return;
-    const reader = stream.getReader();
-    for (;;) {
-      const { value: frame, done } = await reader.read();
-      if (done || !frame) break;
-      self.postMessage(frame, [frame]);
-    }
+    await readFrames(processor.readable.getReader());
+  } else if (op === 'init-stream' && stream) {
+    await readFrames(stream.getReader());
   }
 };`;
     const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
     const worker = new Worker(workerURL);
     URL.revokeObjectURL(workerURL);
-    worker.onmessage = (ev) => { onFrame(ev.data); };
+    worker.onmessage = ({ data }) => onFrame(data);
     try {
       worker.postMessage({ op: 'init-track', track }, [track]);
     } catch (e) {
@@ -48,7 +42,7 @@
 
     async function initRTC() {
       const stateEl = $('#state');
-      const log = msg => { if (stateEl) stateEl.textContent = msg; };
+      const log = msg => stateEl && (stateEl.textContent = msg);
       log('Connecting…');
 
       let ctrl;
@@ -59,19 +53,19 @@
         return false;
       }
 
-      const pc = ctrl && ctrl.pc;
+      const pc = ctrl?.pc;
       if (!pc) { log('no offer found — open A first'); return false; }
 
-      pc.ondatachannel = e => {
-        dc = e.channel;
+      pc.ondatachannel = ({ channel }) => {
+        dc = channel;
         log('connected');
-        dc.onmessage = ev => {
-          const bit = parseInt(ev.data, 10);
-          if (!isNaN(bit)) Controller.handleBit(bit);
+        dc.onmessage = ({ data }) => {
+          const bit = Number.parseInt(data, 10);
+          if (!Number.isNaN(bit)) Controller.handleBit(bit);
         };
       };
 
-      window.sendBit = bit => { if (dc && dc.readyState === 'open') dc.send(bit); };
+      window.sendBit = bit => { if (dc?.readyState === 'open') dc.send(bit); };
       return true;
     }
 
@@ -80,7 +74,7 @@
       const reqResH = cfg.frontResH ?? cfg.topResH;
 
       if (cfg.url || cfg.topMode) {
-        const mode = cfg.topMode || TOP_MODE_WEBRTC;
+        const mode = cfg.topMode ?? TOP_MODE_WEBRTC;
         if (mode === TOP_MODE_MJPEG) {
           const urlWarnEl = $('#urlWarn');
           videoTop = new Image();
@@ -121,78 +115,75 @@
         return false;
       }
 
-      track = frontStream.getVideoTracks()[0];
-      const settings = track.getSettings();
-      const w = settings.width || reqResW;
-      const h = settings.height || reqResH;
-      cropRatio = Math.max(w / (cfg.frontResW ?? cfg.topResW), h / (cfg.frontResH ?? cfg.topResH));
-      const workerTrack = track.clone();
-      videoWorker = startVideoWorker(workerTrack, (frame) => {
-        const desiredW = cfg.frontResW ?? cfg.topResW;
-        const desiredH = cfg.frontResH ?? cfg.topResH;
-        let cropW = desiredW;
-        let cropH = desiredH;
-        const baseRect = frame.visibleRect || {
-          x: 0,
-          y: 0,
-          width: frame.codedWidth,
-          height: frame.codedHeight
-        };
-        const frameW = baseRect.width;
-        const frameH = baseRect.height;
-        const aspect = desiredH / desiredW;
-        if (cropW > frameW) {
-          cropW = frameW;
-          cropH = Math.round(cropW * aspect);
-        }
-        if (cropH > frameH) {
-          cropH = frameH;
-          cropW = Math.round(cropH / aspect);
-        }
-        cropW &= ~1;
-        cropH &= ~1;
-        cropRatio = Math.max(frameW / cropW, frameH / cropH);
-        const ox = (baseRect.x + Math.max(0, (frameW - cropW) >> 1)) & ~1;
-        const oy = (baseRect.y + Math.max(0, (frameH - cropH) >> 1)) & ~1;
-        let cropped;
-        try {
-          cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
-          if (lastFrame) lastFrame.close();
-          lastFrame = cropped;
-        } finally {
-          frame.close();
-        }
-      });
+        track = frontStream.getVideoTracks()[0];
+        const { width: w = reqResW, height: h = reqResH } = track.getSettings();
+        cropRatio = Math.max(w / reqResW, h / reqResH);
+        const workerTrack = track.clone();
+        videoWorker = startVideoWorker(workerTrack, (frame) => {
+          const desiredW = reqResW;
+          const desiredH = reqResH;
+          let cropW = desiredW;
+          let cropH = desiredH;
+          const baseRect = frame.visibleRect || {
+            x: 0,
+            y: 0,
+            width: frame.codedWidth,
+            height: frame.codedHeight
+          };
+          const frameW = baseRect.width;
+          const frameH = baseRect.height;
+          const aspect = desiredH / desiredW;
+          if (cropW > frameW) {
+            cropW = frameW;
+            cropH = Math.round(cropW * aspect);
+          }
+          if (cropH > frameH) {
+            cropH = frameH;
+            cropW = Math.round(cropH / aspect);
+          }
+          cropW &= ~1;
+          cropH &= ~1;
+          cropRatio = Math.max(frameW / cropW, frameH / cropH);
+          const midX = Math.max(0, (frameW - cropW) >> 1);
+          const midY = Math.max(0, (frameH - cropH) >> 1);
+          const ox = (baseRect.x + midX) & ~1;
+          const oy = (baseRect.y + midY) & ~1;
+          let cropped;
+          try {
+            cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
+            if (lastFrame) lastFrame.close();
+            lastFrame = cropped;
+          } finally {
+            frame.close();
+          }
+        });
 
       const cap = track.getCapabilities();
+      const {
+        powerEfficient,
+        exposureMode,
+        exposureTime,
+        iso,
+        focusMode,
+        focusDistance,
+        whiteBalanceMode,
+        colorTemperature,
+      } = cap;
       const advConstraints = [];
 
-      if (cap.powerEfficient) advConstraints.push({ powerEfficient: false });
+      if (powerEfficient) advConstraints.push({ powerEfficient: false });
 
-      if (
-        cap.exposureMode &&
-        cap.exposureMode.includes('manual') &&
-        cap.exposureTime &&
-        cap.iso
-      ) {
+      if (exposureMode?.includes('manual') && exposureTime && iso) {
         advConstraints.push({
           exposureMode: 'manual',
           exposureTime: 1 / 500,
           iso: 400,
         });
       }
-      if (
-        cap.focusMode &&
-        cap.focusMode.includes('manual') &&
-        cap.focusDistance
-      ) {
+      if (focusMode?.includes('manual') && focusDistance) {
         advConstraints.push({ focusMode: 'manual', focusDistance: 3.0 });
       }
-      if (
-        cap.whiteBalanceMode &&
-        cap.whiteBalanceMode.includes('manual') &&
-        cap.colorTemperature
-      ) {
+      if (whiteBalanceMode?.includes('manual') && colorTemperature) {
         advConstraints.push({
           whiteBalanceMode: 'manual',
           colorTemperature: 5600,
@@ -200,7 +191,7 @@
       }
       if (advConstraints.length) {
         try {
-          await new Promise((r) => setTimeout(r, 1500));
+          await new Promise(r => setTimeout(r, 1500));
           await track.applyConstraints({ advanced: advConstraints });
         } catch (err) {
           console.log('Advanced constraints apply failed:', err);
@@ -212,10 +203,10 @@
     return {
       init,
       top: () => videoTop,
-      frontFrame: () => {
-        const f = lastFrame;
+      frontFrame: async () => {
+        const frame = lastFrame;
         lastFrame = null;
-        return Promise.resolve(f);
+        return frame;
       },
       frontCropRatio: () => cropRatio
     };
