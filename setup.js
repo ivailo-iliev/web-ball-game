@@ -98,11 +98,10 @@
       if (bound) return;
       bound = true;
       if (!Config) {
-        const App = window.App || {};
-        Config = App.Config || Config;
-        PreviewGfx = App.PreviewGfx || PreviewGfx;
-        Controller = App.Controller || Controller;
-        Feeds = App.Feeds || window.Feeds;
+        Config = window.Config || Config;
+        PreviewGfx = window.PreviewGfx || PreviewGfx;
+        Controller = window.Controller || Controller;
+        Feeds = window.Feeds || Feeds;
       }
       if (!Config) {
         const { createConfig } = window;
@@ -492,13 +491,11 @@
       updateFrontCrop,
       applyFrontZoom,
       applyTopZoom,
-      get cfg() { return cfg; },
-      get Config() { return Config; }
+      get cfg() { return cfg; }
     };
   })();
 
   window.Setup = Setup;
-  if (window.App) window.App.Setup = Setup;
   if (document.readyState !== 'loading') {
     Setup.bind();
   } else {
