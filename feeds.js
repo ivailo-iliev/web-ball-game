@@ -36,7 +36,7 @@
   }
 
   const Feeds = (() => {
-    const cfg = Config.get();
+    let cfg;
     let videoTop, track, dc, videoWorker;
     let lastFrame, cropRatio = 1;
     let desiredW, desiredH;
@@ -71,6 +71,7 @@
     }
 
     async function init() {
+      cfg = window.App?.Config?.get?.() || {};
       const reqResW = cfg.frontResW ?? cfg.topResW;
       const reqResH = cfg.frontResH ?? cfg.topResH;
       desiredW = reqResW;

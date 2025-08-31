@@ -351,22 +351,22 @@
       commitTop();
 
         // Front ROI: fixed aspect, height-driven; gesture = drag only
-        const ASPECT = cfg.frontResW / cfg.frontResH;
-        let roi = { x: 0, y: 0, w: cfg.frontH * ASPECT, h: cfg.frontH };
+        const frontAspect = cfg.frontResW / cfg.frontResH;
+        let roi = { x: 0, y: 0, w: cfg.frontH * frontAspect, h: cfg.frontH };
         if (cfg.polyF?.length === 4) {
           const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
           const x0 = Math.min(...xs), x1 = Math.max(...xs);
           const y0 = Math.min(...ys), y1 = Math.max(...ys);
           roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
           // re-lock width to height*aspect in case stored poly drifted
-          roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
-          roi.w = roi.h * ASPECT;
+            roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
+            roi.w = roi.h * frontAspect;
         }
 
         function commit() {
           // lock width to height * aspect and clamp inside framebuffer
           roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
-          roi.w = roi.h * ASPECT;
+          roi.w = roi.h * frontAspect;
           roi.x = Math.min(Math.max(0, roi.x), cfg.frontResW - roi.w);
           roi.y = Math.min(Math.max(0, roi.y), cfg.frontResH - roi.h);
           // write polygon in TL,TR,BR,BL order for downstream code
