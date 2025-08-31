@@ -80,7 +80,7 @@
     </fieldset>
     <fieldset>
       <button id="start">Start</button>
-      <input id="zoom" type="number" placeholder="zoom" step="0.01" min="1" />
+      <input id="zoom" type="number" placeholder="zoom" step="0.01" min="1" value="1" />
     </fieldset>
     <fieldset>
       <select id="teamA">
@@ -89,10 +89,10 @@
         <option value="blue">🔵</option>
         <option value="yellow">🟡</option>
       </select>
-      <input id="domA" type="number" placeholder="domA" step="0.01" />
-      <input id="satMinA" type="number" placeholder="satMinA" step="0.01" />
-      <input id="yMinA" type="number" placeholder="yMinA" step="0.01" />
-      <input id="yMaxA" type="number" placeholder="yMaxA" step="0.01" />
+      <input id="domA" type="number" placeholder="domA" step="0.01" value="0" />
+      <input id="satMinA" type="number" placeholder="satMinA" step="0.01" value="0" />
+      <input id="yMinA" type="number" placeholder="yMinA" step="0.01" value="0" />
+      <input id="yMaxA" type="number" placeholder="yMaxA" step="0.01" value="1" />
     </fieldset>
     <fieldset>
       <select id="teamB">
@@ -101,14 +101,14 @@
         <option value="blue">🔵</option>
         <option value="yellow">🟡</option>
       </select>
-      <input id="domB" type="number" placeholder="domB" step="0.01" />
-      <input id="satMinB" type="number" placeholder="satMinB" step="0.01" />
-      <input id="yMinB" type="number" placeholder="yMinB" step="0.01" />
-      <input id="yMaxB" type="number" placeholder="yMaxB" step="0.01" />
+      <input id="domB" type="number" placeholder="domB" step="0.01" value="0" />
+      <input id="satMinB" type="number" placeholder="satMinB" step="0.01" value="0" />
+      <input id="yMinB" type="number" placeholder="yMinB" step="0.01" value="0" />
+      <input id="yMaxB" type="number" placeholder="yMaxB" step="0.01" value="1" />
     </fieldset>
     <fieldset>
-      <input id="radiusPx" type="number" placeholder="radius" />
-      <input id="topMinInp" type="number" placeholder="score thr (0..1)" step="0.005" />
+      <input id="radiusPx" type="number" placeholder="radius" value="18" />
+      <input id="topMinInp" type="number" placeholder="score thr (0..1)" step="0.005" value="0" />
     </fieldset>
     <span id="info"></span>
   </div>

@@ -14,10 +14,11 @@
   const CAM_W = 1920;
   const CAM_H = 886;
   const ASPECT = CAM_H / CAM_W;
-  const DOM_THR_DEFAULT = 0.10;
-  const SATMIN_DEFAULT  = 0.12;
-  const YMIN_DEFAULT    = 0.00;
-  const YMAX_DEFAULT    = 0.70;
+  // Detection thresholds: defaults must be at min or max range
+  const DOM_THR_DEFAULT = 0.0;
+  const SATMIN_DEFAULT  = 0.0;
+  const YMIN_DEFAULT    = 0.0;
+  const YMAX_DEFAULT    = 1.0;
   const RADIUS_DEFAULT  = 18;
 
   const Setup = (() => {
@@ -105,14 +106,21 @@
       }
       if (!Config) {
         const { createConfig } = window;
-        const DEFAULT_CROP_W = 1280;
-        const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT) & ~1;
-        const DEFAULT_ZOOM = CAM_W / DEFAULT_CROP_W;
+        // Default to full-frame, unity zoom
+        const DEFAULT_CROP_W = CAM_W;
+        const DEFAULT_CROP_H = CAM_H;
+        const DEFAULT_ZOOM = 1;
         const defaults = {
           topZoom: DEFAULT_ZOOM,
+          frontZoom: DEFAULT_ZOOM,
           topResW: DEFAULT_CROP_W,
           topResH: DEFAULT_CROP_H,
-          topMinArea: 0.025,
+          frontResW: DEFAULT_CROP_W,
+          frontResH: DEFAULT_CROP_H,
+          topH: DEFAULT_CROP_H,
+          frontH: DEFAULT_CROP_H,
+          topMinArea: 0,
+          frontMinArea: 0,
           teamA: 'green',
           teamB: 'blue',
           domThr: Array(4).fill(DOM_THR_DEFAULT),
