@@ -99,10 +99,10 @@
       bound = true;
       if (!Config) {
         const App = window.App || {};
-        Config = App.Config;
-        PreviewGfx = App.PreviewGfx;
-        Controller = App.Controller;
-        Feeds = App.Feeds;
+        Config = App.Config || Config;
+        PreviewGfx = App.PreviewGfx || PreviewGfx;
+        Controller = App.Controller || Controller;
+        Feeds = App.Feeds || window.Feeds;
       }
       if (!Config) {
         const { createConfig } = window;
@@ -309,8 +309,8 @@
 
     const topROI = { y: 0, h: cfg.topH };
 
-    function drawPolyTop() { PreviewGfx.drawROI(cfg.polyT, 'lime', 'top'); }
-    function drawPolyFront() { PreviewGfx.drawROI(cfg.polyF, 'aqua', 'front'); }
+    function drawPolyTop() { PreviewGfx?.drawROI?.(cfg.polyT, 'lime', 'top'); }
+    function drawPolyFront() { PreviewGfx?.drawROI?.(cfg.polyF, 'aqua', 'front'); }
 
     function commitTop() {
       topROI.y = Math.min(Math.max(0, topROI.y), cfg.topResH - topROI.h);
@@ -320,7 +320,7 @@
       drawPolyTop();
     }
 
-      if (cfg.polyT.length === 4) {
+      if (cfg.polyT?.length === 4) {
         const ys = cfg.polyT.map(p => p[1]);
         topROI.y = Math.min(...ys);
         topROI.h = Math.max(...ys) - topROI.y;
@@ -331,13 +331,13 @@
           let dragY = null;
           $('#topOv').style.touchAction = 'none';
           $('#topOv').addEventListener('pointerdown', e => {
-            if (!Controller.isPreview()) return;
+            if (!Controller?.isPreview?.()) return;
             const r = $('#topOv').getBoundingClientRect();
             dragY = (e.clientY - r.top) * cfg.topResH / r.height;
             $('#topOv').setPointerCapture(e.pointerId);
           });
-          $('#topOv').addEventListener('pointermove', e => {
-            if (dragY == null || !Controller.isPreview()) return;
+            $('#topOv').addEventListener('pointermove', e => {
+              if (dragY == null || !Controller?.isPreview?.()) return;
             const r = $('#topOv').getBoundingClientRect();
             const curY = (e.clientY - r.top) * cfg.topResH / r.height;
             topROI.y += curY - dragY;
@@ -387,14 +387,14 @@
 
         // Drag-only gesture
         let dragStart, roiStart;
-        $('#frontOv')?.addEventListener('pointerdown', e => {
-          if (!Controller.isPreview()) return;
+          $('#frontOv')?.addEventListener('pointerdown', e => {
+            if (!Controller?.isPreview?.()) return;
           $('#frontOv').setPointerCapture(e.pointerId);
           dragStart = toCanvas(e);
           roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
         });
-        $('#frontOv')?.addEventListener('pointermove', e => {
-          if (!dragStart || !Controller.isPreview()) return;
+          $('#frontOv')?.addEventListener('pointermove', e => {
+            if (!dragStart || !Controller?.isPreview?.()) return;
           const cur = toCanvas(e);
           roi.x = roiStart.x + (cur.x - dragStart.x);
           roi.y = roiStart.y + (cur.y - dragStart.y);
