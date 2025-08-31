@@ -4,6 +4,10 @@
   const TOP_MODE_MJPEG = 'mjpeg';
   const TOP_MODE_WEBRTC = 'webrtc';
 
+  const CAM_W = 1920;
+  const CAM_H = Math.round(CAM_W * 9 / 19.5) & ~1;
+  const ASPECT = CAM_H / CAM_W;
+
   function startVideoWorker(track, onFrame) {
     const workerSrc = `self.onmessage = async ({ data }) => {
   const post = frame => self.postMessage(frame, [frame]);
@@ -72,10 +76,10 @@
 
     async function init() {
       cfg = window.Config?.get?.() || {};
-      const reqResW = cfg.frontResW ?? cfg.topResW;
-      const reqResH = cfg.frontResH ?? cfg.topResH;
-      desiredW = reqResW;
-      desiredH = reqResH;
+      desiredW = cfg.frontResW ?? cfg.topResW ?? CAM_W;
+      desiredH = cfg.frontResH ?? cfg.topResH ?? Math.round(desiredW * ASPECT) & ~1;
+      const reqW = CAM_W;
+      const reqH = CAM_H;
 
       if (cfg.url || cfg.topMode) {
         const mode = cfg.topMode ?? TOP_MODE_WEBRTC;
@@ -108,8 +112,8 @@
         frontStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
-            width: { ideal: reqResW },
-            height: { ideal: reqResH },
+            width: { ideal: reqW },
+            height: { ideal: reqH },
             facingMode: 'environment',
             frameRate: { ideal: 60 }
           }
