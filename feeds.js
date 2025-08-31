@@ -71,7 +71,7 @@
     }
 
     async function init() {
-      cfg = window.App?.Config?.get?.() || {};
+      cfg = window.Config?.get?.() || {};
       const reqResW = cfg.frontResW ?? cfg.topResW;
       const reqResH = cfg.frontResH ?? cfg.topResH;
       desiredW = reqResW;

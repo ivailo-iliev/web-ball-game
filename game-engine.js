@@ -102,8 +102,8 @@ class BaseGame {
     this.container.className =
       'game' + (this.gameName ? ' ' + this.gameName : '');
 
-    if (win.App?.Config?.get) {
-      const cfg = win.App.Config.get();
+    if (win.Config?.get) {
+      const cfg = win.Config.get();
       Game.setTeams(cfg.teamA, cfg.teamB);
     }
   }

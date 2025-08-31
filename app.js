@@ -330,6 +330,9 @@ const Controller = (() => {
 
   return { start, setPreview, isPreview, handleBit };
 })();
-window.App = { Config, PreviewGfx, Feeds, Detect, Controller, Setup: window.Setup };
+window.Config = Config;
+window.PreviewGfx = PreviewGfx;
+window.Detect = Detect;
+window.Controller = Controller;
 Controller.start();
 })();
