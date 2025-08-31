@@ -22,6 +22,7 @@
 
   const Setup = (() => {
     let cfg;
+    let bound = false;
 
     function applyFrontZoom(val) {
       if (!cfg) return;
@@ -94,6 +95,8 @@
     }
 
     function bind() {
+      if (bound) return;
+      bound = true;
       if (!Config) {
         const App = window.App || {};
         Config = App.Config;
@@ -496,4 +499,9 @@
 
   window.Setup = Setup;
   if (window.App) window.App.Setup = Setup;
+  if (document.readyState !== 'loading') {
+    Setup.bind();
+  } else {
+    window.addEventListener('DOMContentLoaded', () => Setup.bind(), { once: true });
+  }
 })();
