@@ -26,10 +26,10 @@ const YMIN_DEFAULT    = 0.00;
 const YMAX_DEFAULT    = 0.70;
 const RADIUS_DEFAULT  = 18;
 
-// Camera runs at 19.5:9 (1920×886). Crop width is configurable but
+// Camera runs at 19.5:9 (1920×886 rounded even). Crop width is configurable but
 // height always maintains the aspect ratio.
 const CAM_W = 1920;
-const CAM_H = 886;
+const CAM_H = Math.round(CAM_W * 9 / 19.5) & ~1;
 const ASPECT = CAM_H / CAM_W;
 const DEFAULT_CROP_W = 1280;
 // iOS Safari requires even crop sizes when using VideoFrame visibleRect.

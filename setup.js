@@ -12,7 +12,7 @@
     yellow: '🟡'
   };
   const CAM_W = 1920;
-  const CAM_H = 886;
+  const CAM_H = Math.round(CAM_W * 9 / 19.5) & ~1;
   const ASPECT = CAM_H / CAM_W;
   // Detection thresholds: defaults must be at min or max range
   const DOM_THR_DEFAULT = 0.0;
