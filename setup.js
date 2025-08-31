@@ -1,11 +1,7 @@
 (function () {
   'use strict';
 
-  const App = window.App || {};
-  let Config = App.Config;
-  const PreviewGfx = App.PreviewGfx;
-  const Controller = App.Controller;
-  const Feeds = App.Feeds;
+  let Config, PreviewGfx, Controller, Feeds;
   const TOP_MODE_MJPEG = 'mjpeg';
   const TOP_MODE_WEBRTC = 'webrtc';
   const TEAM_INDICES = { red: 0, green: 1, blue: 2, yellow: 3 };
@@ -98,6 +94,13 @@
     }
 
     function bind() {
+      if (!Config) {
+        const App = window.App || {};
+        Config = App.Config;
+        PreviewGfx = App.PreviewGfx;
+        Controller = App.Controller;
+        Feeds = App.Feeds;
+      }
       if (!Config) {
         const { createConfig } = window;
         const DEFAULT_CROP_W = 1280;
