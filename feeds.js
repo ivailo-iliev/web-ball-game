@@ -121,7 +121,10 @@
 
         track = frontStream.getVideoTracks()[0];
         const { width: w = reqResW, height: h = reqResH } = track.getSettings();
-        cropRatio = Math.max(w / reqResW, h / reqResH);
+        // Default to full-frame if requested size is missing
+        desiredW = desiredW || w;
+        desiredH = desiredH || h;
+        cropRatio = Math.max(w / desiredW, h / desiredH);
         const workerTrack = track.clone();
         videoWorker = startVideoWorker(workerTrack, (frame) => {
           let cropW = desiredW;
