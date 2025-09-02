@@ -71,15 +71,14 @@
     async function init() {
       Config = window.Config;
       cfg = Config.get();
-      const { CAM_W, CAM_H, ASPECT, TOP_MODE_MJPEG, TOP_MODE_WEBRTC } = cfg;
+      const { CAM_W, CAM_H, ASPECT } = cfg;
       desiredW = cfg.frontResW ?? cfg.topResW ?? CAM_W;
       desiredH = cfg.frontResH ?? cfg.topResH ?? toEvenInt(desiredW * ASPECT);
       const reqW = CAM_W;
       const reqH = CAM_H;
 
-      if (cfg.url || cfg.topMode) {
-        const mode = cfg.topMode ?? TOP_MODE_WEBRTC;
-        if (mode === TOP_MODE_MJPEG) {
+      if (cfg.url || cfg.topMode !== undefined) {
+        if (isMjpeg()) {
           const urlWarnEl = $('#urlWarn');
           videoTop = new Image();
           videoTop.crossOrigin = 'anonymous';
@@ -91,11 +90,8 @@
             console.log('Failed to load top camera feed', err);
             return false;
           }
-        } else if (mode === TOP_MODE_WEBRTC) {
-          if (!await initRTC()) return false;
         } else {
-          console.log('Unknown topMode', mode);
-          return false;
+          if (!await initRTC()) return false;
         }
       }
 

@@ -1,5 +1,11 @@
 (function () {
   'use strict';
+
+  const TEAM_INDICES = Object.freeze({ red: 0, green: 1, blue: 2, yellow: 3 });
+  const COLOR_EMOJI = Object.freeze({ red: '🔴', green: '🟢', blue: '🔵', yellow: '🟡' });
+  window.TEAM_INDICES = TEAM_INDICES;
+  window.COLOR_EMOJI = COLOR_EMOJI;
+
   window.createConfig = function createConfig(defaults) {
     let cfg;
 

@@ -3,15 +3,14 @@
 
   let Config, PreviewGfx, Controller, Feeds;
 
+  function isMjpeg() { return Config?.get?.().topMode === 1; }
+  window.isMjpeg = isMjpeg;
+
   const CAM_W = 1920;
   const CAM_H = toEvenInt(CAM_W * 9 / 19.5);
   const ASPECT = CAM_H / CAM_W;
 
   const DEFAULTS = {
-    TOP_MODE_MJPEG: 'mjpeg',
-    TOP_MODE_WEBRTC: 'webrtc',
-    TEAM_INDICES: { red: 0, green: 1, blue: 2, yellow: 3 },
-    COLOR_EMOJI: { red: '🔴', green: '🟢', blue: '🔵', yellow: '🟡' },
     CAM_W,
     CAM_H,
     ASPECT,
@@ -35,7 +34,7 @@
     polyF: [],
     topH: 160,
     frontH: 220,
-    topMode: 'webrtc',
+    topMode: 0,
     COLOR_TABLE: [
       0.00, 0.6, 0.35, 0.1, 1, 1,
       0.70, 0.6, 0.25, 0.9, 1, 1,
@@ -141,11 +140,12 @@
       } else {
         cfg = Config.get();
       }
+      cfg.topMode = +cfg.topMode || 0;
+      Config.save('topMode', cfg.topMode);
       cfg.domThr = Float32Array.from(cfg.domThr);
       cfg.satMin = Float32Array.from(cfg.satMin);
       cfg.yMin = Float32Array.from(cfg.yMin);
       cfg.yMax = Float32Array.from(cfg.yMax);
-      const TEAM_INDICES = cfg.TEAM_INDICES;
         if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
         if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
         if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
@@ -173,6 +173,7 @@
         });
         }
 
+        const TEAM_INDICES = window.TEAM_INDICES;
         let teamA = cfg.teamA;
         let teamB = cfg.teamB;
         let domThrA = cfg.domThr[TEAM_INDICES[teamA]];
@@ -233,7 +234,7 @@
 
         if ($('#topMode')) $('#topMode').value = cfg.topMode;
         $('#topMode')?.addEventListener('change', e => {
-          cfg.topMode = e.target.value;
+          cfg.topMode = +e.target.value;
           Config.save('topMode', cfg.topMode);
         });
 

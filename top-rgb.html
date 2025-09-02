@@ -151,7 +151,8 @@
     const selA = $('#teamA');
     const selB = $('#teamB');
     const thCont = $('#teamAThresh');
-    const { TEAM_INDICES, COLOR_EMOJI } = cfg;
+    const TEAM_INDICES = window.TEAM_INDICES;
+    const COLOR_EMOJI = window.COLOR_EMOJI;
     const COLOR_TABLE = new Float32Array(cfg.COLOR_TABLE);
     // const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
     // RGB dominance presets for the new detector (simple & robust).

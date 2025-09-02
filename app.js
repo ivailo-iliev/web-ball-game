@@ -7,8 +7,8 @@
 (function () {
   'use strict';
 
-const Config = window.Config;
-const { TOP_MODE_MJPEG, TEAM_INDICES } = Config.get();
+  const Config = window.Config;
+  const TEAM_INDICES = window.TEAM_INDICES;
 
 const PreviewGfx = (() => {
   const cfg = Config.get();
@@ -264,7 +264,7 @@ const Controller = (() => {
     Setup.updateFrontCrop();
     if (!await Detect.init()) return;
     lastTop = 0;
-    if (cfg.topMode === TOP_MODE_MJPEG) {
+    if (isMjpeg()) {
       requestAnimationFrame(topLoop);
     }
   }
