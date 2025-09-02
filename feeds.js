@@ -1,12 +1,6 @@
 (function () {
   'use strict';
 
-  const TOP_MODE_MJPEG = 'mjpeg';
-  const TOP_MODE_WEBRTC = 'webrtc';
-
-  const CAM_W = 1920;
-  const CAM_H = Math.round(CAM_W * 9 / 19.5) & ~1;
-  const ASPECT = CAM_H / CAM_W;
 
   function startVideoWorker(track, onFrame) {
     const workerSrc = `self.onmessage = async ({ data }) => {
@@ -40,7 +34,7 @@
   }
 
   const Feeds = (() => {
-    let cfg;
+    let Config, cfg;
     let videoTop, track, dc, videoWorker;
     let lastFrame, cropRatio = 1;
     let desiredW, desiredH;
@@ -75,9 +69,11 @@
     }
 
     async function init() {
-      cfg = window.Config?.get?.() || {};
+      Config = window.Config;
+      cfg = Config.get();
+      const { CAM_W, CAM_H, ASPECT, TOP_MODE_MJPEG, TOP_MODE_WEBRTC } = cfg;
       desiredW = cfg.frontResW ?? cfg.topResW ?? CAM_W;
-      desiredH = cfg.frontResH ?? cfg.topResH ?? Math.round(desiredW * ASPECT) & ~1;
+      desiredH = cfg.frontResH ?? cfg.topResH ?? toEvenInt(desiredW * ASPECT);
       const reqW = CAM_W;
       const reqH = CAM_H;
 

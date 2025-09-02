@@ -95,12 +95,15 @@
   <script src="utils.js"></script>
   <script src="webrtc.js"></script>
   <script src="config.js"></script>
+  <script src="setup.js"></script>
   <!-- <script src="detect.js"></script> -->
    <script src="detect_rgb_roi.js"></script>
   <script>
     (function () {
       'use strict';
-      const { createConfig } = window;
+      Setup.bind();
+      const Config = window.Config;
+      const cfg = Config.get();
     const state = $('#state');
     const b0 = $('#b0');
 
@@ -148,60 +151,30 @@
     const selA = $('#teamA');
     const selB = $('#teamB');
     const thCont = $('#teamAThresh');
-
-    const TEAM_INDICES = { red: 0, yellow: 1, blue: 2, green: 3 };
-    const COLOR_TABLE = new Float32Array([
-  /* 🔴 */ 0.00, 0.6, 0.35, 0.1, 1, 1,
-  /* 🟡 */ 0.05, 0.7, 0.40, 0.2, 1, 1,
-  /* 🔵 */ 0.50, 0.3, 0.20, 0.7, 1, 1,
-  /* 🟢 */ 0.70, 0.6, 0.25, 0.9, 1, 1
-    ]);
-    const savedCT = localStorage.getItem('COLOR_TABLE');
-    if (savedCT) {
-      try {
-        const arr = JSON.parse(savedCT);
-        if (Array.isArray(arr) && arr.length === COLOR_TABLE.length) {
-          COLOR_TABLE.set(arr.map(Number));
-        }
-      } catch (e) { }
-    }
-    const COLOR_EMOJI = { red: '🔴', yellow: '🟡', blue: '🔵', green: '🟢' };
+    const { TEAM_INDICES, COLOR_EMOJI } = cfg;
+    const COLOR_TABLE = new Float32Array(cfg.COLOR_TABLE);
     // const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
     // RGB dominance presets for the new detector (simple & robust).
     const THR_PRESETS = {
-      red:    { primary: 0, minDom: 0.12, yMin: 0.10, knee: 0.10 },
-      yellow: { primary: 0, minDom: 0.08, yMin: 0.10, knee: 0.10 },
-      blue:   { primary: 2, minDom: 0.10, yMin: 0.08, knee: 0.10 },
-      green:  { primary: 1, minDom: 0.10, yMin: 0.08, knee: 0.10 }
+      red:   { primary: 0, minDom: 0.12, yMin: 0.10, knee: 0.10 },
+      green: { primary: 1, minDom: 0.10, yMin: 0.08, knee: 0.10 },
+      blue:  { primary: 2, minDom: 0.10, yMin: 0.08, knee: 0.10 },
+      yellow:{ primary: 0, minDom: 0.08, yMin: 0.10, knee: 0.10 }
     };
     const thrFor = (name) => THR_PRESETS[name] || THR_PRESETS.red;
     const radiusFromArea = (area) => Math.max(4, Math.sqrt(Math.max(0, area) / Math.PI));
-
-    const DEFAULTS = {
-      topResW: 1280,
-      topResH: 720,
-      topMinArea: 600,
-      teamA: 'green',
-      teamB: 'blue'
-    };
-
-    // const Config = createConfig(DEFAULTS);
-    // Config.load({ teamIndices: TEAM_INDICES, hsvRangeF16 });
-    const Config = createConfig(DEFAULTS);
-    Config.load({ teamIndices: TEAM_INDICES });
-    const cfg = Config.get();
 
     widthInput.value = cfg.topResW;
     heightInput.value = cfg.topResH;
     minAreaInput.value = cfg.topMinArea;
 
     function onWidthInput(e) {
-      cfg.topResW = Math.max(1, +e.target.value);
+      cfg.topResW = toEvenInt(Math.max(1, +e.target.value));
       Config.save('topResW', cfg.topResW);
     }
 
     function onHeightInput(e) {
-      cfg.topResH = Math.max(1, +e.target.value);
+      cfg.topResH = toEvenInt(Math.max(1, +e.target.value));
       Config.save('topResH', cfg.topResH);
     }
 
@@ -263,8 +236,8 @@
       const i = +e.target.dataset.idx;
       const base = TEAM_INDICES[cfg.teamA] * 6 + i;
       COLOR_TABLE[base] = parseFloat(e.target.value);
-      localStorage.setItem('COLOR_TABLE',
-        JSON.stringify(Array.from(COLOR_TABLE, v => +v.toFixed(2))));
+      Config.save('COLOR_TABLE',
+        Array.from(COLOR_TABLE, v => +v.toFixed(2)));
       // cfg.f16Ranges[cfg.teamA] = hsvRangeF16(cfg.teamA);
     }
 
