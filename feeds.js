@@ -39,6 +39,21 @@
     let lastFrame, cropRatio = 1;
     let desiredW, desiredH;
 
+    // Crop = Zoom (centered). ratio >= 1 crops to 1/ratio of current frame dimensions.
+    function zoomFrame(frame, ratio) {
+      const r = Math.max(1, Number(ratio) || 1);
+      const rect = frame.visibleRect || { x: 0, y: 0, width: frame.codedWidth, height: frame.codedHeight };
+      // compute crop size from current frame rect
+      let cropW = toEvenInt(rect.width  / r);
+      let cropH = toEvenInt(rect.height / r);
+      if (cropW <= 0 || cropH <= 0) { cropW = rect.width & ~1; cropH = rect.height & ~1; }
+      // center inside rect
+      let x = rect.x + ((rect.width  - cropW) >> 1);
+      let y = rect.y + ((rect.height - cropH) >> 1);
+      x &= ~1; y &= ~1;
+      return new VideoFrame(frame, { visibleRect: { x, y, width: cropW, height: cropH } });
+    }
+
     async function initRTC() {
       const stateEl = $('#state');
       const log = msg => stateEl && (stateEl.textContent = msg);
@@ -123,35 +138,18 @@
         cropRatio = Math.max(w / desiredW, h / desiredH);
         const workerTrack = track.clone();
         videoWorker = startVideoWorker(workerTrack, (frame) => {
-          let cropW = desiredW;
-          let cropH = desiredH;
-          const baseRect = frame.visibleRect || {
-            x: 0,
-            y: 0,
-            width: frame.codedWidth,
-            height: frame.codedHeight
-          };
-          const frameW = baseRect.width;
-          const frameH = baseRect.height;
-          const aspect = desiredH / desiredW;
-          if (cropW > frameW) {
-            cropW = frameW;
-            cropH = Math.round(cropW * aspect);
-          }
-          if (cropH > frameH) {
-            cropH = frameH;
-            cropW = Math.round(cropH / aspect);
-          }
-          cropW &= ~1;
-          cropH &= ~1;
-          cropRatio = Math.max(frameW / cropW, frameH / cropH);
-          const midX = Math.max(0, (frameW - cropW) >> 1);
-          const midY = Math.max(0, (frameH - cropH) >> 1);
-          const ox = (baseRect.x + midX) & ~1;
-          const oy = (baseRect.y + midY) & ~1;
+          const rect = frame.visibleRect || { x: 0, y: 0, width: frame.codedWidth, height: frame.codedHeight };
+          const frameW = rect.width;
+          const frameH = rect.height;
+          const targetW = desiredW || frameW;
+          const targetH = desiredH || frameH;
+          const rW = frameW / targetW;
+          const rH = frameH / targetH;
+          const r = Math.max(1, Math.max(rW, rH));
+          cropRatio = r;
           let cropped;
           try {
-            cropped = new VideoFrame(frame, { visibleRect: { x: ox, y: oy, width: cropW, height: cropH } });
+            cropped = zoomFrame(frame, r);
             if (lastFrame) lastFrame.close();
             lastFrame = cropped;
           } finally {
