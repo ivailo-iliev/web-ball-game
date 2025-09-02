@@ -11,18 +11,21 @@
       b0.disabled = false;
       b0.onclick = () => sendBit('0');
     }
-
-    function handleDcOpen() {
-      state.textContent = 'dc: open';
-      dc.send('hello from A');
-      handleOpen();
-    }
-
-    function handleStartCtrl(ctrl) {
-      dc = ctrl.channel;
-      if (!dc) { state.textContent = 'No data channel'; return; }
-      dc.onopen = handleDcOpen;
-      dc.onmessage = e => console.log('msg:', e.data);
+    
+    function wireStartA() {
+      const log = msg => state && (state.textContent = String(msg));
+      StartA({
+        log,
+        onOpen: (ch) => {
+          dc = ch;
+          handleOpen();
+        },
+        onMessage: (data) => {
+          console.log('msg:', data);
+        }
+      }).catch(err => {
+        log('ERR: ' + (err && (err.stack || err)));
+      });
     }
 
     function sendBit(bit) {
@@ -34,9 +37,7 @@
 
     function start() {
       Setup.bind();
-      StartA().then(handleStartCtrl).catch(err => {
-        state.textContent = 'ERR: ' + (err && (err.stack || err));
-      });
+      wireStartA();
     }
 
     return { start, sendBit };

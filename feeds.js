@@ -56,28 +56,27 @@
 
     async function initRTC() {
       const stateEl = $('#state');
-      const log = msg => stateEl && (stateEl.textContent = msg);
+      const log = msg => stateEl && (stateEl.textContent = String(msg));
       log('Connecting…');
 
       let ctrl;
       try {
-        ctrl = await StartB({ log });
+        ctrl = await StartB({
+          log,
+          onOpen: (ch) => {
+            dc = ch;
+            log('connected');
+          },
+          onMessage: (data) => {
+            const bit = Number.parseInt(data, 10);
+            if (!Number.isNaN(bit)) Controller.handleBit(bit);
+          }
+        });
       } catch (err) {
         log('ERR: ' + (err && (err.stack || err)));
         return false;
       }
-
-      const pc = ctrl?.pc;
-      if (!pc) { log('no offer found — open A first'); return false; }
-
-      pc.ondatachannel = ({ channel }) => {
-        dc = channel;
-        log('connected');
-        dc.onmessage = ({ data }) => {
-          const bit = Number.parseInt(data, 10);
-          if (!Number.isNaN(bit)) Controller.handleBit(bit);
-        };
-      };
+      if (!ctrl?.pc) { log('no offer found — open A first'); return false; }
 
       window.sendBit = bit => { if (dc?.readyState === 'open') dc.send(bit); };
       return true;
