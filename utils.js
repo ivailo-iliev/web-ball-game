@@ -2,6 +2,9 @@
 const domCache = {};
 window.$ = sel => domCache[sel] || (domCache[sel] = document.querySelector(sel));
 
+// Round a number to the nearest even integer
+window.toEvenInt = n => Math.round(n) & ~1;
+
 window.u = Object.freeze({
   rand   : n      => Math.random() * n,
   pick   : arr    => arr[Math.floor(Math.random() * arr.length)],

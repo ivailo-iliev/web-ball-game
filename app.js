@@ -7,64 +7,8 @@
 (function () {
   'use strict';
 
-const TOP_MODE_MJPEG = 'mjpeg';
-const TOP_MODE_WEBRTC = 'webrtc';
-
-// front-camera (device camera)
-
-const TEAM_INDICES = { red: 0, green: 1, blue: 2, yellow: 3 };
-const COLOR_EMOJI = {
-  red: '🔴',
-  green: '🟢',
-  blue: '🔵',
-  yellow: '🟡'
-};
-
-const DOM_THR_DEFAULT = 0.10;
-const SATMIN_DEFAULT  = 0.12;
-const YMIN_DEFAULT    = 0.00;
-const YMAX_DEFAULT    = 0.70;
-const RADIUS_DEFAULT  = 18;
-
-// Camera runs at 19.5:9 (1920×886 rounded even). Crop width is configurable but
-// height always maintains the aspect ratio.
-const CAM_W = 1920;
-const CAM_H = Math.round(CAM_W * 9 / 19.5) & ~1;
-const ASPECT = CAM_H / CAM_W;
-const DEFAULT_CROP_W = 1280;
-// iOS Safari requires even crop sizes when using VideoFrame visibleRect.
-// Round and mask off the lowest bit to guarantee an even height.
-const DEFAULT_CROP_H = Math.round(DEFAULT_CROP_W * ASPECT) & ~1;
-const DEFAULT_ZOOM = CAM_W / DEFAULT_CROP_W;
-
-const DEFAULTS = {
-  topResW: 640,
-  topResH: 480,
-  frontZoom: DEFAULT_ZOOM,
-  frontResW: DEFAULT_CROP_W,
-  frontResH: DEFAULT_CROP_H,
-  topMinArea: 0.025,   // seed score threshold (0..1), was "area"
-  frontMinArea: 8000,  // no longer used for decisions, kept for UI compatibility
-  radiusPx: RADIUS_DEFAULT,
-  domThr: [DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT, DOM_THR_DEFAULT],
-  satMin: [SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT, SATMIN_DEFAULT],
-  yMin:   [YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT,   YMIN_DEFAULT],
-  yMax:   [YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT,   YMAX_DEFAULT],
-  url:    "http://192.168.43.1:8080/video",
-  teamA:  "green",
-  teamB:  "blue",
-  polyT:  [],
-  polyF:  [],
-  topH:   160,
-  frontH: 220,
-  topMode: TOP_MODE_WEBRTC
-};
-
-const Config = createConfig(DEFAULTS);
-Config.load();
-const cfgInit = Config.get();
-cfgInit.frontResW = Math.round(CAM_W / (cfgInit.frontZoom || DEFAULT_ZOOM)) & ~1;
-cfgInit.frontResH = Math.round(cfgInit.frontResW * ASPECT) & ~1;
+const Config = window.Config;
+const { TOP_MODE_MJPEG, TEAM_INDICES } = Config.get();
 
 const PreviewGfx = (() => {
   const cfg = Config.get();
@@ -330,7 +274,6 @@ const Controller = (() => {
 
   return { start, setPreview, isPreview, handleBit };
 })();
-window.Config = Config;
 window.PreviewGfx = PreviewGfx;
 window.Detect = Detect;
 window.Controller = Controller;

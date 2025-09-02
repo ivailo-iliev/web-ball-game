@@ -2,24 +2,47 @@
   'use strict';
 
   let Config, PreviewGfx, Controller, Feeds;
-  const TOP_MODE_MJPEG = 'mjpeg';
-  const TOP_MODE_WEBRTC = 'webrtc';
-  const TEAM_INDICES = { red: 0, green: 1, blue: 2, yellow: 3 };
-  const COLOR_EMOJI = {
-    red: '🔴',
-    green: '🟢',
-    blue: '🔵',
-    yellow: '🟡'
-  };
+
   const CAM_W = 1920;
-  const CAM_H = Math.round(CAM_W * 9 / 19.5) & ~1;
+  const CAM_H = toEvenInt(CAM_W * 9 / 19.5);
   const ASPECT = CAM_H / CAM_W;
-  // Detection thresholds: defaults must be at min or max range
-  const DOM_THR_DEFAULT = 0.0;
-  const SATMIN_DEFAULT  = 0.0;
-  const YMIN_DEFAULT    = 0.0;
-  const YMAX_DEFAULT    = 1.0;
-  const RADIUS_DEFAULT  = 18;
+
+  const DEFAULTS = {
+    TOP_MODE_MJPEG: 'mjpeg',
+    TOP_MODE_WEBRTC: 'webrtc',
+    TEAM_INDICES: { red: 0, green: 1, blue: 2, yellow: 3 },
+    COLOR_EMOJI: { red: '🔴', green: '🟢', blue: '🔵', yellow: '🟡' },
+    CAM_W,
+    CAM_H,
+    ASPECT,
+    topZoom: 1,
+    topResW: 640,
+    topResH: 480,
+    frontZoom: CAM_W / 1280,
+    frontResW: 1280,
+    frontResH: toEvenInt(1280 * ASPECT),
+    topMinArea: 0.025,
+    frontMinArea: 8000,
+    teamA: 'green',
+    teamB: 'blue',
+    domThr: Array(4).fill(0.10),
+    satMin: Array(4).fill(0.12),
+    yMin: Array(4).fill(0.00),
+    yMax: Array(4).fill(0.70),
+    radiusPx: 18,
+    url: 'http://192.168.43.1:8080/video',
+    polyT: [],
+    polyF: [],
+    topH: 160,
+    frontH: 220,
+    topMode: 'webrtc',
+    COLOR_TABLE: [
+      0.00, 0.6, 0.35, 0.1, 1, 1,
+      0.70, 0.6, 0.25, 0.9, 1, 1,
+      0.50, 0.3, 0.20, 0.7, 1, 1,
+      0.05, 0.7, 0.40, 0.2, 1, 1
+    ]
+  };
 
   const Setup = (() => {
     let cfg;
@@ -28,8 +51,8 @@
     function applyFrontZoom(val) {
       if (!cfg) return;
       cfg.frontZoom = Math.max(1, +val);
-      cfg.frontResW = Math.round(CAM_W / cfg.frontZoom) & ~1;
-      cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+      cfg.frontResW = toEvenInt(cfg.CAM_W / cfg.frontZoom);
+      cfg.frontResH = toEvenInt(cfg.frontResW * cfg.ASPECT);
       Config.save('frontZoom', cfg.frontZoom);
       Config.save('frontResW', cfg.frontResW);
       Config.save('frontResH', cfg.frontResH);
@@ -41,8 +64,8 @@
     function applyTopZoom(val) {
       if (!cfg) return;
       cfg.topZoom = Math.max(1, +val);
-      cfg.topResW = Math.round(CAM_W / cfg.topZoom) & ~1;
-      cfg.topResH = Math.round(cfg.topResW * ASPECT) & ~1;
+      cfg.topResW = toEvenInt(cfg.CAM_W / cfg.topZoom);
+      cfg.topResH = toEvenInt(cfg.topResW * cfg.ASPECT);
       Config.save('topZoom', cfg.topZoom);
       Config.save('topResW', cfg.topResW);
       Config.save('topResH', cfg.topResH);
@@ -106,39 +129,23 @@
       }
       if (!Config) {
         const { createConfig } = window;
-        // Default to full-frame, unity zoom
-        const DEFAULT_CROP_W = CAM_W;
-        const DEFAULT_CROP_H = CAM_H;
-        const DEFAULT_ZOOM = 1;
-        const defaults = {
-          topZoom: DEFAULT_ZOOM,
-          frontZoom: DEFAULT_ZOOM,
-          topResW: DEFAULT_CROP_W,
-          topResH: DEFAULT_CROP_H,
-          frontResW: DEFAULT_CROP_W,
-          frontResH: DEFAULT_CROP_H,
-          topH: DEFAULT_CROP_H,
-          frontH: DEFAULT_CROP_H,
-          topMinArea: 0,
-          frontMinArea: 0,
-          teamA: 'green',
-          teamB: 'blue',
-          domThr: Array(4).fill(DOM_THR_DEFAULT),
-          satMin: Array(4).fill(SATMIN_DEFAULT),
-          yMin: Array(4).fill(YMIN_DEFAULT),
-          yMax: Array(4).fill(YMAX_DEFAULT),
-          radiusPx: RADIUS_DEFAULT
-        };
-        Config = createConfig(defaults);
+        Config = createConfig(DEFAULTS);
         Config.load();
         cfg = Config.get();
-        cfg.domThr = Float32Array.from(cfg.domThr);
-        cfg.satMin = Float32Array.from(cfg.satMin);
-        cfg.yMin = Float32Array.from(cfg.yMin);
-        cfg.yMax = Float32Array.from(cfg.yMax);
+        for (const k of Object.keys(DEFAULTS)) {
+          if (localStorage.getItem(k) === null) {
+            Config.save(k, cfg[k]);
+          }
+        }
+        window.Config = Config;
       } else {
         cfg = Config.get();
       }
+      cfg.domThr = Float32Array.from(cfg.domThr);
+      cfg.satMin = Float32Array.from(cfg.satMin);
+      cfg.yMin = Float32Array.from(cfg.yMin);
+      cfg.yMax = Float32Array.from(cfg.yMax);
+      const TEAM_INDICES = cfg.TEAM_INDICES;
         if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
         if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
         if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
@@ -485,8 +492,8 @@
       const z = Feeds.frontCropRatio();
       if (zEl) zEl.value = z.toFixed(2);
       cfg.frontZoom = z;
-      cfg.frontResW = Math.round(CAM_W / z) & ~1;
-      cfg.frontResH = Math.round(cfg.frontResW * ASPECT) & ~1;
+              cfg.frontResW = toEvenInt(cfg.CAM_W / z);
+              cfg.frontResH = toEvenInt(cfg.frontResW * cfg.ASPECT);
       Config.save('frontZoom', cfg.frontZoom);
       Config.save('frontResW', cfg.frontResW);
       Config.save('frontResH', cfg.frontResH);
