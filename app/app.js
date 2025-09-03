@@ -72,13 +72,13 @@ const PreviewGfx = (() => {
     ctxFront2d.fill();
   }
 
-  function view(device, which) {
-    ensureGPU(device);
-    const ctx = which === 'front' ? ctxFrontGPU : ctxTopGPU;
-    return ctx ? ctx.getCurrentTexture().createView() : null;
-  }
+  // function view(device, which) {
+  //   ensureGPU(device);
+  //   const ctx = which === 'front' ? ctxFrontGPU : ctxTopGPU;
+  //   return ctx ? ctx.getCurrentTexture().createView() : null;
+  // }
 
-  return { view, drawRect, drawHit, clear };
+  return { /*view,*/ drawRect, drawHit, clear };
 })();
 
 
