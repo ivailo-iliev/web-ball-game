@@ -107,7 +107,7 @@
       if (!Config) {
         Config = window.Config || Config;
         PreviewGfx = window.PreviewGfx || PreviewGfx;
-        Controller = window.Controller || Controller;
+        Controller = window.Controller || window.Top?.Controller || Controller;
         Feeds = window.Feeds || Feeds;
       }
       if (!Config) {
@@ -238,81 +238,13 @@
       $('#btnFront')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyFront'));
       $('#btnBoth')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = ''));
 
-      let infoBase = '';
-      let lastFrameTS;
-
-      $('#start')?.addEventListener('click', async () => {
+      $('#start')?.addEventListener('click', () => {
         $('#start').disabled = true;
-        infoBase = '';
-        try {
-          if (!await Feeds.init()) {
-            if ($('#info')) $('#info').textContent = 'Feed init failed';
-            $('#start').disabled = false;
-            return;
-          }
-          let busy = false;
-          const loop = async () => {
-            const frame = await Feeds.frontFrame();
-            if (!frame) { requestAnimationFrame(loop); return; }
-            if (busy) { frame.close(); requestAnimationFrame(loop); return; }
-            const now = performance.now();
-            if (lastFrameTS !== undefined && $('#info')) {
-              const fps = 1000 / (now - lastFrameTS);
-              $('#info').textContent = `${infoBase} ${fps.toFixed(1)} fps`;
-            }
-            lastFrameTS = now;
-            busy = true;
-            try {
-              const cropW = frame.displayWidth || frame.codedWidth;
-              const cropH = frame.displayHeight || frame.codedHeight;
-              const colorA = TEAM_INDICES[cfg.teamA];
-              const colorB = TEAM_INDICES[cfg.teamB];
-              const { a, b, w, h, resized } = await GPU.detect({
-                key: 'demo',
-                source: frame,
-                colorA,
-                colorB,
-                domThrA: cfg.domThr[colorA],
-                satMinA: cfg.satMin[colorA],
-                yMinA: cfg.yMin[colorA],
-                yMaxA: cfg.yMax[colorA],
-                domThrB: cfg.domThr[colorB],
-                satMinB: cfg.satMin[colorB],
-                yMinB: cfg.yMin[colorB],
-                yMaxB: cfg.yMax[colorB],
-                rect: { min: new Float32Array([0, 0]), max: new Float32Array([cropW, cropH]) },
-                previewCanvas: $('#gfx'),
-                preview: true,
-                activeA: true, activeB: true,
-                flipY: true,
-                radiusPx: cfg.radiusPx,
-              });
-              if (resized && $('#gfx')) {
-                $('#gfx').width = frame.displayWidth;
-                $('#gfx').height = frame.displayHeight;
-                infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
-                if ($('#info')) $('#info').textContent = infoBase;
-              }
-              const scoreA = (a[0] >>> 16) / 65535;
-              const scoreB = (b[0] >>> 16) / 65535;
-              const onA = scoreA >= cfg.topMinArea;
-              const onB = scoreB >= cfg.topMinArea;
-              if (onA || onB) {
-                const bit = onA && onB ? '2' : onA ? '0' : '1';
-                if (window.sendBit) window.sendBit(bit);
-              }
-            } finally {
-              frame.close();
-              busy = false;
-            }
-            requestAnimationFrame(loop);
-          };
-          requestAnimationFrame(loop);
-        } catch (err) {
+        Controller.startDetection().catch(err => {
           if ($('#info')) $('#info').textContent = (err && err.message) ? err.message : String(err);
           $('#start').disabled = false;
           console.error(err);
-        }
+        });
       });
 
     const topROI = { y: 0, h: cfg.topH };
