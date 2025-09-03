@@ -104,33 +104,30 @@
       Setup.bind();
       const Config = window.Config;
       const cfg = Config.get();
-    const state = $('#state');
-    const b0 = $('#b0');
+      let dc;
 
-    function handleOpen() {
-      state.textContent = 'Connected';
-      b0.disabled = false;
-      b0.onclick = () => sendBit('0');
-    }
+      function handleOpen() {
+        $('#state').textContent = 'Connected';
+        $('#b0').disabled = false;
+        $('#b0').onclick = () => sendBit('0');
+      }
 
-    let dc;
+      function handleDcOpen() {
+        $('#state').textContent = 'dc: open';
+        dc.send('hello from A');
+        handleOpen();
+      }
 
-    function handleDcOpen() {
-      state.textContent = 'dc: open';
-      dc.send('hello from A');
-      handleOpen();
-    }
+      function handleStartCtrl(ctrl) {
+        dc = ctrl.channel;
+        if (!dc) { $('#state').textContent = 'No data channel'; return; }
+        dc.onopen = handleDcOpen;
+        dc.onmessage = e => console.log('msg:', e.data);
+      }
 
-    function handleStartCtrl(ctrl) {
-      dc = ctrl.channel;
-      if (!dc) { state.textContent = 'No data channel'; return; }
-      dc.onopen = handleDcOpen;
-      dc.onmessage = e => console.log('msg:', e.data);
-    }
-
-    StartA().then(handleStartCtrl).catch(err => {
-      state.textContent = 'ERR: ' + (err && (err.stack || err));
-    });
+      StartA().then(handleStartCtrl).catch(err => {
+        $('#state').textContent = 'ERR: ' + (err && (err.stack || err));
+      });
 
     function sendBit(bit) {
       if (dc && dc.readyState === 'open') {
@@ -140,98 +137,89 @@
     }
     window.sendBit = sendBit;
 
-    const info = $('#info');
       let infoBase = '';
       let lastFrameTS;
-    const start = $('#start');
-    const canvas = $('#gfx');
-    const widthInput = $('#videoWidth');
-    const heightInput = $('#videoHeight');
-    const minAreaInput = $('#minArea');
-    const selA = $('#teamA');
-    const selB = $('#teamB');
-    const thCont = $('#teamAThresh');
-    const TEAM_INDICES = window.TEAM_INDICES;
-    const COLOR_EMOJI = window.COLOR_EMOJI;
-    const COLOR_TABLE = new Float32Array(cfg.COLOR_TABLE);
-    // const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
-    // RGB dominance presets for the new detector (simple & robust).
-    const THR_PRESETS = {
-      red:   { primary: 0, minDom: 0.12, yMin: 0.10, knee: 0.10 },
-      green: { primary: 1, minDom: 0.10, yMin: 0.08, knee: 0.10 },
-      blue:  { primary: 2, minDom: 0.10, yMin: 0.08, knee: 0.10 },
-      yellow:{ primary: 0, minDom: 0.08, yMin: 0.10, knee: 0.10 }
-    };
-    const thrFor = (name) => THR_PRESETS[name] || THR_PRESETS.red;
-    const radiusFromArea = (area) => Math.max(4, Math.sqrt(Math.max(0, area) / Math.PI));
+      const TEAM_INDICES = window.TEAM_INDICES;
+      const COLOR_EMOJI = window.COLOR_EMOJI;
+      const COLOR_TABLE = new Float32Array(cfg.COLOR_TABLE);
+      // const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
+      // RGB dominance presets for the new detector (simple & robust).
+      const THR_PRESETS = {
+        red:   { primary: 0, minDom: 0.12, yMin: 0.10, knee: 0.10 },
+        green: { primary: 1, minDom: 0.10, yMin: 0.08, knee: 0.10 },
+        blue:  { primary: 2, minDom: 0.10, yMin: 0.08, knee: 0.10 },
+        yellow:{ primary: 0, minDom: 0.08, yMin: 0.10, knee: 0.10 }
+      };
+      const thrFor = (name) => THR_PRESETS[name] || THR_PRESETS.red;
+      const radiusFromArea = (area) => Math.max(4, Math.sqrt(Math.max(0, area) / Math.PI));
 
-    widthInput.value = cfg.topResW;
-    heightInput.value = cfg.topResH;
-    minAreaInput.value = cfg.topMinArea;
+      $('#videoWidth').value = cfg.topResW;
+      $('#videoHeight').value = cfg.topResH;
+      $('#minArea').value = cfg.topMinArea;
 
-    function onWidthInput(e) {
-      cfg.topResW = toEvenInt(Math.max(1, +e.target.value));
-      Config.save('topResW', cfg.topResW);
-    }
+      function onWidthInput(e) {
+        cfg.topResW = toEvenInt(Math.max(1, +e.target.value));
+        Config.save('topResW', cfg.topResW);
+      }
 
-    function onHeightInput(e) {
-      cfg.topResH = toEvenInt(Math.max(1, +e.target.value));
-      Config.save('topResH', cfg.topResH);
-    }
+      function onHeightInput(e) {
+        cfg.topResH = toEvenInt(Math.max(1, +e.target.value));
+        Config.save('topResH', cfg.topResH);
+      }
 
-    function onMinAreaInput(e) {
-      cfg.topMinArea = Math.max(0, +e.target.value);
-      Config.save('topMinArea', cfg.topMinArea);
-    }
+      function onMinAreaInput(e) {
+        cfg.topMinArea = Math.max(0, +e.target.value);
+        Config.save('topMinArea', cfg.topMinArea);
+      }
 
-    widthInput.addEventListener('input', onWidthInput);
-    heightInput.addEventListener('input', onHeightInput);
-    minAreaInput.addEventListener('input', onMinAreaInput);
+      $('#videoWidth').addEventListener('input', onWidthInput);
+      $('#videoHeight').addEventListener('input', onHeightInput);
+      $('#minArea').addEventListener('input', onMinAreaInput);
 
-    populateTeamSelects(selA, selB, COLOR_EMOJI);
-    selA.value = cfg.teamA;
-    selB.value = cfg.teamB;
-    if (selA.selectedIndex === -1) {
-      selA.selectedIndex = 0;
-      cfg.teamA = selA.value;
-      Config.save('teamA', cfg.teamA);
-    }
-    if (selB.selectedIndex === -1) {
-      selB.selectedIndex = 0;
-      cfg.teamB = selB.value;
-      Config.save('teamB', cfg.teamB);
-    }
+      populateTeamSelects($('#teamA'), $('#teamB'), COLOR_EMOJI);
+      $('#teamA').value = cfg.teamA;
+      $('#teamB').value = cfg.teamB;
+      if ($('#teamA').selectedIndex === -1) {
+        $('#teamA').selectedIndex = 0;
+        cfg.teamA = $('#teamA').value;
+        Config.save('teamA', cfg.teamA);
+      }
+      if ($('#teamB').selectedIndex === -1) {
+        $('#teamB').selectedIndex = 0;
+        cfg.teamB = $('#teamB').value;
+        Config.save('teamB', cfg.teamB);
+      }
 
-    function onChangeTeamA(e) {
-      cfg.teamA = e.target.value;
-      Config.save('teamA', cfg.teamA);
-      updateThreshInputs();
-    }
+      function onChangeTeamA(e) {
+        cfg.teamA = e.target.value;
+        Config.save('teamA', cfg.teamA);
+        updateThreshInputs();
+      }
 
-    function onChangeTeamB(e) {
-      cfg.teamB = e.target.value;
-      Config.save('teamB', cfg.teamB);
-    }
+      function onChangeTeamB(e) {
+        cfg.teamB = e.target.value;
+        Config.save('teamB', cfg.teamB);
+      }
 
-    selA.addEventListener('change', onChangeTeamA);
-    selB.addEventListener('change', onChangeTeamB);
+      $('#teamA').addEventListener('change', onChangeTeamA);
+      $('#teamB').addEventListener('change', onChangeTeamB);
 
-    const thInputs = [];
-    const thFrag = document.createDocumentFragment();
-    for (let i = 0; i < 6; i++) {
-      const inp = Object.assign(document.createElement('input'), {
-        type: 'number',
-        min: '0',
-        max: '1',
-        step: '0.05'
-      });
-      Object.assign(inp.style, { width: '4ch' });
-      inp.dataset.idx = i;
-      thInputs.push(inp);
-      thFrag.appendChild(inp);
-      inp.addEventListener('input', onThresholdInput);
-    }
-    thCont.appendChild(thFrag);
+      const thInputs = [];
+      const thFrag = document.createDocumentFragment();
+      for (let i = 0; i < 6; i++) {
+        const inp = Object.assign(document.createElement('input'), {
+          type: 'number',
+          min: '0',
+          max: '1',
+          step: '0.05'
+        });
+        Object.assign(inp.style, { width: '4ch' });
+        inp.dataset.idx = i;
+        thInputs.push(inp);
+        thFrag.appendChild(inp);
+        inp.addEventListener('input', onThresholdInput);
+      }
+      $('#teamAThresh').appendChild(thFrag);
 
     function onThresholdInput(e) {
       const i = +e.target.dataset.idx;
@@ -248,17 +236,17 @@
     }
     updateThreshInputs();
 
-    start.addEventListener('click', onStartClick);
+    $('#start').addEventListener('click', onStartClick);
 
     async function onStartClick() {
-      start.disabled = true;
+      $('#start').disabled = true;
       infoBase = '';
       try {
         // 1) Camera → WebCodecs VideoFrame (no <video> element)
         const videoConstraints = { facingMode: 'user', frameRate: { ideal: 60 } };
-        const w = parseInt(widthInput.value, 10);
+        const w = parseInt($('#videoWidth').value, 10);
         if (!isNaN(w)) videoConstraints.width = { ideal: w };
-        const h = parseInt(heightInput.value, 10);
+        const h = parseInt($('#videoHeight').value, 10);
         if (!isNaN(h)) videoConstraints.height = { ideal: h };
         const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
         const track = stream.getVideoTracks()[0];
@@ -316,7 +304,7 @@
           const now = performance.now();
           if (lastFrameTS !== undefined) {
             const fps = 1000 / (now - lastFrameTS);
-            info.textContent = `${infoBase} ${fps.toFixed(1)} fps`;
+            $('#info').textContent = `${infoBase} ${fps.toFixed(1)} fps`;
           }
           lastFrameTS = now;
           busy = true;
@@ -345,7 +333,7 @@
               thrB: thrFor(cfg.teamB),
               radiusPx,
               rect,
-              previewCanvas: canvas,
+              previewCanvas: $('#gfx'),
               preview: true,
               activeA: true,
               activeB: true,
@@ -355,11 +343,11 @@
             const resized = true;
 
             if (resized) {
-              canvas.width = frame.displayWidth;
-              canvas.height = frame.displayHeight;
+              $('#gfx').width = frame.displayWidth;
+              $('#gfx').height = frame.displayHeight;
               // infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
               infoBase = `Running ${w}×${h}, RGB grid+ring detector (VideoFrame).`;
-              info.textContent = infoBase;
+              $('#info').textContent = infoBase;
             }
 
             // const aOn = !!res?.ok && (res.mass > cfg.topMinArea);
@@ -383,8 +371,8 @@
         }
 
       } catch (err) {
-        info.textContent = (err && err.message) ? err.message : String(err);
-        start.disabled = false;
+        $('#info').textContent = (err && err.message) ? err.message : String(err);
+        $('#start').disabled = false;
         console.error(err);
       }
     }

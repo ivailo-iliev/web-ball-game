@@ -55,8 +55,7 @@
     }
 
     async function initRTC() {
-      const stateEl = $('#state');
-      const log = msg => stateEl && (stateEl.textContent = String(msg));
+      const log = msg => $('#state') && ($('#state').textContent = String(msg));
       log('Connecting…');
 
       let ctrl;
@@ -93,14 +92,13 @@
 
       if (cfg.url || cfg.topMode !== undefined) {
         if (isMjpeg()) {
-          const urlWarnEl = $('#urlWarn');
           videoTop = new Image();
           videoTop.crossOrigin = 'anonymous';
           videoTop.src = cfg.url;
           try {
             await videoTop.decode();
           } catch (err) {
-            if (urlWarnEl) urlWarnEl.textContent = '⚠️';
+            $('#urlWarn')?.textContent = '⚠️';
             console.log('Failed to load top camera feed', err);
             return false;
           }

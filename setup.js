@@ -489,9 +489,8 @@
     function updateFrontCrop() {
       if (!Feeds) return;
       const cfg = Config.get();
-      const zEl = $('#frontZoom');
       const z = Feeds.frontCropRatio();
-      if (zEl) zEl.value = z.toFixed(2);
+      if ($('#frontZoom')) $('#frontZoom').value = z.toFixed(2);
       cfg.frontZoom = z;
               cfg.frontResW = toEvenInt(cfg.CAM_W / z);
               cfg.frontResH = toEvenInt(cfg.frontResW * cfg.ASPECT);

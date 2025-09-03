@@ -2,9 +2,9 @@
   const FLAGS = { PREVIEW: 1, TEAM_A: 2, TEAM_B: 4 };
 
   async function createPipelines(device, { url = 'shader.wgsl', elementId = null, format = 'rgba8unorm' } = {}) {
-    const code = elementId
-      ? document.getElementById(elementId)?.textContent || ''
-      : await fetch(url).then(r => r.text());
+      const code = elementId
+        ? $(`#${elementId}`)?.textContent || ''
+        : await fetch(url).then(r => r.text());
     const mod = device.createShaderModule({ code });
     // New entry points in WGSL: 'seed_grid' (sparse grid) and 'refine_micro' (tiny refine)
     const computeSeed = device.createComputePipeline({
