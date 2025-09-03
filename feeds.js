@@ -1,9 +1,13 @@
 (function () {
   'use strict';
 
+  const Feeds = (() => {
+    let Config, cfg;
+    let videoTop, track, dc, videoWorker;
+    let lastFrame;
 
-  function startVideoWorker(track, onFrame) {
-    const workerSrc = `self.onmessage = async ({ data }) => {
+    function startVideoWorker(track, onFrame) {
+      const workerSrc = `self.onmessage = async ({ data }) => {
   const post = frame => self.postMessage(frame, [frame]);
   const readFrames = async reader => {
     for (;;) {
@@ -20,32 +24,27 @@
     await readFrames(stream.getReader());
   }
 };`;
-    const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
-    const worker = new Worker(workerURL);
-    URL.revokeObjectURL(workerURL);
-    worker.onmessage = ({ data }) => onFrame(data);
-    try {
-      worker.postMessage({ op: 'init-track', track }, [track]);
-    } catch (e) {
-      const processor = new MediaStreamTrackProcessor({ track });
-      worker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
+      const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+      const worker = new Worker(workerURL);
+      URL.revokeObjectURL(workerURL);
+      worker.onmessage = ({ data }) => onFrame(data);
+      try {
+        worker.postMessage({ op: 'init-track', track }, [track]);
+      } catch (e) {
+        const processor = new MediaStreamTrackProcessor({ track });
+        worker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
+      }
+      return worker;
     }
-    return worker;
-  }
-
-  const Feeds = (() => {
-    let Config, cfg;
-    let videoTop, track, dc, videoWorker;
-    let lastFrame;
 
     // Crop = Zoom (centered). Uses only Config.zoom (>= 1).
     function zoomFrame(frame) {
       const rect = frame.visibleRect || { x: 0, y: 0, width: frame.codedWidth, height: frame.codedHeight };
       const conf = (Config?.get?.()) || cfg || {};
-      const zoom = clamp(Number(conf.zoom) || 1, 1, Number.POSITIVE_INFINITY);
+      const zoom = u.clamp(Number(conf.zoom) || 1, 1, Number.POSITIVE_INFINITY);
       // compute even crop size from current frame rect using zoom ratio
-      let cropW = toEvenInt(rect.width  / zoom);
-      let cropH = toEvenInt(rect.height / zoom);
+      let cropW = u.toEvenInt(rect.width  / zoom);
+      let cropH = u.toEvenInt(rect.height / zoom);
       if (cropW < 2) cropW = (rect.width  & ~1) || 2;
       if (cropH < 2) cropH = (rect.height & ~1) || 2;
       // center inside rect (even-aligned)
@@ -61,7 +60,7 @@
 
       let ctrl;
       try {
-        ctrl = await StartB({
+        ctrl = await RTC.startB({
           log,
           onOpen: (ch) => {
             dc = ch;
@@ -92,7 +91,7 @@
       const reqH = Number(cfg.camH) || 0;
 
       if (cfg.url || cfg.topMode !== undefined) {
-        if (isMjpeg()) {
+        if (cfg.topMode === 1) {
           videoTop = new Image();
           videoTop.crossOrigin = 'anonymous';
           videoTop.src = cfg.url;

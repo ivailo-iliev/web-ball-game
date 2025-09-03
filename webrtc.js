@@ -6,9 +6,9 @@
     /.netlify/functions/signal-read
   Usage:
     // A (top.html)
-    StartA({ log: console.log, timeoutMs: 300000 }); // 5 min
+    RTC.startA({ log: console.log, timeoutMs: 300000 }); // 5 min
     // B (index.html)
-    StartB({ log: console.log });
+    RTC.startB({ log: console.log });
 */
 (() => {
   const DEFAULTS = {
@@ -93,7 +93,7 @@
   // ---------- Public APIs ----------
 
   // Peer A: reset room, batch ICE offer, poll for answer with backoff+timeout
-  window.StartA = async function StartA(userOpts = {}) {
+  async function startA(userOpts = {}) {
     const opts = { ...DEFAULTS, ...userOpts };
     const { base, timeoutMs, backoff, log } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
@@ -167,7 +167,7 @@
   };
 
   // Peer B: check once for offer; if absent → quit. If present → batch ICE answer.
-  window.StartB = async function StartB(userOpts = {}) {
+  async function startB(userOpts = {}) {
     const opts = { ...DEFAULTS, ...userOpts };
     const { base, log } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
@@ -219,4 +219,6 @@
 
     return makeController({ pc, channel:null, log, offFns, cancelFlag });
   };
+
+  window.RTC = { startA, startB };
 })();

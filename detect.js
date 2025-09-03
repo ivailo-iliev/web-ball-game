@@ -333,5 +333,5 @@
     return { a, b, w, h, resized };
   }
 
-  global.GPUShared = { detect, FLAGS };
+  global.GPU = { detect };
 })(window);

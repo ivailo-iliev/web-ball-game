@@ -3,9 +3,6 @@
 
   let Config, PreviewGfx, Controller, Feeds;
 
-  function isMjpeg() { return Config?.get?.().topMode === 1; }
-  window.isMjpeg = isMjpeg;
-
   const DEFAULTS = {
     // Single source of truth
     camW: 1920,
@@ -40,10 +37,10 @@
 
     function recomputeSizes() {
       if (!cfg) return;
-      cfg.topResW = toEvenInt(cfg.camW);
-      cfg.topResH = toEvenInt(cfg.camH);
-      cfg.frontResW = toEvenInt(cfg.topResW / cfg.zoom);
-      cfg.frontResH = toEvenInt(cfg.topResH / cfg.zoom);
+      cfg.topResW = u.toEvenInt(cfg.camW);
+      cfg.topResH = u.toEvenInt(cfg.camH);
+      cfg.frontResW = u.toEvenInt(cfg.topResW / cfg.zoom);
+      cfg.frontResH = u.toEvenInt(cfg.topResH / cfg.zoom);
       if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
       if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
       if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
@@ -55,7 +52,7 @@
     // Single zoom setter: store the value only.
     function applyZoom(val) {
       if (!cfg) return;
-      cfg.zoom = clamp(Number(val) || 1, 1, Number.POSITIVE_INFINITY);
+      cfg.zoom = u.clamp(Number(val) || 1, 1, Number.POSITIVE_INFINITY);
       Config.save('zoom', cfg.zoom);
       recomputeSizes();
     }
@@ -148,7 +145,7 @@
       if ($('#camW')) {
         $('#camW').value = cfg.camW || 0;
         $('#camW').addEventListener('change', e => {
-          cfg.camW = toEvenInt(clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
+          cfg.camW = u.toEvenInt(u.clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
           Config.save('camW', cfg.camW);
           recomputeSizes();
         });
@@ -156,7 +153,7 @@
       if ($('#camH')) {
         $('#camH').value = cfg.camH || 0;
         $('#camH').addEventListener('change', e => {
-          cfg.camH = toEvenInt(clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
+          cfg.camH = u.toEvenInt(u.clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
           Config.save('camH', cfg.camH);
           recomputeSizes();
         });
@@ -236,7 +233,7 @@
         });
 
         initNumberSpinners();
-      $('#btnStart')?.addEventListener('click', () => snapTo(1));
+      $('#btnStart')?.addEventListener('click', () => Screen.snapTo(1));
       $('#btnTop')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyTop'));
       $('#btnFront')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyFront'));
       $('#btnBoth')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = ''));
@@ -270,7 +267,7 @@
               const cropH = frame.displayHeight || frame.codedHeight;
               const colorA = TEAM_INDICES[cfg.teamA];
               const colorB = TEAM_INDICES[cfg.teamB];
-              const { a, b, w, h, resized } = await GPUShared.detect({
+              const { a, b, w, h, resized } = await GPU.detect({
                 key: 'demo',
                 source: frame,
                 colorA,
@@ -342,13 +339,13 @@
           let dragY = null;
           $('#topOv').style.touchAction = 'none';
           $('#topOv').addEventListener('pointerdown', e => {
-            if (!Controller?.isPreview?.()) return;
+            if (!Controller?.isPreview) return;
             const r = $('#topOv').getBoundingClientRect();
             dragY = (e.clientY - r.top) * cfg.topResH / r.height;
             $('#topOv').setPointerCapture(e.pointerId);
           });
             $('#topOv').addEventListener('pointermove', e => {
-              if (dragY == null || !Controller?.isPreview?.()) return;
+              if (dragY == null || !Controller?.isPreview) return;
             const r = $('#topOv').getBoundingClientRect();
             const curY = (e.clientY - r.top) * cfg.topResH / r.height;
             topROI.y += curY - dragY;
@@ -398,13 +395,13 @@
         // Drag-only gesture
         let dragStart, roiStart;
           $('#frontOv')?.addEventListener('pointerdown', e => {
-            if (!Controller?.isPreview?.()) return;
+            if (!Controller?.isPreview) return;
           $('#frontOv').setPointerCapture(e.pointerId);
           dragStart = toCanvas(e);
           roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
         });
           $('#frontOv')?.addEventListener('pointermove', e => {
-            if (!dragStart || !Controller?.isPreview?.()) return;
+            if (!dragStart || !Controller?.isPreview) return;
           const cur = toCanvas(e);
           roi.x = roiStart.x + (cur.x - dragStart.x);
           roi.y = roiStart.y + (cur.y - dragStart.y);
