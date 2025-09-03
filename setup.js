@@ -6,20 +6,11 @@
   function isMjpeg() { return Config?.get?.().topMode === 1; }
   window.isMjpeg = isMjpeg;
 
-  const CAM_W = 1920;
-  const CAM_H = toEvenInt(CAM_W * 9 / 19.5);
-  const ASPECT = CAM_H / CAM_W;
-
   const DEFAULTS = {
-    CAM_W,
-    CAM_H,
-    ASPECT,
-    topZoom: 1,
-    topResW: 640,
-    topResH: 480,
-    frontZoom: CAM_W / 1280,
-    frontResW: 1280,
-    frontResH: toEvenInt(1280 * ASPECT),
+    // Single source of truth
+    camW: 1920,
+    camH: 1080,
+    zoom: 1,
     topMinArea: 0.025,
     frontMinArea: 8000,
     teamA: 'green',
@@ -47,30 +38,26 @@
     let cfg;
     let bound = false;
 
-    function applyFrontZoom(val) {
+    function recomputeSizes() {
       if (!cfg) return;
-      cfg.frontZoom = Math.max(1, +val);
-      cfg.frontResW = toEvenInt(cfg.CAM_W / cfg.frontZoom);
-      cfg.frontResH = toEvenInt(cfg.frontResW * cfg.ASPECT);
-      Config.save('frontZoom', cfg.frontZoom);
-      Config.save('frontResW', cfg.frontResW);
-      Config.save('frontResH', cfg.frontResH);
+      cfg.topResW = toEvenInt(cfg.camW);
+      cfg.topResH = toEvenInt(cfg.camH);
+      cfg.frontResW = toEvenInt(cfg.topResW / cfg.zoom);
+      cfg.frontResH = toEvenInt(cfg.topResH / cfg.zoom);
       if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
       if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
-      Feeds?.setCrop?.(cfg.frontResW, cfg.frontResH);
-    }
-
-    function applyTopZoom(val) {
-      if (!cfg) return;
-      cfg.topZoom = Math.max(1, +val);
-      cfg.topResW = toEvenInt(cfg.CAM_W / cfg.topZoom);
-      cfg.topResH = toEvenInt(cfg.topResW * cfg.ASPECT);
-      Config.save('topZoom', cfg.topZoom);
-      Config.save('topResW', cfg.topResW);
-      Config.save('topResH', cfg.topResH);
       if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
       if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
-      Feeds?.setCrop?.(cfg.topResW, cfg.topResH);
+      if ($('#topHInp')) $('#topHInp').max = cfg.topResH;
+      if ($('#frontHInp')) $('#frontHInp').max = cfg.frontResH;
+    }
+
+    // Single zoom setter: store the value only.
+    function applyZoom(val) {
+      if (!cfg) return;
+      cfg.zoom = clamp(Number(val) || 1, 1, Number.POSITIVE_INFINITY);
+      Config.save('zoom', cfg.zoom);
+      recomputeSizes();
     }
 
     function initNumberSpinners() {
@@ -146,32 +133,42 @@
       cfg.satMin = Float32Array.from(cfg.satMin);
       cfg.yMin = Float32Array.from(cfg.yMin);
       cfg.yMax = Float32Array.from(cfg.yMax);
-        if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
-        if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
-        if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
-        if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
-        if ($('#topHInp')) $('#topHInp').max = cfg.topResH;
-        if ($('#frontHInp')) $('#frontHInp').max = cfg.frontResH;
-        $('#frontZoom')?.setAttribute('data-spinner', '');
-        if ($('#frontZoom')) {
-          $('#frontZoom').value = cfg.frontZoom;
-          $('#frontZoom').addEventListener('input', e => {
-            applyFrontZoom(e.target.value);
-          });
-        }
-        if ($('#zoom')) {
-          $('#zoom').value = cfg.topZoom;
-          $('#zoom').addEventListener('input', e => {
-            applyTopZoom(e.target.value);
-          });
-        }
-        if ($('#topMinInp')) {
-          $('#topMinInp').value = cfg.topMinArea;
-          $('#topMinInp').addEventListener('input', e => {
+      // Optional UI wiring (only stores values):
+      // Zoom (single control or mirrored)
+      $('#frontZoom')?.setAttribute('data-spinner', '');
+      if ($('#frontZoom')) {
+        $('#frontZoom').value = cfg.zoom;
+        $('#frontZoom').addEventListener('input', e => applyZoom(e.target.value));
+      }
+      if ($('#zoom')) {
+        $('#zoom').value = cfg.zoom;
+        $('#zoom').addEventListener('input', e => applyZoom(e.target.value));
+      }
+      // Camera resolution (if you expose inputs)
+      if ($('#camW')) {
+        $('#camW').value = cfg.camW || 0;
+        $('#camW').addEventListener('change', e => {
+          cfg.camW = toEvenInt(clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
+          Config.save('camW', cfg.camW);
+          recomputeSizes();
+        });
+      }
+      if ($('#camH')) {
+        $('#camH').value = cfg.camH || 0;
+        $('#camH').addEventListener('change', e => {
+          cfg.camH = toEvenInt(clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
+          Config.save('camH', cfg.camH);
+          recomputeSizes();
+        });
+      }
+      recomputeSizes();
+      if ($('#topMinInp')) {
+        $('#topMinInp').value = cfg.topMinArea;
+        $('#topMinInp').addEventListener('input', e => {
           cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
           Config.save('topMinArea', cfg.topMinArea);
         });
-        }
+      }
 
         const TEAM_INDICES = window.TEAM_INDICES;
         let teamA = cfg.teamA;
@@ -256,7 +253,6 @@
             $('#start').disabled = false;
             return;
           }
-          updateFrontCrop();
           let busy = false;
           const loop = async () => {
             const frame = await Feeds.frontFrame();
@@ -485,26 +481,9 @@
         });
     }
 
-    function updateFrontCrop() {
-      if (!Feeds) return;
-      const cfg = Config.get();
-      const z = Feeds.frontCropRatio();
-      if ($('#frontZoom')) $('#frontZoom').value = z.toFixed(2);
-      cfg.frontZoom = z;
-              cfg.frontResW = toEvenInt(cfg.CAM_W / z);
-              cfg.frontResH = toEvenInt(cfg.frontResW * cfg.ASPECT);
-      Config.save('frontZoom', cfg.frontZoom);
-      Config.save('frontResW', cfg.frontResW);
-      Config.save('frontResH', cfg.frontResH);
-      if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
-      if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
-    }
-
     return {
       bind,
-      updateFrontCrop,
-      applyFrontZoom,
-      applyTopZoom,
+      applyZoom,
       get cfg() { return cfg; }
     };
   })();
