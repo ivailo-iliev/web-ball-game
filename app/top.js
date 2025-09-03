@@ -34,7 +34,6 @@
     }
 
     function start() {
-      Setup.bind();
       wireStartA();
     }
 

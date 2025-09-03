@@ -255,7 +255,6 @@ const Controller = (() => {
   }
 
   async function start() {
-    Setup.bind();
     if (!await Feeds.init()) return;
     if (!await Detect.init()) return;
     lastTop = 0;
