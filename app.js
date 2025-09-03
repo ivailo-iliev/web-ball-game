@@ -47,19 +47,19 @@ const PreviewGfx = (() => {
     if (ctxFront2d) ctxFront2d.clearRect(0, 0, ctxFront2d.canvas.width, ctxFront2d.canvas.height);
   }
 
-  function drawROI(poly, color, which) {
+  function drawRect(rect, color, which) {
     ensure2d();
     const ctx = which === 'front' ? ctxFront2d : ctxTop2d;
     if (!ctx) return;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    if (poly.length !== 4) return;
+    if (!rect) return;
+    const x = Math.floor(rect.x || 0);
+    const y = Math.floor(rect.y || 0);
+    const w = Math.floor(rect.w || ctx.canvas.width);
+    const h = Math.floor(rect.h || ctx.canvas.height);
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(...poly[0]);
-    poly.slice(1).forEach(p => ctx.lineTo(...p));
-    ctx.closePath();
-    ctx.stroke();
+    ctx.strokeRect(x, y, w, h);
   }
 
   function drawHit(hit) {
@@ -78,7 +78,7 @@ const PreviewGfx = (() => {
     return ctx ? ctx.getCurrentTexture().createView() : null;
   }
 
-  return { view, drawROI, drawHit, clear };
+  return { view, drawRect, drawHit, clear };
 })();
 
 
@@ -86,22 +86,26 @@ const Detect = (() => {
   const cfg = Config.get();
 
   function rectTop() {
-    const ys = cfg.polyT.map(p => p[1]);
+    const r = cfg.topRect || {};
+    const x0 = Math.max(0, Math.floor(r.x || 0));
+    const y0 = Math.max(0, Math.floor(r.y || 0));
+    const x1 = Math.min(cfg.topResW, Math.floor((r.x || 0) + (r.w || cfg.topResW)));
+    const y1 = Math.min(cfg.topResH, Math.floor((r.y || 0) + (r.h || cfg.topResH)));
     return {
-      min: new Float32Array([0, Math.min(...ys)]),
-      max: new Float32Array([cfg.topResW, Math.max(...ys)])
+      min: new Float32Array([x0, y0]),
+      max: new Float32Array([x1, y1])
     };
   }
 
   function rectFront() {
-    if (cfg.polyF.length !== 4) {
-      return { min: new Float32Array([0, 0]), max: new Float32Array([cfg.frontResW, cfg.frontResH]) };
-    }
-    const xs = cfg.polyF.map(p => p[0]);
-    const ys = cfg.polyF.map(p => p[1]);
+    const r = cfg.frontRect || {};
+    const x0 = Math.max(0, Math.floor(r.x || 0));
+    const y0 = Math.max(0, Math.floor(r.y || 0));
+    const x1 = Math.min(cfg.frontResW, Math.floor((r.x || 0) + (r.w || cfg.frontResW)));
+    const y1 = Math.min(cfg.frontResH, Math.floor((r.y || 0) + (r.h || cfg.frontResH)));
     return {
-      min: new Float32Array([Math.min(...xs), Math.min(...ys)]),
-      max: new Float32Array([Math.max(...xs), Math.max(...ys)])
+      min: new Float32Array([x0, y0]),
+      max: new Float32Array([x1, y1])
     };
   }
 
