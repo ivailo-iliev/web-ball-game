@@ -3,7 +3,7 @@
 
   const Feeds = (() => {
     let Config, cfg;
-    let videoTop, track, dc, videoWorker;
+    let videoTop, track, videoWorker;
     let lastFrame;
 
     function startVideoWorker(track, onFrame) {
@@ -62,8 +62,7 @@
       try {
         ctrl = await RTC.startB({
           log,
-          onOpen: (ch) => {
-            dc = ch;
+          onOpen: () => {
             log('connected');
           },
           onMessage: (data) => {
@@ -76,8 +75,6 @@
         return false;
       }
       if (!ctrl?.pc) { log('no offer found — open A first'); return false; }
-
-      window.sendBit = bit => { if (dc?.readyState === 'open') dc.send(bit); };
       return true;
     }
 
