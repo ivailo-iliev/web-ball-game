@@ -36,18 +36,19 @@
   const Feeds = (() => {
     let Config, cfg;
     let videoTop, track, dc, videoWorker;
-    let lastFrame, cropRatio = 1;
-    let desiredW, desiredH;
+    let lastFrame;
 
-    // Crop = Zoom (centered). ratio >= 1 crops to 1/ratio of current frame dimensions.
-    function zoomFrame(frame, ratio) {
-      const r = Math.max(1, Number(ratio) || 1);
+    // Crop = Zoom (centered). Uses only Config.zoom (>= 1).
+    function zoomFrame(frame) {
       const rect = frame.visibleRect || { x: 0, y: 0, width: frame.codedWidth, height: frame.codedHeight };
-      // compute crop size from current frame rect
-      let cropW = toEvenInt(rect.width  / r);
-      let cropH = toEvenInt(rect.height / r);
-      if (cropW <= 0 || cropH <= 0) { cropW = rect.width & ~1; cropH = rect.height & ~1; }
-      // center inside rect
+      const conf = (Config?.get?.()) || cfg || {};
+      const zoom = clamp(Number(conf.zoom) || 1, 1, Number.POSITIVE_INFINITY);
+      // compute even crop size from current frame rect using zoom ratio
+      let cropW = toEvenInt(rect.width  / zoom);
+      let cropH = toEvenInt(rect.height / zoom);
+      if (cropW < 2) cropW = (rect.width  & ~1) || 2;
+      if (cropH < 2) cropH = (rect.height & ~1) || 2;
+      // center inside rect (even-aligned)
       let x = rect.x + ((rect.width  - cropW) >> 1);
       let y = rect.y + ((rect.height - cropH) >> 1);
       x &= ~1; y &= ~1;
@@ -82,13 +83,13 @@
     }
 
     async function init() {
+      if (!window.Config) return false;
       Config = window.Config;
       cfg = Config.get();
-      const { CAM_W, CAM_H, ASPECT } = cfg;
-      desiredW = cfg.frontResW ?? cfg.topResW ?? CAM_W;
-      desiredH = cfg.frontResH ?? cfg.topResH ?? toEvenInt(desiredW * ASPECT);
-      const reqW = CAM_W;
-      const reqH = CAM_H;
+
+      // Request resolution comes from config (single source of truth).
+      const reqW = Number(cfg.camW) || 0;
+      const reqH = Number(cfg.camH) || 0;
 
       if (cfg.url || cfg.topMode !== undefined) {
         if (isMjpeg()) {
@@ -128,25 +129,12 @@
       }
 
         track = frontStream.getVideoTracks()[0];
-        const { width: w = reqResW, height: h = reqResH } = track.getSettings();
-        // Default to full-frame if requested size is missing
-        desiredW = desiredW || w;
-        desiredH = desiredH || h;
-        cropRatio = Math.max(w / desiredW, h / desiredH);
+        // Do NOT overwrite config with measured track settings; config drives the camera.
         const workerTrack = track.clone();
         videoWorker = startVideoWorker(workerTrack, (frame) => {
-          const rect = frame.visibleRect || { x: 0, y: 0, width: frame.codedWidth, height: frame.codedHeight };
-          const frameW = rect.width;
-          const frameH = rect.height;
-          const targetW = desiredW || frameW;
-          const targetH = desiredH || frameH;
-          const rW = frameW / targetW;
-          const rH = frameH / targetH;
-          const r = Math.max(1, Math.max(rW, rH));
-          cropRatio = r;
           let cropped;
           try {
-            cropped = zoomFrame(frame, r);
+            cropped = zoomFrame(frame);
             if (lastFrame) lastFrame.close();
             lastFrame = cropped;
           } finally {
@@ -196,11 +184,6 @@
       return true;
     }
 
-    function setCrop(w, h) {
-      desiredW = w;
-      desiredH = h;
-    }
-
     return {
       init,
       top: () => videoTop,
@@ -208,9 +191,7 @@
         const frame = lastFrame;
         lastFrame = null;
         return frame;
-      },
-      frontCropRatio: () => cropRatio,
-      setCrop
+      }
     };
   })();
 
