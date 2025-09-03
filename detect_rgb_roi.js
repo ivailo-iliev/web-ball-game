@@ -4,10 +4,9 @@
 
   async function createPipelines(device, { url = 'shader_rgb_roi.wgsl', elementId = null, format = 'rgba8unorm' } = {}) {
     let code;
-    if (elementId) {
-      const el = document.getElementById(elementId);
-      code = el ? el.textContent : '';
-    } else {
+      if (elementId) {
+        code = $(`#${elementId}`)?.textContent || '';
+      } else {
       code = await fetch(url).then(r => r.text());
     }
     const mod = device.createShaderModule({ code });

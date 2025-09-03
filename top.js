@@ -2,18 +2,16 @@
   'use strict';
 
   const Controller = (() => {
-    const state = $('#state');
-    const b0 = $('#b0');
     let dc;
 
     function handleOpen() {
-      state.textContent = 'Connected';
-      b0.disabled = false;
-      b0.onclick = () => sendBit('0');
+      $('#state').textContent = 'Connected';
+      $('#b0').disabled = false;
+      $('#b0').onclick = () => sendBit('0');
     }
-    
+
     function wireStartA() {
-      const log = msg => state && (state.textContent = String(msg));
+      const log = msg => $('#state') && ($('#state').textContent = String(msg));
       StartA({
         log,
         onOpen: (ch) => {

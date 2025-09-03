@@ -22,28 +22,22 @@ const PreviewGfx = (() => {
   function ensureGPU(device) {
     if (!device) return;
     if (!ctxTopGPU) {
-      const c = $('#topTex');
-      if (c && typeof c.getContext === 'function') {
         try {
-          ctxTopGPU = c.getContext('webgpu');
+          ctxTopGPU = $('#topTex')?.getContext?.('webgpu');
           ctxTopGPU?.configure({ device, format: 'rgba8unorm', alphaMode: 'opaque' });
         } catch (err) {
           console.log('Top canvas WebGPU init failed', err);
           ctxTopGPU = null;
         }
-      }
     }
     if (!ctxFrontGPU) {
-      const c = $('#frontTex');
-      if (c && typeof c.getContext === 'function') {
         try {
-          ctxFrontGPU = c.getContext('webgpu');
+          ctxFrontGPU = $('#frontTex')?.getContext?.('webgpu');
           ctxFrontGPU?.configure({ device, format: 'rgba8unorm', alphaMode: 'opaque' });
         } catch (err) {
           console.log('Front canvas WebGPU init failed', err);
           ctxFrontGPU = null;
         }
-      }
     }
   }
 
@@ -134,7 +128,7 @@ const Detect = (() => {
       yMaxB: cfg.yMax[colorB],
       radiusPx: cfg.radiusPx,
       rect: rectTop(),
-      previewCanvas: preview ? document.getElementById('topTex') : null,
+        previewCanvas: preview ? $('#topTex') : null,
       preview,
       activeA: true,
       activeB: true,
@@ -154,10 +148,9 @@ const Detect = (() => {
     frontRunning = true;
     let frame;
     try {
-      frame = await Feeds.frontFrame();
-      if (!frame) return { detected: false, hits: [] };
-      const canvas = preview ? document.getElementById('frontTex') : null;
-      const colorA = TEAM_INDICES[cfg.teamA];
+        frame = await Feeds.frontFrame();
+        if (!frame) return { detected: false, hits: [] };
+        const colorA = TEAM_INDICES[cfg.teamA];
       const colorB = TEAM_INDICES[cfg.teamB];
       const { a, b, w, h, resized } = await GPUShared.detect({
         key: 'front',
@@ -174,16 +167,16 @@ const Detect = (() => {
         yMaxB: cfg.yMax[colorB],
         radiusPx: cfg.radiusPx,
         rect: rectFront(),
-        previewCanvas: canvas,
+          previewCanvas: preview ? $('#frontTex') : null,
         preview,
         activeA: aActive,
         activeB: bActive,
         flipY: true
       });
-      if (resized && canvas) {
-        canvas.width = frame.displayWidth;
-        canvas.height = frame.displayHeight;
-      }
+        if (resized && $('#frontTex')) {
+          $('#frontTex').width = frame.displayWidth;
+          $('#frontTex').height = frame.displayHeight;
+        }
       const [keyA, xA, yA] = a;
       const [keyB, xB, yB] = b;
       const hits = [];

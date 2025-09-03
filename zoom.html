@@ -130,32 +130,6 @@
 
 <script>
 (() => {
-  const els = {
-    start: document.getElementById('startBtn'),
-    stop: document.getElementById('stopBtn'),
-    torch: document.getElementById('torchBtn'),
-    video: document.getElementById('video'),
-    zSlider: document.getElementById('zoomSlider'),
-    zRead: document.getElementById('zoomRead'),
-    z1: document.getElementById('z1'),
-    z2: document.getElementById('z2'),
-    stabilize: document.getElementById('stabilizeBtn'),
-    delay: document.getElementById('delay'),
-    res: document.getElementById('res'),
-    trackZoom: document.getElementById('trackZoom'),
-    zoomSupport: document.getElementById('zoomSupport'),
-    torchSupport: document.getElementById('torchSupport'),
-    capEmu: document.getElementById('capEmu'),
-    capReal: document.getElementById('capReal'),
-    c1: document.getElementById('c1'),
-    c2: document.getElementById('c2'),
-    h1: document.getElementById('h1'),
-    h2: document.getElementById('h2'),
-    s1: document.getElementById('s1'),
-    s2: document.getElementById('s2'),
-    dl1: document.getElementById('dl1'),
-    dl2: document.getElementById('dl2'),
-  };
 
   let stream = null;
   let track = null;
@@ -165,24 +139,24 @@
   function clamp(v,min,max){return Math.max(min, Math.min(max, v));}
 
   function updateRes(){
-    const w = els.video.videoWidth || 0;
-    const h = els.video.videoHeight || 0;
-    els.res.textContent = w && h ? `${w}×${h}` : '—';
+    const w = $('#video').videoWidth || 0;
+    const h = $('#video').videoHeight || 0;
+    $('#res').textContent = w && h ? `${w}×${h}` : '—';
   }
 
   function setUIEnabled(on){
-    els.stop.disabled = !on;
-    els.capEmu.disabled = !on;
-    els.capReal.disabled = !on;
-    els.z1.disabled = !on;
-    els.z2.disabled = !on;
-    els.zSlider.disabled = !on;
-    els.torch.disabled = !on;
+    $('#stopBtn').disabled = !on;
+    $('#capEmu').disabled = !on;
+    $('#capReal').disabled = !on;
+    $('#z1').disabled = !on;
+    $('#z2').disabled = !on;
+    $('#zoomSlider').disabled = !on;
+    $('#torchBtn').disabled = !on;
   }
 
   async function start(){
     try{
-      els.start.disabled = true;
+      $('#startBtn').disabled = true;
       usingEmulatedZoom = false;
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -193,8 +167,8 @@
         },
         audio: false
       });
-      els.video.srcObject = stream;
-      await els.video.play();
+      $('#video').srcObject = stream;
+      await $('#video').play();
       track = stream.getVideoTracks()[0];
 
       const caps = track.getCapabilities ? track.getCapabilities() : {};
@@ -202,30 +176,30 @@
       // Zoom support detection
       let zoomCap = caps.zoom;
       if (zoomCap && typeof zoomCap.min === 'number' && typeof zoomCap.max === 'number') {
-        els.zoomSupport.innerHTML = '<span class="ok">Yes</span>';
+        $('#zoomSupport').innerHTML = '<span class="ok">Yes</span>';
         const min = Math.max(1, zoomCap.min);
         const max = Math.max(min, zoomCap.max);
         const step = zoomCap.step || 0.01;
-        els.zSlider.min = String(min);
-        els.zSlider.max = String(max);
-        els.zSlider.step = String(step);
+        $('#zoomSlider').min = String(min);
+        $('#zoomSlider').max = String(max);
+        $('#zoomSlider').step = String(step);
         await applyZoom(1);
       } else {
-        els.zoomSupport.innerHTML = '<span class="warning">Emulated</span>';
+        $('#zoomSupport').innerHTML = '<span class="warning">Emulated</span>';
         usingEmulatedZoom = true;
-        els.zSlider.min = '1';
-        els.zSlider.max = '3';
-        els.zSlider.step = '0.01';
+        $('#zoomSlider').min = '1';
+        $('#zoomSlider').max = '3';
+        $('#zoomSlider').step = '0.01';
         applyEmulatedZoom(1);
       }
 
       // Torch support
       const torchOK = !!caps.torch;
-      els.torchSupport.textContent = torchOK ? 'Yes' : 'No';
-      els.torch.disabled = !torchOK;
+      $('#torchSupport').textContent = torchOK ? 'Yes' : 'No';
+      $('#torchBtn').disabled = !torchOK;
 
       setUIEnabled(true);
-      els.stop.disabled = false;
+      $('#stopBtn').disabled = false;
 
       updateRes();
       requestAnimationFrame(function raf(){updateRes(); requestAnimationFrame(raf)});
@@ -233,15 +207,15 @@
       // track zoom readout
       const upd = () => {
         const s = track.getSettings ? track.getSettings() : {};
-        const z = typeof s.zoom === 'number' ? s.zoom : (usingEmulatedZoom ? parseFloat(els.zSlider.value) : '—');
-        els.trackZoom.textContent = (z==='—')? '—' : `${(+z).toFixed(2)}×`;
+        const z = typeof s.zoom === 'number' ? s.zoom : (usingEmulatedZoom ? parseFloat($('#zoomSlider').value) : '—');
+        $('#trackZoom').textContent = (z==='—')? '—' : `${(+z).toFixed(2)}×`;
       };
       setInterval(upd, 250);
 
     }catch(err){
       console.error(err);
       alert('Could not start camera: ' + err.message);
-      els.start.disabled = false;
+      $('#startBtn').disabled = false;
     }
   }
 
@@ -249,11 +223,11 @@
     if(stream){
       stream.getTracks().forEach(t=>t.stop());
       stream = null; track = null;
-      els.video.srcObject = null;
+      $('#video').srcObject = null;
       setUIEnabled(false);
-      els.start.disabled = false;
-      els.res.textContent = '—';
-      els.trackZoom.textContent = '—';
+      $('#startBtn').disabled = false;
+      $('#res').textContent = '—';
+      $('#trackZoom').textContent = '—';
     }
   }
 
@@ -265,29 +239,29 @@
       await track.applyConstraints({ advanced: [{ zoom: z }] });
     }catch(e){
       try{ await track.applyConstraints({ zoom: z }); }
-      catch(e2){ console.warn('Zoom failed, emulating', e2); usingEmulatedZoom = true; applyEmulatedZoom(z); els.zoomSupport.innerHTML = '<span class="warning">Emulated</span>'; }
+      catch(e2){ console.warn('Zoom failed, emulating', e2); usingEmulatedZoom = true; applyEmulatedZoom(z); $('#zoomSupport').innerHTML = '<span class="warning">Emulated</span>'; }
     }
-    els.zSlider.value = String(z);
-    els.zRead.textContent = `${z.toFixed(2)}×`;
+    $('#zoomSlider').value = String(z);
+    $('#zoomRead').textContent = `${z.toFixed(2)}×`;
   }
 
   function applyEmulatedZoom(z){
     z = Math.max(1, parseFloat(z));
-    els.video.style.transform = `scale(${z})`;
-    els.zRead.textContent = `${z.toFixed(2)}× (emulated)`;
+    $('#video').style.transform = `scale(${z})`;
+    $('#zoomRead').textContent = `${z.toFixed(2)}× (emulated)`;
   }
 
   async function stabilize(){
-    const ms = parseInt(els.delay.value||0,10);
+    const ms = parseInt($('#delay').value||0,10);
     if (ms>0) await sleep(ms);
   }
 
   // Capture helper
   async function capture(toCanvas, {emulatedCrop=false}={}){
-    if(!els.video.videoWidth){ alert('Camera not ready yet.'); return; }
+    if(!$('#video').videoWidth){ alert('Camera not ready yet.'); return; }
     const ctx = toCanvas.getContext('2d');
-    const w = els.video.videoWidth;
-    const h = els.video.videoHeight;
+    const w = $('#video').videoWidth;
+    const h = $('#video').videoHeight;
     toCanvas.width = w; toCanvas.height = h;
 
     if (emulatedCrop){
@@ -296,9 +270,9 @@
       const sx = Math.floor((w - cropW)/2);
       const sy = Math.floor((h - cropH)/2);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(els.video, sx, sy, cropW, cropH, 0, 0, w, h);
+      ctx.drawImage($('#video'), sx, sy, cropW, cropH, 0, 0, w, h);
     } else {
-      ctx.drawImage(els.video, 0, 0, w, h);
+      ctx.drawImage($('#video'), 0, 0, w, h);
     }
   }
 
@@ -349,54 +323,54 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = name;
-      document.body.appendChild(a); a.click();
+      $('body').appendChild(a); a.click();
       setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
     }, 'image/png');
   }
 
   // wire up
-  els.start.addEventListener('click', start);
-  els.stop.addEventListener('click', stop);
-  els.zSlider.addEventListener('input', e => applyZoom(e.target.value));
-  els.z1.addEventListener('click', ()=>applyZoom(1));
-  els.z2.addEventListener('click', ()=>applyZoom(2));
-  els.stabilize.addEventListener('click', stabilize);
+  $('#startBtn').addEventListener('click', start);
+  $('#stopBtn').addEventListener('click', stop);
+  $('#zoomSlider').addEventListener('input', e => applyZoom(e.target.value));
+  $('#z1').addEventListener('click', ()=>applyZoom(1));
+  $('#z2').addEventListener('click', ()=>applyZoom(2));
+  $('#stabilizeBtn').addEventListener('click', stabilize);
 
   // Emulated 2×: force 1× live preview, then crop center when capturing
-  els.capEmu.addEventListener('click', async() => {
+  $('#capEmu').addEventListener('click', async() => {
     await applyZoom(1);
     await stabilize();
-    await capture(els.c1, { emulatedCrop: true });
-    analyze(els.c1, els.h1, els.s1);
-    els.dl1.disabled = false;
+    await capture($('#c1'), { emulatedCrop: true });
+    analyze($('#c1'), $('#h1'), $('#s1'));
+    $('#dl1').disabled = false;
   });
 
   // Real 2×: request camera zoom=2; if unsupported, we fall back to crop and label it
-  els.capReal.addEventListener('click', async () => {
+  $('#capReal').addEventListener('click', async () => {
     const realSupported = !usingEmulatedZoom; // if live zoom is emulated, we can't do real
     if (!realSupported) {
       alert('Native camera zoom is not available in this browser. Falling back to an emulated 2× crop for the "Real" capture.');
     }
     await applyZoom(2);
     await stabilize();
-    await capture(els.c2, { emulatedCrop: !realSupported });
-    analyze(els.c2, els.h2, els.s2);
-    els.dl2.disabled = true;
-    els.dl2.disabled = false;
+    await capture($('#c2'), { emulatedCrop: !realSupported });
+    analyze($('#c2'), $('#h2'), $('#s2'));
+    $('#dl2').disabled = true;
+    $('#dl2').disabled = false;
   });
 
-  els.dl1.addEventListener('click', ()=>download(els.c1, 'capture-emulated-2x.png'));
-  els.dl2.addEventListener('click', ()=>download(els.c2, 'capture-real-2x.png'));
+  $('#dl1').addEventListener('click', ()=>download($('#c1'), 'capture-emulated-2x.png'));
+  $('#dl2').addEventListener('click', ()=>download($('#c2'), 'capture-real-2x.png'));
 
-  document.getElementById('resetBtn').addEventListener('click', ()=>{
-    [els.c1,els.c2].forEach(c=>{c.width=0;c.height=0;});
-    [els.h1,els.h2].forEach(h=>{const x=h.getContext('2d'); x.clearRect(0,0,h.width,h.height)});
-    els.s1.textContent='—'; els.s2.textContent='—';
-    els.dl1.disabled = true; els.dl2.disabled = true;
+  $('#resetBtn').addEventListener('click', ()=>{
+    [$('#c1'),$('#c2')].forEach(c=>{c.width=0;c.height=0;});
+    [$('#h1'),$('#h2')].forEach(h=>{const x=h.getContext('2d'); x.clearRect(0,0,h.width,h.height)});
+    $('#s1').textContent='—'; $('#s2').textContent='—';
+    $('#dl1').disabled = true; $('#dl2').disabled = true;
   });
 
   // Torch toggle if supported
-  els.torch.addEventListener('click', async()=>{
+  $('#torchBtn').addEventListener('click', async()=>{
     if (!track) return;
     try{
       const caps = track.getCapabilities?.() || {};
@@ -406,9 +380,9 @@
     }catch(e){ console.warn('Torch toggle failed', e); }
   });
 
-  els.zSlider.addEventListener('input', ()=>{
-    const z = parseFloat(els.zSlider.value);
-    els.zRead.textContent = `${z.toFixed(2)}×${usingEmulatedZoom?' (emulated)':''}`;
+  $('#zoomSlider').addEventListener('input', ()=>{
+    const z = parseFloat($('#zoomSlider').value);
+    $('#zoomRead').textContent = `${z.toFixed(2)}×${usingEmulatedZoom?' (emulated)':''}`;
   });
 })();
 </script>
