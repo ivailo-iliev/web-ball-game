@@ -30,8 +30,8 @@
     yMax: Array(4).fill(0.70),
     radiusPx: 18,
     url: 'http://192.168.43.1:8080/video',
-    polyT: [],
-    polyF: [],
+    topRect: { x: 0, y: 0, w: 0, h: 0 },
+    frontRect: { x: 0, y: 0, w: 0, h: 0 },
     topH: 160,
     frontH: 220,
     topMode: 0,
@@ -324,21 +324,21 @@
 
     const topROI = { y: 0, h: cfg.topH };
 
-    function drawPolyTop() { PreviewGfx?.drawROI?.(cfg.polyT, 'lime', 'top'); }
-    function drawPolyFront() { PreviewGfx?.drawROI?.(cfg.polyF, 'aqua', 'front'); }
+    function drawRectTop() { PreviewGfx?.drawRect?.(cfg.topRect, 'lime', 'top'); }
+    function drawRectFront() { PreviewGfx?.drawRect?.(cfg.frontRect, 'aqua', 'front'); }
 
     function commitTop() {
       topROI.y = Math.min(Math.max(0, topROI.y), cfg.topResH - topROI.h);
       const { y, h } = topROI;
-      cfg.polyT = [[0, y], [cfg.topResW, y], [cfg.topResW, y + h], [0, y + h]];
-      Config.save('polyT', cfg.polyT);
-      drawPolyTop();
+      cfg.topRect = { x: 0, y, w: cfg.topResW, h };
+      Config.save('topRect', cfg.topRect);
+      drawRectTop();
     }
 
-      if (cfg.polyT?.length === 4) {
-        const ys = cfg.polyT.map(p => p[1]);
-        topROI.y = Math.min(...ys);
-        topROI.h = Math.max(...ys) - topROI.y;
+      if (cfg.topRect) {
+        const y0 = cfg.topRect.y; const y1 = cfg.topRect.y + cfg.topRect.h;
+        topROI.y = y0;
+        topROI.h = y1 - y0;
       }
 
         if ($('#topOv')) {
@@ -368,14 +368,13 @@
         // Front ROI: fixed aspect, height-driven; gesture = drag only
         const frontAspect = cfg.frontResW / cfg.frontResH;
         let roi = { x: 0, y: 0, w: cfg.frontH * frontAspect, h: cfg.frontH };
-        if (cfg.polyF?.length === 4) {
-          const xs = cfg.polyF.map(p => p[0]), ys = cfg.polyF.map(p => p[1]);
-          const x0 = Math.min(...xs), x1 = Math.max(...xs);
-          const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        if (cfg.frontRect) {
+          const x0 = cfg.frontRect.x, y0 = cfg.frontRect.y;
+          const x1 = x0 + cfg.frontRect.w, y1 = y0 + cfg.frontRect.h;
           roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-          // re-lock width to height*aspect in case stored poly drifted
-            roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
-            roi.w = roi.h * frontAspect;
+          // re-lock width to height*aspect in case stored rect drifted
+          roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
+          roi.w = roi.h * frontAspect;
         }
 
         function commit() {
@@ -384,12 +383,12 @@
           roi.w = roi.h * frontAspect;
           roi.x = Math.min(Math.max(0, roi.x), cfg.frontResW - roi.w);
           roi.y = Math.min(Math.max(0, roi.y), cfg.frontResH - roi.h);
-          // write polygon in TL,TR,BR,BL order for downstream code
+          // write rectangle (x,y,w,h) for downstream code
           const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
           const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
-          cfg.polyF = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-          Config.save('polyF', cfg.polyF);
-          drawPolyFront();
+          cfg.frontRect = { x: x0, y: y0, w: (x1 - x0), h: (y1 - y0) };
+          Config.save('frontRect', cfg.frontRect);
+          drawRectFront();
         }
 
         function toCanvas(e) {
