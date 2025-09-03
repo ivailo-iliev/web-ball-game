@@ -76,8 +76,6 @@
         return false;
       }
       if (!ctrl?.pc) { log('no offer found — open A first'); return false; }
-
-      window.sendBit = bit => { if (dc?.readyState === 'open') dc.send(bit); };
       return true;
     }
 
