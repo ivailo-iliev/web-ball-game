@@ -486,9 +486,5 @@
   })();
 
   window.Setup = Setup;
-  if (document.readyState !== 'loading') {
-    Setup.bind();
-  } else {
-    window.addEventListener('DOMContentLoaded', () => Setup.bind(), { once: true });
-  }
+  Setup.bind();
 })();
