@@ -111,13 +111,13 @@ const Detect = (() => {
 
   async function init() {
     // all GPU checks/device creation removed
-    // rely on GPUShared.detect to throw if unsupported
+    // rely on GPU.detect to throw if unsupported
     return true;
   }
     async function runTopDetection(preview) {
     const colorA = TEAM_INDICES[cfg.teamA];
     const colorB = TEAM_INDICES[cfg.teamB];
-    const { a, b } = await GPUShared.detect({
+    const { a, b } = await GPU.detect({
       key: 'top',
       source: Feeds.top(),
       colorA,
@@ -156,7 +156,7 @@ const Detect = (() => {
         if (!frame) return { detected: false, hits: [] };
         const colorA = TEAM_INDICES[cfg.teamA];
       const colorB = TEAM_INDICES[cfg.teamB];
-      const { a, b, w, h, resized } = await GPUShared.detect({
+      const { a, b, w, h, resized } = await GPU.detect({
         key: 'front',
         source: frame,
         colorA,
@@ -208,7 +208,7 @@ const Controller = (() => {
   const TOP_FPS = 30;               // throttle only the MJPEG-top feed
   const TOP_INTERVAL = 1000 / TOP_FPS;
   let lastTop = 0;
-  let preview = false;
+  const Controller = { isPreview: false };
 
   async function topLoop(ts) {
     if (ts - lastTop < TOP_INTERVAL) {
@@ -217,11 +217,11 @@ const Controller = (() => {
     }
     lastTop = ts;
 
-    const { presentA, presentB } = await Detect.runTopDetection(preview);
+    const { presentA, presentB } = await Detect.runTopDetection(Controller.isPreview);
     if (presentA || presentB) {
       const aActive = presentA;
       const bActive = presentB;
-      const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, preview);
+      const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, Controller.isPreview);
 
       if (frontDetected) {
         for (const h of hits) {
@@ -241,7 +241,7 @@ const Controller = (() => {
     const aActive = (bit === 0 || bit === 2);
     const bActive = (bit === 1 || bit === 2);
     if (!aActive && !bActive) return;
-    const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, preview);
+    const { detected: frontDetected, hits } = await Detect.runFrontDetection(aActive, bActive, Controller.isPreview);
     if (frontDetected) {
       for (const h of hits) {
         Game.routeHit(
@@ -259,15 +259,14 @@ const Controller = (() => {
     if (!await Feeds.init()) return;
     if (!await Detect.init()) return;
     lastTop = 0;
-    if (isMjpeg()) {
+    if (Config.get().topMode === 1) {
       requestAnimationFrame(topLoop);
     }
   }
 
-  function setPreview(on) { preview = on; }
-  function isPreview() { return preview; }
-
-  return { start, setPreview, isPreview, handleBit };
+  Controller.start = start;
+  Controller.handleBit = handleBit;
+  return Controller;
 })();
 window.PreviewGfx = PreviewGfx;
 window.Detect = Detect;

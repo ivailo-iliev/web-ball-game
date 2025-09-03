@@ -12,7 +12,7 @@
 
     function wireStartA() {
       const log = msg => $('#state') && ($('#state').textContent = String(msg));
-      StartA({
+      RTC.startA({
         log,
         onOpen: (ch) => {
           dc = ch;

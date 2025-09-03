@@ -494,7 +494,7 @@ Game.routeHit = (x, y, team) => {
                  ?.closest('#launcher button[data-game]');
       if (btn?.dataset.game) {
         Game.run(btn.dataset.game);
-        if (typeof snapTo === 'function') snapTo(1);  /* scroll to game */
+        Screen?.snapTo?.(1);  /* scroll to game */
       }
       break;
     }

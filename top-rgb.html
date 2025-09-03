@@ -125,7 +125,7 @@
         dc.onmessage = e => console.log('msg:', e.data);
       }
 
-      StartA().then(handleStartCtrl).catch(err => {
+      RTC.startA().then(handleStartCtrl).catch(err => {
         $('#state').textContent = 'ERR: ' + (err && (err.stack || err));
       });
 
@@ -142,7 +142,7 @@
       const TEAM_INDICES = window.TEAM_INDICES;
       const COLOR_EMOJI = window.COLOR_EMOJI;
       const COLOR_TABLE = new Float32Array(cfg.COLOR_TABLE);
-      // const hsvRangeF16 = t => GPUShared.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
+      // const hsvRangeF16 = t => GPU.hsvRangeF16(TEAM_INDICES, COLOR_TABLE, t);
       // RGB dominance presets for the new detector (simple & robust).
       const THR_PRESETS = {
         red:   { primary: 0, minDom: 0.12, yMin: 0.10, knee: 0.10 },
@@ -158,12 +158,12 @@
       $('#minArea').value = cfg.topMinArea;
 
       function onWidthInput(e) {
-        cfg.topResW = toEvenInt(Math.max(1, +e.target.value));
+        cfg.topResW = u.toEvenInt(Math.max(1, +e.target.value));
         Config.save('topResW', cfg.topResW);
       }
 
       function onHeightInput(e) {
-        cfg.topResH = toEvenInt(Math.max(1, +e.target.value));
+        cfg.topResH = u.toEvenInt(Math.max(1, +e.target.value));
         Config.save('topResH', cfg.topResH);
       }
 
@@ -176,7 +176,13 @@
       $('#videoHeight').addEventListener('input', onHeightInput);
       $('#minArea').addEventListener('input', onMinAreaInput);
 
-      populateTeamSelects($('#teamA'), $('#teamB'), COLOR_EMOJI);
+      for (const [team, emoji] of Object.entries(COLOR_EMOJI)) {
+        const opt = document.createElement('option');
+        opt.value = team;
+        opt.textContent = emoji;
+        $('#teamA').appendChild(opt);
+        $('#teamB').appendChild(opt.cloneNode(true));
+      }
       $('#teamA').value = cfg.teamA;
       $('#teamB').value = cfg.teamB;
       if ($('#teamA').selectedIndex === -1) {
@@ -309,7 +315,7 @@
           lastFrameTS = now;
           busy = true;
           try {
-            // const { result: res, w, h, resized } = await GPUShared.detect({
+            // const { result: res, w, h, resized } = await GPU.detect({
             //   key: 'demo',
             //   source: frame,
             //   hsvA6: cfg.f16Ranges[cfg.teamA],
