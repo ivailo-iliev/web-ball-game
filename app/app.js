@@ -267,8 +267,11 @@ const Controller = (() => {
   Controller.handleBit = handleBit;
   return Controller;
 })();
-window.PreviewGfx = PreviewGfx;
-window.Detect = Detect;
-window.Controller = Controller;
+window.PreviewGfx = { drawRect: PreviewGfx.drawRect };
+window.Controller = {
+  handleBit: Controller.handleBit,
+  get isPreview() { return Controller.isPreview; },
+  set isPreview(v) { Controller.isPreview = v; }
+};
 Controller.start();
 })();
