@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  let Config, PreviewGfx, Controller, Feeds;
+  let Config;
 
   const DEFAULTS = {
     // Single source of truth
@@ -105,12 +105,6 @@
       if (bound) return;
       bound = true;
       if (!Config) {
-        Config = window.Config || Config;
-        PreviewGfx = window.PreviewGfx || PreviewGfx;
-        Controller = window.Controller || window.Top?.Controller || Controller;
-        Feeds = window.Feeds || Feeds;
-      }
-      if (!Config) {
         const { createConfig } = window;
         Config = createConfig(DEFAULTS);
         Config.load();
@@ -120,7 +114,7 @@
             Config.save(k, cfg[k]);
           }
         }
-        window.Config = Config;
+        window.Config = { get: Config.get };
       } else {
         cfg = Config.get();
       }
@@ -240,7 +234,8 @@
 
       $('#start')?.addEventListener('click', () => {
         $('#start').disabled = true;
-        Controller.startDetection().catch(err => {
+        const p = window.Controller?.startDetection?.();
+        p?.catch(err => {
           if ($('#info')) $('#info').textContent = (err && err.message) ? err.message : String(err);
           $('#start').disabled = false;
           console.error(err);
@@ -249,8 +244,8 @@
 
     const topROI = { y: 0, h: cfg.topH };
 
-    function drawRectTop() { PreviewGfx?.drawRect?.(cfg.topRect, 'lime', 'top'); }
-    function drawRectFront() { PreviewGfx?.drawRect?.(cfg.frontRect, 'aqua', 'front'); }
+    function drawRectTop() { window.PreviewGfx?.drawRect?.(cfg.topRect, 'lime', 'top'); }
+    function drawRectFront() { window.PreviewGfx?.drawRect?.(cfg.frontRect, 'aqua', 'front'); }
 
     function commitTop() {
       topROI.y = Math.min(Math.max(0, topROI.y), cfg.topResH - topROI.h);
@@ -271,13 +266,13 @@
           let dragY = null;
           $('#topOv').style.touchAction = 'none';
           $('#topOv').addEventListener('pointerdown', e => {
-            if (!Controller?.isPreview) return;
+            if (!window.Controller?.isPreview) return;
             const r = $('#topOv').getBoundingClientRect();
             dragY = (e.clientY - r.top) * cfg.topResH / r.height;
             $('#topOv').setPointerCapture(e.pointerId);
           });
             $('#topOv').addEventListener('pointermove', e => {
-              if (dragY == null || !Controller?.isPreview) return;
+              if (dragY == null || !window.Controller?.isPreview) return;
             const r = $('#topOv').getBoundingClientRect();
             const curY = (e.clientY - r.top) * cfg.topResH / r.height;
             topROI.y += curY - dragY;
@@ -327,13 +322,13 @@
         // Drag-only gesture
         let dragStart, roiStart;
           $('#frontOv')?.addEventListener('pointerdown', e => {
-            if (!Controller?.isPreview) return;
+            if (!window.Controller?.isPreview) return;
           $('#frontOv').setPointerCapture(e.pointerId);
           dragStart = toCanvas(e);
           roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
         });
           $('#frontOv')?.addEventListener('pointermove', e => {
-            if (!dragStart || !Controller?.isPreview) return;
+            if (!dragStart || !window.Controller?.isPreview) return;
           const cur = toCanvas(e);
           roi.x = roiStart.x + (cur.x - dragStart.x);
           roi.y = roiStart.y + (cur.y - dragStart.y);
@@ -417,6 +412,5 @@
     };
   })();
 
-  window.Setup = Setup;
   Setup.bind();
 })();

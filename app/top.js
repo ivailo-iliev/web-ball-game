@@ -109,6 +109,6 @@
     return { start, sendBit, startDetection };
   })();
 
-  window.Controller = Controller;
   Controller.start();
+  window.Controller = { startDetection: Controller.startDetection };
 })();
