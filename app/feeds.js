@@ -96,7 +96,7 @@
           try {
             await videoTop.decode();
           } catch (err) {
-            $('#urlWarn')?.textContent = '⚠️';
+            if ($('#urlWarn')) $('#urlWarn').textContent = '⚠️';
             console.log('Failed to load top camera feed', err);
             return false;
           }
