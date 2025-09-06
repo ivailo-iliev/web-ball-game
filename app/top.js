@@ -110,5 +110,6 @@
   })();
 
   Controller.start();
-  window.Controller = { startDetection: Controller.startDetection };
+  // Always expose `isPreview` so configuration overlays remain active.
+  window.Controller = { startDetection: Controller.startDetection, isPreview: true };
 })();
