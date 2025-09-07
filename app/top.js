@@ -57,7 +57,10 @@
         try {
           const cropW = frame.displayWidth || frame.codedWidth;
           const cropH = frame.displayHeight || frame.codedHeight;
-          const rect = cfg.topRect || { x: 0, y: 0, w: cropW, h: cropH };
+          const rectCfg = cfg.topRect;
+          const rect = (rectCfg && rectCfg.w > 0 && rectCfg.h > 0)
+            ? rectCfg
+            : { x: 0, y: 0, w: cropW, h: cropH };
           const { a, b, w, h, resized } = await GPU.detect({
             key: 'top',
             source: frame,
