@@ -18,9 +18,9 @@
     yMax: Array(4).fill(0.70),
     radiusPx: 18,
     url: 'http://192.168.43.1:8080/video',
-    topRect: { x: 0, y: 0, w: 0, h: 0 },
+    topRect: { x: 0, y: 0, w: 1920, h: 1080 },
     frontRect: { x: 0, y: 0, w: 0, h: 0 },
-    topH: 160,
+    topH: 1080,
     frontH: 220,
     topMode: 0,
     COLOR_TABLE: [
