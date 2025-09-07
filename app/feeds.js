@@ -6,8 +6,8 @@
     let videoTop, track, dc, videoWorker;
     let lastFrame;
 
-    function startVideoWorker(track, onFrame) {
-      const workerSrc = `self.onmessage = async ({ data }) => {
+    const workerSrc = `self.postMessage({ op: 'supports', value: !!self.MediaStreamTrackProcessor });
+self.onmessage = async ({ data }) => {
   const post = frame => self.postMessage(frame, [frame]);
   const readFrames = async reader => {
     for (;;) {
@@ -24,16 +24,24 @@
     await readFrames(stream.getReader());
   }
 };`;
-      const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+    const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+
+    function startVideoWorker(track, onFrame) {
       const worker = new Worker(workerURL);
-      URL.revokeObjectURL(workerURL);
-      worker.onmessage = ({ data }) => onFrame(data);
-      try {
-        worker.postMessage({ op: 'init-track', track }, [track]);
-      } catch (e) {
-        const processor = new MediaStreamTrackProcessor({ track });
-        worker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
-      }
+      let initialized = false;
+      worker.onmessage = ({ data }) => {
+        if (!initialized && data?.op === 'supports') {
+          initialized = true;
+          if (data.value) {
+            worker.postMessage({ op: 'init-track', track }, [track]);
+          } else if (window.MediaStreamTrackProcessor) {
+            const processor = new MediaStreamTrackProcessor({ track });
+            worker.postMessage({ op: 'init-stream', stream: processor.readable }, [processor.readable]);
+          }
+          return;
+        }
+        onFrame(data);
+      };
       return worker;
     }
 
@@ -184,7 +192,7 @@
     return {
       init,
       top: () => videoTop,
-      frontFrame: async () => {
+      frontFrame: () => {
         const frame = lastFrame;
         lastFrame = null;
         return frame;
