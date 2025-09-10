@@ -210,6 +210,7 @@ const Controller = (() => {
   let lastTop = 0;
   const Controller = { isPreview: false };
 
+
   async function topLoop(ts) {
     if (ts - lastTop < TOP_INTERVAL) {
       requestAnimationFrame(topLoop);
@@ -255,6 +256,9 @@ const Controller = (() => {
   }
 
   async function start() {
+    if (Config.get().topMode === 0) {
+      RTC.startB();
+    }
     if (!await Feeds.init()) return;
     if (!await Detect.init()) return;
     lastTop = 0;

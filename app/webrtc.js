@@ -6,9 +6,9 @@
     /.netlify/functions/signal-read
   Usage:
     // A (top.html)
-    RTC.startA({ log: console.log, timeoutMs: 300000 }); // 5 min
+    RTC.startA();
     // B (index.html)
-    RTC.startB({ log: console.log });
+    RTC.startB();
 */
 (() => {
   const DEFAULTS = {
@@ -16,11 +16,7 @@
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     directOnly: false,                 // if true → iceServers: []
     timeoutMs: 300000,                 // A waits up to 5 minutes for answer
-    backoff: [400, 800, 1500, 3000, 5000],
-    log: () => {},
-    onOpen: () => {},                  // (channel, pc)
-    onMessage: () => {},               // (msg, channel, pc)
-    onState: () => {}                  // (pc.connectionState)
+    backoff: [400, 800, 1500, 3000, 5000]
   };
 
   // ---------- Helpers ----------
@@ -93,9 +89,22 @@
   // ---------- Public APIs ----------
 
   // Peer A: reset room, batch ICE offer, poll for answer with backoff+timeout
-  async function startA(userOpts = {}) {
-    const opts = { ...DEFAULTS, ...userOpts };
-    const { base, timeoutMs, backoff, log } = opts;
+  async function startA() {
+    const opts = { ...DEFAULTS };
+    const logEl = document.getElementById('state');
+    const log = (msg) => { if (logEl) logEl.textContent = String(msg); console.log(msg); };
+    opts.log = log;
+    opts.onState = () => {};
+    opts.onMessage = (data) => console.log('msg:', data);
+    opts.onOpen = () => {
+      log('connected');
+      const btn = document.getElementById('b0');
+      if (btn) {
+        btn.disabled = false;
+        btn.onclick = () => RTC.send('0');
+      }
+    };
+    const { base, timeoutMs, backoff } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
 
     // cleanup on start
@@ -163,13 +172,26 @@
       await until(backoff[i]); i = Math.min(i + 1, backoff.length - 1);
     }
 
-    return makeController({ pc, channel, log, offFns, cancelFlag });
+    const ctrl = makeController({ pc, channel, log, offFns, cancelFlag });
+    RTC.send = ctrl.send;
+    return ctrl;
   };
 
   // Peer B: check once for offer; if absent → quit. If present → batch ICE answer.
-  async function startB(userOpts = {}) {
-    const opts = { ...DEFAULTS, ...userOpts };
-    const { base, log } = opts;
+  async function startB() {
+    const opts = { ...DEFAULTS };
+    const logEl = document.getElementById('state');
+    const log = (msg) => { if (logEl) logEl.textContent = String(msg); console.log(msg); };
+    opts.log = log;
+    opts.onState = () => {};
+    opts.onOpen = () => log('connected');
+    opts.onMessage = (data) => {
+      const bit = Number.parseInt(data, 10);
+      if (!Number.isNaN(bit)) {
+        try { window.Controller && window.Controller.handleBit(bit); } catch {}
+      }
+    };
+    const { base } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
 
     // single read for offer
@@ -217,8 +239,10 @@
       return;
     }
 
-    return makeController({ pc, channel:null, log, offFns, cancelFlag });
+    const ctrl = makeController({ pc, channel:null, log, offFns, cancelFlag });
+    RTC.send = ctrl.send;
+    return ctrl;
   };
 
-  window.RTC = { startA, startB };
+  window.RTC = { startA, startB, send: () => false };
 })();

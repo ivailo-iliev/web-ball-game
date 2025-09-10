@@ -3,7 +3,7 @@
 
   const Feeds = (() => {
     let Config, cfg;
-    let videoTop, track, dc, videoWorker;
+    let videoTop, track, videoWorker;
     let lastFrame;
 
     const workerSrc = `self.postMessage({ op: 'supports', value: !!self.MediaStreamTrackProcessor });
@@ -62,31 +62,6 @@ self.onmessage = async ({ data }) => {
       return new VideoFrame(frame, { visibleRect: { x, y, width: cropW, height: cropH } });
     }
 
-    async function initRTC() {
-      const log = msg => $('#state') && ($('#state').textContent = String(msg));
-      log('Connecting…');
-
-      let ctrl;
-      try {
-        ctrl = await RTC.startB({
-          log,
-          onOpen: (ch) => {
-            dc = ch;
-            log('connected');
-          },
-          onMessage: (data) => {
-            const bit = Number.parseInt(data, 10);
-            if (!Number.isNaN(bit)) Controller.handleBit(bit);
-          }
-        });
-      } catch (err) {
-        log('ERR: ' + (err && (err.stack || err)));
-        return false;
-      }
-      if (!ctrl?.pc) { log('no offer found — open A first'); return false; }
-      return true;
-    }
-
     async function init() {
       if (!window.Config) return false;
       Config = window.Config;
@@ -96,20 +71,16 @@ self.onmessage = async ({ data }) => {
       const reqW = Number(cfg.camW) || 0;
       const reqH = Number(cfg.camH) || 0;
 
-      if (cfg.url || cfg.topMode !== undefined) {
-        if (cfg.topMode === 1) {
-          videoTop = new Image();
-          videoTop.crossOrigin = 'anonymous';
-          videoTop.src = cfg.url;
-          try {
-            await videoTop.decode();
-          } catch (err) {
-            if ($('#urlWarn')) $('#urlWarn').textContent = '⚠️';
-            console.log('Failed to load top camera feed', err);
-            return false;
-          }
-        } else {
-          if (!await initRTC()) return false;
+      if (cfg.topMode === 1 && cfg.url && $('#topTex')) {
+        videoTop = new Image();
+        videoTop.crossOrigin = 'anonymous';
+        videoTop.src = cfg.url;
+        try {
+          await videoTop.decode();
+        } catch (err) {
+          if ($('#urlWarn')) $('#urlWarn').textContent = '⚠️';
+          console.log('Failed to load top camera feed', err);
+          return false;
         }
       }
 

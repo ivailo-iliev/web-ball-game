@@ -2,37 +2,7 @@
   'use strict';
 
   const Controller = (() => {
-    let dc;
     let running = false;
-
-    function handleOpen() {
-      $('#state').textContent = 'Connected';
-      $('#b0').disabled = false;
-      $('#b0').onclick = () => sendBit('0');
-    }
-
-    function wireStartA() {
-      const log = msg => $('#state') && ($('#state').textContent = String(msg));
-      RTC.startA({
-        log,
-        onOpen: (ch) => {
-          dc = ch;
-          handleOpen();
-        },
-        onMessage: (data) => {
-          console.log('msg:', data);
-        }
-      }).catch(err => {
-        log('ERR: ' + (err && (err.stack || err)));
-      });
-    }
-
-    function sendBit(bit) {
-      if (dc && dc.readyState === 'open') {
-        dc.send(bit);
-        console.log(`[${new Date().toISOString()}] sent hit ${bit}`);
-      }
-    }
 
     async function startDetection() {
       if (running) return;
@@ -94,7 +64,7 @@
           const onB = scoreB >= cfg.topMinArea;
           if (onA || onB) {
             const bit = onA && onB ? '2' : onA ? '0' : '1';
-            sendBit(bit);
+            RTC.send(bit);
           }
         } catch (err) {
           if ($('#info')) $('#info').textContent = (err && err.message) ? err.message : String(err);
@@ -106,10 +76,10 @@
     }
 
     function start() {
-      wireStartA();
+      RTC.startA();
     }
 
-    return { start, sendBit, startDetection };
+    return { start, startDetection };
   })();
 
   Controller.start();
