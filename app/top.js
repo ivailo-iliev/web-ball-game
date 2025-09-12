@@ -20,6 +20,7 @@
       const colorB = TEAM_INDICES[cfg.teamB];
       const canvas = $('#gfx');
       let infoBase = '';
+      let rotationSet = false;
 
       while (running) {
         const frame = await Feeds.frontFrame();
@@ -27,6 +28,10 @@
         try {
           const cropW = frame.displayWidth || frame.codedWidth;
           const cropH = frame.displayHeight || frame.codedHeight;
+          if (!rotationSet) {
+            canvas.classList.toggle('rotate', cropW > cropH);
+            rotationSet = true;
+          }
           const rectCfg = cfg.topRect;
           const rect = (rectCfg && rectCfg.w > 0 && rectCfg.h > 0)
             ? rectCfg
