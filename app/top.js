@@ -32,6 +32,9 @@
       };
 
       while (running) {
+        const frame = await Feeds.frontFrame();
+        if (!frame) { await new Promise(r => setTimeout(r, 0)); continue; }
+
         const loopStart = performance.now();
         total += loopStart - lastStart;
         frames++;
@@ -45,9 +48,6 @@
           lastReport = loopStart;
         }
         lastStart = loopStart;
-
-        const frame = await Feeds.frontFrame();
-        if (!frame) { await new Promise(r => setTimeout(r, 0)); continue; }
         try {
           const cropW = frame.displayWidth || frame.codedWidth;
           const cropH = frame.displayHeight || frame.codedHeight;
