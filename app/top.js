@@ -9,9 +9,10 @@
       running = true;
       const cfg = window.Config?.get?.() || {};
       const TEAM_INDICES = window.TEAM_INDICES || {};
+      const infoEl = $('#info');
 
       if (!await Feeds.init()) {
-        if ($('#info')) $('#info').textContent = 'Feed init failed';
+        if (infoEl) infoEl.textContent = 'Feed init failed';
         running = false;
         return;
       }
@@ -20,9 +21,31 @@
       const colorB = TEAM_INDICES[cfg.teamB];
       const canvas = $('#gfx');
       let infoBase = '';
+      let perfInfo = '';
       let rotationSet = false;
+      let lastStart = performance.now();
+      let total = 0;
+      let frames = 0;
+      let lastReport = lastStart;
+      const updateInfo = () => {
+        if (infoEl) infoEl.textContent = infoBase + (perfInfo ? ` ${perfInfo}` : '');
+      };
 
       while (running) {
+        const loopStart = performance.now();
+        total += loopStart - lastStart;
+        frames++;
+        if (loopStart - lastReport >= 1000) {
+          const ms = total / frames;
+          const fps = frames * 1000 / total;
+          perfInfo = `${ms.toFixed(1)}ms (${fps.toFixed(1)} fps)`;
+          updateInfo();
+          total = 0;
+          frames = 0;
+          lastReport = loopStart;
+        }
+        lastStart = loopStart;
+
         const frame = await Feeds.frontFrame();
         if (!frame) { await new Promise(r => setTimeout(r, 0)); continue; }
         try {
@@ -61,7 +84,7 @@
             canvas.width = cropW;
             canvas.height = cropH;
             infoBase = `Running ${w}×${h}, shader.wgsl compute+render (VideoFrame).`;
-            if ($('#info')) $('#info').textContent = infoBase;
+            updateInfo();
           }
           const scoreA = (a[0] >>> 16) / 65535;
           const scoreB = (b[0] >>> 16) / 65535;
@@ -72,7 +95,7 @@
             RTC.send(bit);
           }
         } catch (err) {
-          if ($('#info')) $('#info').textContent = (err && err.message) ? err.message : String(err);
+          if (infoEl) infoEl.textContent = (err && err.message) ? err.message : String(err);
           console.error(err);
         } finally {
           frame.close();
