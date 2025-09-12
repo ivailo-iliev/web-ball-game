@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WebGPU f16 & Camera Capability Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { margin: 0; background:#0b0c10; color:#e5e7eb; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 20px; }
+    h1 { font-size: 1.5rem; margin: 0 0 12px; }
+    .card { background:#111318; border:1px solid #2a2f3a; border-radius:16px; padding:16px; margin:12px 0; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    label { font-weight: 600; margin-right: 6px; }
+    select, button { background:#181b22; color:#e5e7eb; border:1px solid #2a2f3a; border-radius:10px; padding:10px 12px; }
+    button { cursor: pointer; font-weight: 700; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:.85rem; border:1px solid #2a2f3a; }
+    .ok { color:#19d07e; border-color:#19d07e40; background:#19d07e14; }
+    .warn { color:#f59e0b; border-color:#f59e0b40; background:#f59e0b14; }
+    .err { color:#ef4444; border-color:#ef444440; background:#ef444414; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    video { width: 100%; max-height: 55vh; background:#000; border-radius:12px; }
+    .small { font-size:.9rem; opacity:.9; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>WebGPU f16 & Camera Capability Test</h1>
+
+  <div class="card grid">
+    <div>
+      <h2 style="margin-top:0">WebGPU / f16</h2>
+      <div id="wgpu-support" class="small">Checking…</div>
+      <div id="f16-support" class="small"></div>
+      <div id="wgpu-details" class="mono small" style="margin-top:8px; white-space:pre-wrap;"></div>
+    </div>
+    <div>
+      <h2 style="margin-top:0">Camera status</h2>
+      <div id="cam-status" class="small">Not started.</div>
+      <div id="cam-details" class="mono small" style="margin-top:8px; white-space:pre-wrap;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label for="res">Resolution</label>
+      <select id="res">
+        <option value="640x480">640 × 480</option>
+        <option value="1280x720" selected>1280 × 720</option>
+        <option value="1920x1080">1920 × 1080</option>
+      </select>
+
+      <label for="fps">FPS</label>
+      <select id="fps">
+        <option value="60">60</option>
+        <option value="30" selected>30</option>
+      </select>
+
+      <button id="start">Start</button>
+      <button id="stop" disabled>Stop</button>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <span class="badge" id="target-badge">Target: —</span>
+      <span class="badge" id="actual-badge">Actual: —</span>
+      <span class="badge" id="measured-badge">Measured FPS: —</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <video id="video" autoplay playsinline muted></video>
+  </div>
+
+  <div class="card small">
+    Tip: camera access requires HTTPS or <span class="mono">http://localhost</span> in most browsers.
+  </div>
+</div>
+
+<script>
+(async function init() {
+  // ---------- WebGPU / f16 check ----------
+  const wgpuEl = document.getElementById('wgpu-support');
+  const f16El = document.getElementById('f16-support');
+  const wgpuDetails = document.getElementById('wgpu-details');
+
+  if (!('gpu' in navigator)) {
+    wgpuEl.innerHTML = badge('WebGPU: not supported', 'err');
+    f16El.textContent = '';
+  } else {
+    wgpuEl.innerHTML = badge('WebGPU: supported', 'ok');
+    try {
+      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }) ||
+                      await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        f16El.innerHTML = badge('No GPU adapter available', 'err');
+      } else {
+        const hasF16 = adapter.features.has('shader-f16');
+        f16El.innerHTML = badge(`shader-f16: ${hasF16 ? 'yes' : 'no'}`, hasF16 ? 'ok' : 'warn');
+
+        // Some extra info if available (may be limited for privacy).
+        let infoText = '';
+        if (adapter.requestAdapterInfo) {
+          try {
+            const info = await adapter.requestAdapterInfo();
+            infoText = `Adapter: ${info.vendor || 'unknown'} ${info.architecture || ''} ${info.description || ''}`.trim();
+          } catch {}
+        }
+        const feats = [...adapter.features.values()].sort().join(', ');
+        wgpuDetails.textContent = (infoText ? (infoText + '\n') : '') + 'Features: ' + feats;
+      }
+    } catch (e) {
+      f16El.innerHTML = badge('Error checking f16: ' + (e && e.message ? e.message : e), 'err');
+    }
+  }
+
+  // ---------- Camera test UI ----------
+  const video = document.getElementById('video');
+  const resSel = document.getElementById('res');
+  const fpsSel = document.getElementById('fps');
+  const startBtn = document.getElementById('start');
+  const stopBtn = document.getElementById('stop');
+  const camStatus = document.getElementById('cam-status');
+  const camDetails = document.getElementById('cam-details');
+  const targetBadge = document.getElementById('target-badge');
+  const actualBadge = document.getElementById('actual-badge');
+  const measuredBadge = document.getElementById('measured-badge');
+
+  let currentStream = null;
+  let rafMeasure = null;
+  let vfCallbackActive = false;
+  let fpsWindow = [];
+
+  function badge(text, kind) {
+    return `<span class="badge ${kind}">${escapeHtml(text)}</span>`;
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function setTargetBadge(w, h, fps) {
+    targetBadge.textContent = `Target: ${w}×${h} @ ${fps}fps`;
+  }
+  function setActualBadgesFromTrack(track) {
+    const s = track.getSettings ? track.getSettings() : {};
+    actualBadge.textContent = `Actual: ${s.width || video.videoWidth || '—'}×${s.height || video.videoHeight || '—'} @ ${Math.round(s.frameRate || 0) || '—'}fps`;
+  }
+  function setMeasuredBadge(v) {
+    measuredBadge.textContent = `Measured FPS: ${v ? v.toFixed(1) : '—'}`;
+  }
+
+  async function stopStream() {
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+    cancelMeasure();
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    camStatus.innerHTML = badge('Stopped', 'warn');
+  }
+
+  function cancelMeasure() {
+    if (rafMeasure) {
+      cancelAnimationFrame(rafMeasure);
+      rafMeasure = null;
+    }
+    vfCallbackActive = false;
+    fpsWindow = [];
+    setMeasuredBadge(null);
+  }
+
+  function startMeasuringFPS() {
+    cancelMeasure();
+    const useVFCB = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+    const windowMs = 1000; // rolling 1 second
+
+    if (useVFCB) {
+      const onFrame = (_, frame) => {
+        fpsWindow.push(frame.mediaTime);
+        // convert mediaTime (seconds) to a rough fps over last second
+        const tNow = frame.mediaTime;
+        // prune to last second
+        while (fpsWindow.length && (tNow - fpsWindow[0]) > 1.0) fpsWindow.shift();
+        if (fpsWindow.length >= 2) {
+          const frames = fpsWindow.length - 1;
+          const span = fpsWindow[fpsWindow.length - 1] - fpsWindow[0];
+          const fps = span > 0 ? frames / span : 0;
+          setMeasuredBadge(fps);
+        }
+        if (vfCallbackActive) video.requestVideoFrameCallback(onFrame);
+      };
+      vfCallbackActive = true;
+      video.requestVideoFrameCallback(onFrame);
+    } else {
+      // Fallback: rAF-based estimator
+      const times = [];
+      const tick = (ts) => {
+        times.push(ts);
+        const cutoff = ts - windowMs;
+        while (times.length && times[0] < cutoff) times.shift();
+        if (times.length >= 2) {
+          const fps = (times.length - 1) / ((times[times.length - 1] - times[0]) / 1000);
+          setMeasuredBadge(fps);
+        }
+        rafMeasure = requestAnimationFrame(tick);
+      };
+      rafMeasure = requestAnimationFrame(tick);
+    }
+  }
+
+  async function startStream() {
+    await stopStream();
+
+    const [w, h] = resSel.value.split('x').map(Number);
+    const fps = Number(fpsSel.value);
+    setTargetBadge(w, h, fps);
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    camStatus.innerHTML = badge('Requesting camera…', 'warn');
+    camDetails.textContent = '';
+
+    const attempts = [
+      // Strict exact first (best test of true support)
+      { label: 'exact', constraints: { video: { width: { exact: w }, height: { exact: h }, frameRate: { exact: fps }, facingMode: 'environment' }, audio: false } },
+      // If that fails, try exact size with ideal fps
+      { label: 'exact size, ideal fps', constraints: { video: { width: { exact: w }, height: { exact: h }, frameRate: { ideal: fps }, facingMode: 'environment' }, audio: false } },
+      // Then ideal everything
+      { label: 'ideal', constraints: { video: { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: fps }, facingMode: 'environment' }, audio: false } },
+      // Finally, no constraints
+      { label: 'fallback', constraints: { video: true, audio: false } },
+    ];
+
+    let lastError = null;
+    for (const attempt of attempts) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(attempt.constraints);
+        currentStream = stream;
+        video.srcObject = stream;
+        await video.play().catch(()=>{});
+        const track = stream.getVideoTracks()[0];
+
+        camStatus.innerHTML = badge(`Started (${attempt.label})`, 'ok');
+        const s = track.getSettings ? track.getSettings() : {};
+        camDetails.textContent =
+          `Applied constraints (${attempt.label}):\n` +
+          JSON.stringify(attempt.constraints.video || {}, null, 2) + '\n\n' +
+          `Track settings:\n` + JSON.stringify(s, null, 2);
+
+        // Update actual badges after metadata
+        const updateBadges = () => {
+          setActualBadgesFromTrack(track);
+          startMeasuringFPS();
+        };
+        if (video.readyState >= 1) {
+          updateBadges();
+        } else {
+          video.onloadedmetadata = updateBadges;
+        }
+
+        // Replace stream if user clicks Start again
+        return;
+      } catch (e) {
+        lastError = e;
+        camDetails.textContent = `Attempt "${attempt.label}" failed: ${e && e.name ? e.name : e}\n${e && e.message ? e.message : ''}`;
+      }
+    }
+
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    camStatus.innerHTML = badge('Failed to start camera', 'err');
+    if (lastError) {
+      camDetails.textContent += `\n\nFinal error: ${lastError.name || lastError}\n${lastError.message || ''}`;
+    }
+  }
+
+  startBtn.addEventListener('click', () => startStream());
+  stopBtn.addEventListener('click', () => stopStream());
+
+  // Initialize badges
+  const [w0, h0] = resSel.value.split('x').map(Number);
+  setTargetBadge(w0, h0, Number(fpsSel.value));
+  actualBadge.textContent = 'Actual: —';
+  setMeasuredBadge(null);
+})();
+</script>
+</body>
+</html>
