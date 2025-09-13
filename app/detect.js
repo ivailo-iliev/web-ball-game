@@ -1,7 +1,8 @@
 (async function (global) {
   const FLAGS = { PREVIEW: 1, TEAM_A: 2, TEAM_B: 4 };
+  let _shaderUrl = 'app/shader.wgsl';
 
-  async function createPipelines(device, { url = 'shader.wgsl', elementId = null, format = 'rgba8unorm' } = {}) {
+  async function createPipelines(device, { url = _shaderUrl, elementId = null, format = 'rgba8unorm' } = {}) {
       const code = elementId
         ? $(`#${elementId}`)?.textContent || ''
         : await fetch(url).then(r => r.text());
@@ -199,9 +200,11 @@
     if (!('gpu' in navigator)) throw new Error('WebGPU not supported');
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No WebGPU adapter');
-    if (!adapter.features?.has?.('shader-f16')) throw new Error('shader-f16 not supported');
-    _device = await adapter.requestDevice({ requiredFeatures: ['shader-f16'] });
+    const hasF16 = adapter.features?.has?.('shader-f16');
+    const desc = hasF16 ? { requiredFeatures: ['shader-f16'] } : {};
+    _device = await adapter.requestDevice(desc);
     _format = navigator.gpu.getPreferredCanvasFormat();
+    _shaderUrl = hasF16 ? 'app/shader.wgsl' : 'app/shader_f32.wgsl';
     return _device;
   }
 
