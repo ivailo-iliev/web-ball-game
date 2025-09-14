@@ -224,7 +224,7 @@
     preview = false,
     activeA = true,
     activeB = true,
-    flipY = true,
+    flipY = false,
     // Calibration knobs for the new WGSL:
     colorA = 0,           // 0=R,1=G,2=B,3=Y
     colorB = 2,

@@ -62,7 +62,7 @@ self.onmessage = async ({ data }) => {
       return new VideoFrame(frame, { visibleRect: { x, y, width: cropW, height: cropH } });
     }
 
-    async function init() {
+    async function init({ facingMode = 'environment' } = {}) {
       if (!window.Config) return false;
       Config = window.Config;
       cfg = Config.get();
@@ -95,7 +95,7 @@ self.onmessage = async ({ data }) => {
           video: {
             width: { ideal: reqW },
             height: { ideal: reqH },
-            facingMode: 'environment',
+            facingMode,
             frameRate: { ideal: 60 }
           }
         });
