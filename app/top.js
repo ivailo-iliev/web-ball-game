@@ -77,6 +77,7 @@
             preview: true,
             activeA: true,
             activeB: true,
+            flipY: true,
             radiusPx: cfg.radiusPx,
           });
           if (resized) {

@@ -135,7 +135,8 @@ const Detect = (() => {
         previewCanvas: preview ? $('#topTex') : null,
       preview,
       activeA: true,
-      activeB: true
+      activeB: true,
+      flipY: true
     });
     // a[0]/b[0] are Best.key (Q16 score in high 16 bits)
     const scoreA = (a[0] >>> 16) / 65535;
@@ -173,7 +174,8 @@ const Detect = (() => {
           previewCanvas: preview ? $('#frontTex') : null,
         preview,
         activeA: aActive,
-        activeB: bActive
+        activeB: bActive,
+        flipY: true
       });
         if (resized && $('#frontTex')) {
           $('#frontTex').width = frame.displayWidth;
