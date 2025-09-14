@@ -11,7 +11,7 @@
       const TEAM_INDICES = window.TEAM_INDICES || {};
       const infoEl = $('#info');
 
-      if (!await Feeds.init()) {
+      if (!await Feeds.init({ facingMode: 'user' })) {
         if (infoEl) infoEl.textContent = 'Feed init failed';
         running = false;
         return;
@@ -77,7 +77,6 @@
             preview: true,
             activeA: true,
             activeB: true,
-            flipY: true,
             radiusPx: cfg.radiusPx,
           });
           if (resized) {
