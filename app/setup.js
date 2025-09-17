@@ -141,6 +141,7 @@
         $('#camW').addEventListener('change', e => {
           cfg.camW = u.toEvenInt(u.clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
           Config.save('camW', cfg.camW);
+          e.target.value = cfg.camW;
           recomputeSizes();
         });
       }
@@ -149,6 +150,7 @@
         $('#camH').addEventListener('change', e => {
           cfg.camH = u.toEvenInt(u.clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
           Config.save('camH', cfg.camH);
+          e.target.value = cfg.camH;
           recomputeSizes();
         });
       }
