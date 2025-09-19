@@ -17,8 +17,6 @@
         return;
       }
 
-      const colorA = TEAM_INDICES[cfg.teamA];
-      const colorB = TEAM_INDICES[cfg.teamB];
       const canvas = $('#gfx');
       let infoBase = '';
       let perfInfo = '';
@@ -59,6 +57,8 @@
           const rect = (rectCfg && rectCfg.w > 0 && rectCfg.h > 0)
             ? rectCfg
             : { x: 0, y: 0, w: cropW, h: cropH };
+          const colorA = TEAM_INDICES[cfg.teamA];
+          const colorB = TEAM_INDICES[cfg.teamB];
           const { a, b, w, h, resized } = await GPU.detect({
             key: 'top',
             source: frame,
