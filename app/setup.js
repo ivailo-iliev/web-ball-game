@@ -35,6 +35,17 @@
     let cfg;
     let bound = false;
 
+    // Clean decimal strings for UI + storage
+    const toFixedStr = (n, d = 3) => {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return '0';
+      return num
+        .toFixed(d)
+        .replace(/(\.\d*?[1-9])0+$/, '$1')
+        .replace(/\.0+$/, '')
+        .replace(/\.$/, '');
+    };
+
     function recomputeSizes() {
       if (!cfg) return;
       cfg.topResW = u.toEvenInt(cfg.camW);
@@ -175,47 +186,48 @@
         let yMaxA = cfg.yMax[TEAM_INDICES[teamA]];
         let yMaxB = cfg.yMax[TEAM_INDICES[teamB]];
 
-        if ($('#domA')) $('#domA').value = domThrA;
-        if ($('#domB')) $('#domB').value = domThrB;
-        if ($('#satMinA')) $('#satMinA').value = satMinA;
-        if ($('#satMinB')) $('#satMinB').value = satMinB;
-        if ($('#yMinA')) $('#yMinA').value = yMinA;
-        if ($('#yMinB')) $('#yMinB').value = yMinB;
-        if ($('#yMaxA')) $('#yMaxA').value = yMaxA;
-        if ($('#yMaxB')) $('#yMaxB').value = yMaxB;
+        if ($('#domA')) $('#domA').value = toFixedStr(domThrA);
+        if ($('#domB')) $('#domB').value = toFixedStr(domThrB);
+        if ($('#satMinA')) $('#satMinA').value = toFixedStr(satMinA);
+        if ($('#satMinB')) $('#satMinB').value = toFixedStr(satMinB);
+        if ($('#yMinA')) $('#yMinA').value = toFixedStr(yMinA);
+        if ($('#yMinB')) $('#yMinB').value = toFixedStr(yMinB);
+        if ($('#yMaxA')) $('#yMaxA').value = toFixedStr(yMaxA);
+        if ($('#yMaxB')) $('#yMaxB').value = toFixedStr(yMaxB);
         if ($('#radiusPx')) $('#radiusPx').value = cfg.radiusPx;
 
         $('#domA')?.addEventListener('input', e => {
           cfg.domThr[TEAM_INDICES[teamA]] = domThrA = +e.target.value;
-          Config.save('domThr', Array.from(cfg.domThr));
+          // Store trimmed strings → no FP junk in storage/UI; cache auto-rebuilt by save()
+          Config.save('domThr', Array.from(cfg.domThr, toFixedStr));
         });
         $('#domB')?.addEventListener('input', e => {
           cfg.domThr[TEAM_INDICES[teamB]] = domThrB = +e.target.value;
-          Config.save('domThr', Array.from(cfg.domThr));
+          Config.save('domThr', Array.from(cfg.domThr, toFixedStr));
         });
         $('#satMinA')?.addEventListener('input', e => {
           cfg.satMin[TEAM_INDICES[teamA]] = satMinA = +e.target.value;
-          Config.save('satMin', Array.from(cfg.satMin));
+          Config.save('satMin', Array.from(cfg.satMin, toFixedStr));
         });
         $('#satMinB')?.addEventListener('input', e => {
           cfg.satMin[TEAM_INDICES[teamB]] = satMinB = +e.target.value;
-          Config.save('satMin', Array.from(cfg.satMin));
+          Config.save('satMin', Array.from(cfg.satMin, toFixedStr));
         });
         $('#yMinA')?.addEventListener('input', e => {
           cfg.yMin[TEAM_INDICES[teamA]] = yMinA = +e.target.value;
-          Config.save('yMin', Array.from(cfg.yMin));
+          Config.save('yMin', Array.from(cfg.yMin, toFixedStr));
         });
         $('#yMinB')?.addEventListener('input', e => {
           cfg.yMin[TEAM_INDICES[teamB]] = yMinB = +e.target.value;
-          Config.save('yMin', Array.from(cfg.yMin));
+          Config.save('yMin', Array.from(cfg.yMin, toFixedStr));
         });
         $('#yMaxA')?.addEventListener('input', e => {
           cfg.yMax[TEAM_INDICES[teamA]] = yMaxA = +e.target.value;
-          Config.save('yMax', Array.from(cfg.yMax));
+          Config.save('yMax', Array.from(cfg.yMax, toFixedStr));
         });
         $('#yMaxB')?.addEventListener('input', e => {
           cfg.yMax[TEAM_INDICES[teamB]] = yMaxB = +e.target.value;
-          Config.save('yMax', Array.from(cfg.yMax));
+          Config.save('yMax', Array.from(cfg.yMax, toFixedStr));
         });
         $('#radiusPx')?.addEventListener('input', e => {
           cfg.radiusPx = Math.max(0, +e.target.value);
@@ -387,10 +399,10 @@
           satMinA = cfg.satMin[TEAM_INDICES[teamA]];
           yMinA = cfg.yMin[TEAM_INDICES[teamA]];
           yMaxA = cfg.yMax[TEAM_INDICES[teamA]];
-          if ($('#domA')) $('#domA').value = domThrA;
-          if ($('#satMinA')) $('#satMinA').value = satMinA;
-          if ($('#yMinA')) $('#yMinA').value = yMinA;
-          if ($('#yMaxA')) $('#yMaxA').value = yMaxA;
+          if ($('#domA')) $('#domA').value = toFixedStr(domThrA);
+          if ($('#satMinA')) $('#satMinA').value = toFixedStr(satMinA);
+          if ($('#yMinA')) $('#yMinA').value = toFixedStr(yMinA);
+          if ($('#yMaxA')) $('#yMaxA').value = toFixedStr(yMaxA);
         });
         $('#teamB')?.addEventListener('change', e => {
           teamB = cfg.teamB = e.target.value;
@@ -400,10 +412,10 @@
           satMinB = cfg.satMin[TEAM_INDICES[teamB]];
           yMinB = cfg.yMin[TEAM_INDICES[teamB]];
           yMaxB = cfg.yMax[TEAM_INDICES[teamB]];
-          if ($('#domB')) $('#domB').value = domThrB;
-          if ($('#satMinB')) $('#satMinB').value = satMinB;
-          if ($('#yMinB')) $('#yMinB').value = yMinB;
-          if ($('#yMaxB')) $('#yMaxB').value = yMaxB;
+          if ($('#domB')) $('#domB').value = toFixedStr(domThrB);
+          if ($('#satMinB')) $('#satMinB').value = toFixedStr(satMinB);
+          if ($('#yMinB')) $('#yMinB').value = toFixedStr(yMinB);
+          if ($('#yMaxB')) $('#yMaxB').value = toFixedStr(yMaxB);
         });
     }
 
