@@ -162,23 +162,14 @@ input {
 #configScreen.onlyFront #topCam,
 #configScreen.onlyTop   #frontCam { display: none; }
 
-/* #configScreen.onlyFront label[for^="team"],
-#configScreen.onlyTop   label[for^="team"] { display: none; } */
-
 #configScreen label[for^="top"],
 #configScreen label[for^="front"] { display: none; }
 
 #configScreen.onlyTop   label[for^="top"],
 #configScreen.onlyFront label[for^="front"] { display: initial; }
 
-#configScreen label[for=topUrl] {
-  display: none;
-}
-
-/* Show it only when MJPEG is selected */
-#configScreen label:has(#topMode option[value="mjpeg"]:checked) + label[for=topUrl] {
-  display: initial;
-}
+#configScreen.onlyTop label:has(#topMode option[value="0"]:checked) + label[for=topUrl] { display: none; }
+#configScreen.onlyTop label:has(#topMode option[value="1"]:checked) + label[for=topUrl] { display: initial; }
 
 /* ---- Scoreboard ---- */
 #scoreboard {
