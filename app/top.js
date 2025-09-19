@@ -53,10 +53,6 @@
             canvas.classList.toggle('rotate', cropW > cropH);
             rotationSet = true;
           }
-          const rectCfg = cfg.topRect;
-          const rect = (rectCfg && rectCfg.w > 0 && rectCfg.h > 0)
-            ? rectCfg
-            : { x: 0, y: 0, w: cropW, h: cropH };
           const colorA = TEAM_INDICES[cfg.teamA];
           const colorB = TEAM_INDICES[cfg.teamB];
           const { a, b, w, h, resized } = await GPU.detect({
@@ -72,7 +68,6 @@
             satMinB: cfg.satMin[colorB],
             yMinB: cfg.yMin[colorB],
             yMaxB: cfg.yMax[colorB],
-            rect: { min: new Float32Array([rect.x, rect.y]), max: new Float32Array([rect.x + rect.w, rect.y + rect.h]) },
             previewCanvas: canvas,
             preview: true,
             activeA: true,
