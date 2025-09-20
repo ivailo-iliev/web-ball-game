@@ -3,9 +3,14 @@
   let _shaderUrl = 'app/shader.wgsl';
 
   async function createPipelines(device, { url = _shaderUrl, elementId = null, format = 'rgba8unorm' } = {}) {
-      const code = elementId
-        ? $(`#${elementId}`)?.textContent || ''
-        : await fetch(url).then(r => r.text());
+    let code;
+    if (elementId != null) {
+      const el = $(`#${elementId}`);
+      if (!el || !el.textContent) throw new Error(`WGSL element #${elementId} missing/empty`);
+      code = el.textContent;
+    } else {
+      code = await fetch(url).then(r => r.text());
+    }
     const mod = device.createShaderModule({ code });
     // New entry points in WGSL: 'seed_grid' (sparse grid) and 'refine_micro' (tiny refine)
     const computeSeed = device.createComputePipeline({
@@ -209,11 +214,14 @@
   }
 
   function _sizeOf(src) {
-    const w = src?.displayWidth ?? src?.visibleRect?.width ?? src?.codedWidth ??
-      src?.videoWidth ?? src?.naturalWidth ?? src?.width;
-    const h = src?.displayHeight ?? src?.visibleRect?.height ?? src?.codedHeight ??
-      src?.videoHeight ?? src?.naturalHeight ?? src?.height;
-    return { w, h };
+    // Be explicit: VideoFrame vs HTMLImageElement
+    if (typeof VideoFrame !== 'undefined' && src instanceof VideoFrame) {
+      return { w: src.displayWidth, h: src.displayHeight };
+    }
+    if (src && typeof HTMLImageElement !== 'undefined' && src instanceof HTMLImageElement) {
+      return { w: src.naturalWidth, h: src.naturalHeight };
+    }
+    throw new Error('detect: unsupported source type for size');
   }
 
   async function detect({

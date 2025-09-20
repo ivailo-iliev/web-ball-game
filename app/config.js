@@ -11,7 +11,7 @@
 
     // Helpers
     const asNum = (v) => (typeof v === 'string' ? +v : v);
-    const f32 = (a) => Float32Array.from(a || [], asNum);
+    const f32 = (a) => (a != null ? Float32Array.from(a, asNum) : null);
     const rectMM = (r) => {
       // Unset or invalid -> return null (detection will use full-frame)
       if (!r) return null;
@@ -27,8 +27,8 @@
       // Precompute numeric/typed versions used by detection (same property names kept)
       view.domThr = f32(cfg.domThr);
       view.satMin = f32(cfg.satMin);
-      view.yMin = f32(cfg.yMin);
-      view.yMax = f32(cfg.yMax);
+      view.yMin   = f32(cfg.yMin);
+      view.yMax   = f32(cfg.yMax);
       // Add precomputed color indices & min/max rects (non-breaking: extra fields)
       view.colorA = TEAM_INDICES[cfg.teamA];
       view.colorB = TEAM_INDICES[cfg.teamB];

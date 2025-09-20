@@ -50,13 +50,12 @@ const PreviewGfx = (() => {
     if (!ctx) return;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     if (!rect) return;
-    const x = Math.floor(rect.x || 0);
-    const y = Math.floor(rect.y || 0);
-    const w = Math.floor(rect.w || ctx.canvas.width);
-    const h = Math.floor(rect.h || ctx.canvas.height);
+    const { x, y, w, h } = rect;
+    if (![x, y, w, h].every(Number.isFinite)) return;
+    if (w <= 0 || h <= 0) return;
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, h);
+    ctx.strokeRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
   }
 
   function drawHit(hit) {
