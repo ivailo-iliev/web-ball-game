@@ -13,13 +13,11 @@
     const asNum = (v) => (typeof v === 'string' ? +v : v);
     const f32 = (a) => Float32Array.from(a || [], asNum);
     const rectMM = (r) => {
-      if (!r) {
-        return { min: new Float32Array([0, 0]), max: new Float32Array([0, 0]) };
-      }
-      const x0 = asNum(r.x);
-      const y0 = asNum(r.y);
-      const x1 = x0 + asNum(r.w);
-      const y1 = y0 + asNum(r.h);
+      // Unset or invalid -> return null (detection will use full-frame)
+      if (!r) return null;
+      const x0 = asNum(r.x), y0 = asNum(r.y), w = asNum(r.w), h = asNum(r.h);
+      if (![x0, y0, w, h].every(Number.isFinite)) return null;
+      const x1 = x0 + w, y1 = y0 + h;
       return { min: new Float32Array([x0, y0]), max: new Float32Array([x1, y1]) };
     };
 
