@@ -7,7 +7,7 @@
     async function startDetection() {
       if (running) return;
       running = true;
-      const TEAM_INDICES = window.TEAM_INDICES || {};
+      const TEAM_INDICES = window.TEAM_INDICES;
       const infoEl = $('#info');
 
       if (!await Feeds.init({ facingMode: 'user' })) {
@@ -53,8 +53,8 @@
             rotationSet = true;
           }
           const cfg = window.Config.get();
-          const colorA = cfg.colorA ?? TEAM_INDICES[cfg.teamA];
-          const colorB = cfg.colorB ?? TEAM_INDICES[cfg.teamB];
+          const colorA = cfg.colorA;
+          const colorB = cfg.colorB;
           const { a, b, w, h, resized } = await GPU.detect({
             key: 'top',
             source: frame,
@@ -74,6 +74,7 @@
             activeB: true,
             flipY: true,
             radiusPx: cfg.radiusPx,
+            rect: null
           });
           if (resized) {
             canvas.width = cropW;
