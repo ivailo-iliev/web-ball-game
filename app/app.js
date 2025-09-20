@@ -8,8 +8,6 @@
   'use strict';
 
   const Config = window.Config;
-  const TEAM_INDICES = window.TEAM_INDICES;
-
 const PreviewGfx = (() => {
   let ctxTop2d, ctxFront2d, ctxTopGPU, ctxFrontGPU;
 
@@ -84,34 +82,6 @@ const PreviewGfx = (() => {
 
 const Detect = (() => {
 
-  function rectTop() {
-    const cfg = Config.get();
-    if (cfg.topRectMM?.min && cfg.topRectMM?.max) return cfg.topRectMM;
-    const r = cfg.topRect || {};
-    const x0 = Math.max(0, Math.floor(r.x || 0));
-    const y0 = Math.max(0, Math.floor(r.y || 0));
-    const x1 = Math.min(cfg.topResW, Math.floor((r.x || 0) + (r.w || cfg.topResW)));
-    const y1 = Math.min(cfg.topResH, Math.floor((r.y || 0) + (r.h || cfg.topResH)));
-    return {
-      min: new Float32Array([x0, y0]),
-      max: new Float32Array([x1, y1])
-    };
-  }
-
-  function rectFront() {
-    const cfg = Config.get();
-    if (cfg.frontRectMM?.min && cfg.frontRectMM?.max) return cfg.frontRectMM;
-    const r = cfg.frontRect || {};
-    const x0 = Math.max(0, Math.floor(r.x || 0));
-    const y0 = Math.max(0, Math.floor(r.y || 0));
-    const x1 = Math.min(cfg.frontResW, Math.floor((r.x || 0) + (r.w || cfg.frontResW)));
-    const y1 = Math.min(cfg.frontResH, Math.floor((r.y || 0) + (r.h || cfg.frontResH)));
-    return {
-      min: new Float32Array([x0, y0]),
-      max: new Float32Array([x1, y1])
-    };
-  }
-
   async function init() {
     // all GPU checks/device creation removed
     // rely on GPU.detect to throw if unsupported
@@ -119,8 +89,8 @@ const Detect = (() => {
   }
   async function runTopDetection(preview) {
     const cfg = Config.get();
-    const colorA = cfg.colorA ?? TEAM_INDICES[cfg.teamA];
-    const colorB = cfg.colorB ?? TEAM_INDICES[cfg.teamB];
+    const colorA = cfg.colorA;
+    const colorB = cfg.colorB;
     const { a, b } = await GPU.detect({
       key: 'top',
       source: Feeds.top(),
@@ -135,8 +105,8 @@ const Detect = (() => {
       yMinB: cfg.yMin[colorB],
       yMaxB: cfg.yMax[colorB],
       radiusPx: cfg.radiusPx,
-      rect: rectTop(),
-        previewCanvas: preview ? $('#topTex') : null,
+      rect: cfg.topRectMM,   // may be null -> full-frame inside detect.js
+      previewCanvas: preview ? $('#topTex') : null,
       preview,
       activeA: true,
       activeB: true,
@@ -156,11 +126,11 @@ const Detect = (() => {
     frontRunning = true;
     let frame;
     try {
-        frame = await Feeds.frontFrame();
-        if (!frame) return { detected: false, hits: [] };
-        const cfg = Config.get();
-        const colorA = cfg.colorA ?? TEAM_INDICES[cfg.teamA];
-      const colorB = cfg.colorB ?? TEAM_INDICES[cfg.teamB];
+      frame = await Feeds.frontFrame();
+      if (!frame) return { detected: false, hits: [] };
+      const cfg = Config.get();
+      const colorA = cfg.colorA;
+      const colorB = cfg.colorB;
       const { a, b, w, h, resized } = await GPU.detect({
         key: 'front',
         source: frame,
@@ -175,17 +145,17 @@ const Detect = (() => {
         yMinB: cfg.yMin[colorB],
         yMaxB: cfg.yMax[colorB],
         radiusPx: cfg.radiusPx,
-        rect: rectFront(),
-          previewCanvas: preview ? $('#frontTex') : null,
+        rect: cfg.frontRectMM,  // may be null -> full-frame inside detect.js
+        previewCanvas: preview ? $('#frontTex') : null,
         preview,
         activeA: aActive,
         activeB: bActive,
         flipY: true
       });
-        if (resized && $('#frontTex')) {
-          $('#frontTex').width = frame.displayWidth;
-          $('#frontTex').height = frame.displayHeight;
-        }
+      if (resized && $('#frontTex')) {
+        $('#frontTex').width = frame.displayWidth;
+        $('#frontTex').height = frame.displayHeight;
+      }
       const [keyA, xA, yA] = a;
       const [keyB, xB, yB] = b;
       const hits = [];
