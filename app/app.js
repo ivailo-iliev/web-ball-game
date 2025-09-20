@@ -11,7 +11,6 @@
   const TEAM_INDICES = window.TEAM_INDICES;
 
 const PreviewGfx = (() => {
-  const cfg = Config.get();
   let ctxTop2d, ctxFront2d, ctxTopGPU, ctxFrontGPU;
 
   function ensure2d() {
@@ -65,8 +64,9 @@ const PreviewGfx = (() => {
   function drawHit(hit) {
     ensure2d();
     if (!ctxFront2d) return;
+    const { frontResW, frontResH } = Config.get();
     ctxFront2d.fillStyle = hit.team;
-    const px = hit.x * cfg.frontResW, py = hit.y * cfg.frontResH;
+    const px = hit.x * frontResW, py = hit.y * frontResH;
     ctxFront2d.beginPath();
     ctxFront2d.arc(px, py, 8, 0, Math.PI * 2);
     ctxFront2d.fill();
@@ -83,9 +83,10 @@ const PreviewGfx = (() => {
 
 
 const Detect = (() => {
-  const cfg = Config.get();
 
   function rectTop() {
+    const cfg = Config.get();
+    if (cfg.topRectMM?.min && cfg.topRectMM?.max) return cfg.topRectMM;
     const r = cfg.topRect || {};
     const x0 = Math.max(0, Math.floor(r.x || 0));
     const y0 = Math.max(0, Math.floor(r.y || 0));
@@ -98,6 +99,8 @@ const Detect = (() => {
   }
 
   function rectFront() {
+    const cfg = Config.get();
+    if (cfg.frontRectMM?.min && cfg.frontRectMM?.max) return cfg.frontRectMM;
     const r = cfg.frontRect || {};
     const x0 = Math.max(0, Math.floor(r.x || 0));
     const y0 = Math.max(0, Math.floor(r.y || 0));
@@ -114,9 +117,10 @@ const Detect = (() => {
     // rely on GPU.detect to throw if unsupported
     return true;
   }
-    async function runTopDetection(preview) {
-    const colorA = TEAM_INDICES[cfg.teamA];
-    const colorB = TEAM_INDICES[cfg.teamB];
+  async function runTopDetection(preview) {
+    const cfg = Config.get();
+    const colorA = cfg.colorA ?? TEAM_INDICES[cfg.teamA];
+    const colorB = cfg.colorB ?? TEAM_INDICES[cfg.teamB];
     const { a, b } = await GPU.detect({
       key: 'top',
       source: Feeds.top(),
@@ -141,8 +145,8 @@ const Detect = (() => {
     // a[0]/b[0] are Best.key (Q16 score in high 16 bits)
     const scoreA = (a[0] >>> 16) / 65535;
     const scoreB = (b[0] >>> 16) / 65535;
-    const presentA = scoreA >= cfg.topMinArea;
-    const presentB = scoreB >= cfg.topMinArea;
+    const presentA = scoreA >= Config.get().topMinArea;
+    const presentB = scoreB >= Config.get().topMinArea;
     return { presentA, presentB, scoreA, scoreB };
   }
 
@@ -154,8 +158,9 @@ const Detect = (() => {
     try {
         frame = await Feeds.frontFrame();
         if (!frame) return { detected: false, hits: [] };
-        const colorA = TEAM_INDICES[cfg.teamA];
-      const colorB = TEAM_INDICES[cfg.teamB];
+        const cfg = Config.get();
+        const colorA = cfg.colorA ?? TEAM_INDICES[cfg.teamA];
+      const colorB = cfg.colorB ?? TEAM_INDICES[cfg.teamB];
       const { a, b, w, h, resized } = await GPU.detect({
         key: 'front',
         source: frame,
@@ -185,10 +190,12 @@ const Detect = (() => {
       const [keyB, xB, yB] = b;
       const hits = [];
       if (aActive && keyA !== 0) {
-        hits.push({ team: cfg.teamA, x: xA / cfg.frontResW, y: yA / cfg.frontResH });
+        const { teamA, frontResW, frontResH } = Config.get();
+        hits.push({ team: teamA, x: xA / frontResW, y: yA / frontResH });
       }
       if (bActive && keyB !== 0) {
-        hits.push({ team: cfg.teamB, x: xB / cfg.frontResW, y: yB / cfg.frontResH });
+        const { teamB, frontResW, frontResH } = Config.get();
+        hits.push({ team: teamB, x: xB / frontResW, y: yB / frontResH });
       }
       if (preview && hits.length) {
         for (const h of hits) PreviewGfx.drawHit(h);
