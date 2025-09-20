@@ -7,7 +7,6 @@
     async function startDetection() {
       if (running) return;
       running = true;
-      const cfg = window.Config?.get?.() || {};
       const TEAM_INDICES = window.TEAM_INDICES || {};
       const infoEl = $('#info');
 
@@ -53,8 +52,9 @@
             canvas.classList.toggle('rotate', cropW > cropH);
             rotationSet = true;
           }
-          const colorA = TEAM_INDICES[cfg.teamA];
-          const colorB = TEAM_INDICES[cfg.teamB];
+          const cfg = window.Config.get();
+          const colorA = cfg.colorA ?? TEAM_INDICES[cfg.teamA];
+          const colorB = cfg.colorB ?? TEAM_INDICES[cfg.teamB];
           const { a, b, w, h, resized } = await GPU.detect({
             key: 'top',
             source: frame,
