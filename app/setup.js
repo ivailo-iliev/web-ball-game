@@ -38,7 +38,7 @@
     // Clean decimal strings for UI + storage
     const toFixedStr = (n, d = 3) => {
       const num = Number(n);
-      if (!Number.isFinite(num)) return '0';
+      if (!Number.isFinite(num)) return '';
       return num
         .toFixed(d)
         .replace(/(\.\d*?[1-9])0+$/, '$1')
@@ -63,7 +63,9 @@
     // Single zoom setter: store the value only.
     function applyZoom(val) {
       if (!cfg) return;
-      cfg.zoom = u.clamp(Number(val) || 1, 1, Number.POSITIVE_INFINITY);
+      const z = Number(val);
+      if (!Number.isFinite(z)) return; // ignore invalid
+      cfg.zoom = u.clamp(z, 1, Number.POSITIVE_INFINITY);
       Config.save('zoom', cfg.zoom);
       recomputeSizes();
     }
@@ -129,12 +131,10 @@
       } else {
         cfg = Config.get();
       }
-      cfg.topMode = +cfg.topMode || 0;
+      // topMode should already be valid via defaults; do not coerce
+      cfg.topMode = Number(cfg.topMode);
       Config.save('topMode', cfg.topMode);
-      cfg.domThr = Float32Array.from(cfg.domThr);
-      cfg.satMin = Float32Array.from(cfg.satMin);
-      cfg.yMin = Float32Array.from(cfg.yMin);
-      cfg.yMax = Float32Array.from(cfg.yMax);
+      // Arrays are already typed in Config.get() cache; do not re-type here
       // Optional UI wiring (only stores values):
       // Zoom (single control or mirrored)
       $('#frontZoom')?.setAttribute('data-spinner', '');
@@ -148,18 +148,22 @@
       }
       // Camera resolution (if you expose inputs)
       if ($('#camW')) {
-        $('#camW').value = cfg.camW || 0;
+        $('#camW').value = cfg.camW;
         $('#camW').addEventListener('change', e => {
-          cfg.camW = u.toEvenInt(u.clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
+          const n = Number(e.target.value);
+          if (!Number.isFinite(n)) return;
+          cfg.camW = u.toEvenInt(u.clamp(n, 2, Number.MAX_SAFE_INTEGER));
           Config.save('camW', cfg.camW);
           e.target.value = cfg.camW;
           recomputeSizes();
         });
       }
       if ($('#camH')) {
-        $('#camH').value = cfg.camH || 0;
+        $('#camH').value = cfg.camH;
         $('#camH').addEventListener('change', e => {
-          cfg.camH = u.toEvenInt(u.clamp(Number(e.target.value) || 0, 2, Number.MAX_SAFE_INTEGER));
+          const n = Number(e.target.value);
+          if (!Number.isFinite(n)) return;
+          cfg.camH = u.toEvenInt(u.clamp(n, 2, Number.MAX_SAFE_INTEGER));
           Config.save('camH', cfg.camH);
           e.target.value = cfg.camH;
           recomputeSizes();

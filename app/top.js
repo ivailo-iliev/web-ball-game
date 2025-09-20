@@ -46,8 +46,8 @@
         }
         lastStart = loopStart;
         try {
-          const cropW = frame.displayWidth || frame.codedWidth;
-          const cropH = frame.displayHeight || frame.codedHeight;
+          const cropW = frame.displayWidth;
+          const cropH = frame.displayHeight;
           if (!rotationSet) {
             canvas.classList.toggle('rotate', cropW > cropH);
             rotationSet = true;
