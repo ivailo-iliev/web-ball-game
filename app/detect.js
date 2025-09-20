@@ -217,21 +217,21 @@
   }
 
   async function detect({
-    key = 'default',
+    key,
     source,
-    rect = null,
-    previewCanvas = null,
-    preview = false,
-    activeA = true,
-    activeB = true,
-    flipY = true,
-    // Calibration knobs for the new WGSL:
-    colorA = 0,           // 0=R,1=G,2=B,3=Y
-    colorB = 2,
-    domThrA = 0.10, satMinA = 0.12, yMinA = 0.00, yMaxA = 0.70,
-    domThrB = 0.10, satMinB = 0.12, yMinB = 0.00, yMaxB = 0.70,
-    radiusPx = 18         // single knob; grid/refine derive from this
-    } = {}) {
+    rect,
+    previewCanvas,
+    preview,
+    activeA,
+    activeB,
+    flipY,
+    // Calibration knobs for the new WGSL (all required; callers must pass explicit values)
+    colorA,
+    colorB,
+    domThrA, satMinA, yMinA, yMaxA,
+    domThrB, satMinB, yMinB, yMaxB,
+    radiusPx
+  }) {
     const device = await _ensureDevice();
     if (!source) throw new Error('detect: source required');
 
@@ -246,7 +246,7 @@
     let ctx = state.ctxByKey.get(key);
     if (!ctx) {
       const pack = createUniformPack(device);
-      ctx = { pack, feed: null, defaultRect: { min: new Float32Array([0,0]), max: new Float32Array([0,0]) }, canvasCtx: null };
+      ctx = { pack, feed: null, canvasCtx: null };
       state.ctxByKey.set(key, ctx);
     }
 
@@ -258,15 +258,13 @@
       // Internal textures use RGBA format to support storage binding;
       // the canvas may still prefer a BGRA format for presentation.
       ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h);
-      ctx.defaultRect.max[0] = w;
-      ctx.defaultRect.max[1] = h;
       resized = true;
     }
 
     let view = null;
     if (preview && previewCanvas) {
       if (!ctx.canvasCtx || resized) {
-        ctx.canvasCtx = ctx.canvasCtx || previewCanvas.getContext('webgpu');
+        ctx.canvasCtx = previewCanvas.getContext('webgpu');
         previewCanvas.width = w;
         previewCanvas.height = h;
         ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
@@ -277,7 +275,10 @@
     // activeMask for the new WGSL: bit0(A), bit1(B)
     const activeMask = (activeA ? 1 : 0) | (activeB ? 2 : 0);
     ctx.pack.resetStats(device.queue);
-    const roi = rect || ctx.defaultRect;
+    // Sole fallback allowed: full-frame when rect is null/undefined
+    const roi = (rect && rect.min && rect.max)
+      ? rect
+      : { min: new Float32Array([0, 0]), max: new Float32Array([w, h]) };
     ctx.pack.writeUniform(
       device.queue,
       roi,
