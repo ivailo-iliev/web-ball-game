@@ -60,6 +60,7 @@
             source: frame,
             colorA,
             colorB,
+            refine: false,
             domThrA: cfg.domThr[colorA],
             satMinA: cfg.satMin[colorA],
             yMinA: cfg.yMin[colorA],
