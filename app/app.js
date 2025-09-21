@@ -173,7 +173,7 @@
         const { teamB, frontResW, frontResH } = cfg;
         hits.push({ team: teamB, x: xB / frontResW, y: yB / frontResH });
       }
-      if (preview && hits.length) {
+      if (preview && hits.length && window.Controller?.isPreview) {
         for (const h of hits) PreviewGfx.drawHit(h);
       }
       return { detected: hits.length > 0, hits };
