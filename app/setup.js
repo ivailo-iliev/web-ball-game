@@ -171,7 +171,7 @@
       if ($('#topMinInp')) {
         $('#topMinInp').value = cfg.topMinArea;
         $('#topMinInp').addEventListener('input', e => {
-          cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
+          cfg.topMinArea = +e.target.value;
           Config.save('topMinArea', cfg.topMinArea);
         });
       }
@@ -264,7 +264,8 @@
     function drawRectFront() { window.PreviewGfx?.drawRect?.(cfg.frontRect, 'aqua', 'front'); }
 
     function commitTop() {
-      topROI.y = Math.min(Math.max(0, topROI.y), cfg.topResH - topROI.h);
+      const maxTopY = cfg.topResH - topROI.h;
+      topROI.y = u.clamp(topROI.y, 0, maxTopY);
       const { y, h } = topROI;
       cfg.topRect = { x: 0, y, w: cfg.topResW, h };
       Config.save('topRect', cfg.topRect);
@@ -309,16 +310,16 @@
           const x1 = x0 + cfg.frontRect.w, y1 = y0 + cfg.frontRect.h;
           roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
           // re-lock width to height*aspect in case stored rect drifted
-          roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
+          roi.h = u.clamp(roi.h, 10, cfg.frontResH);
           roi.w = roi.h * frontAspect;
         }
 
         function commit() {
           // lock width to height * aspect and clamp inside framebuffer
-          roi.h = Math.max(10, Math.min(cfg.frontResH, roi.h));
+          roi.h = u.clamp(roi.h, 10, cfg.frontResH);
           roi.w = roi.h * frontAspect;
-          roi.x = Math.min(Math.max(0, roi.x), cfg.frontResW - roi.w);
-          roi.y = Math.min(Math.max(0, roi.y), cfg.frontResH - roi.h);
+          roi.x = u.clamp(roi.x, 0, cfg.frontResW - roi.w);
+          roi.y = u.clamp(roi.y, 0, cfg.frontResH - roi.h);
           // write rectangle (x,y,w,h) for downstream code
           const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
           const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
@@ -361,23 +362,19 @@
         if ($('#frontMinInp')) $('#frontMinInp').value = cfg.frontMinArea;
 
         $('#topHInp')?.addEventListener('input', e => {
-          cfg.topH = Math.max(10, Math.min(cfg.topResH, +e.target.value));
+          cfg.topH = u.clamp(+e.target.value, 10, cfg.topResH);
           Config.save('topH', cfg.topH);
           topROI.h = cfg.topH;
           commitTop();
         });
         $('#frontHInp')?.addEventListener('input', e => {
-          cfg.frontH = Math.max(10, Math.min(cfg.frontResH, +e.target.value));
+          cfg.frontH = u.clamp(+e.target.value, 10, cfg.frontResH);
           Config.save('frontH', cfg.frontH);
           roi.h = cfg.frontH;               // width is recomputed in commit()
           commit();
         });
-        if ($('#topMinInp')) $('#topMinInp').onchange = e => {
-          cfg.topMinArea = Math.max(0, Math.min(1, +e.target.value));
-          Config.save('topMinArea', cfg.topMinArea);
-        };
         if ($('#frontMinInp')) $('#frontMinInp').onchange = e => {
-          cfg.frontMinArea = Math.max(0, +e.target.value);
+          cfg.frontMinArea = +e.target.value;
           Config.save('frontMinArea', cfg.frontMinArea);
         };
 
