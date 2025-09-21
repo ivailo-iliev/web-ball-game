@@ -307,7 +307,9 @@
 
     const enc = device.createCommandEncoder();
     // (Optional) clear preview target if you use it
-    enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
+    if (preview) {
+      enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
+    }
 
     // Pass 1: sparse grid seed
     const seedPass = enc.beginComputePass({ label: 'detect:seed_grid' });
@@ -335,7 +337,7 @@
     enc.copyBufferToBuffer(ctx.pack.bestA, 0, ctx.pack.readA, 0, 12);
     enc.copyBufferToBuffer(ctx.pack.bestB, 0, ctx.pack.readB, 0, 12);
 
-    if (view && state.pipelines.render) {
+    if (preview && view && state.pipelines.render) {
       const r = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
       r.setPipeline(state.pipelines.render);
       r.setBindGroup(0, ctx.feed.getRenderBG(ctx.pack));

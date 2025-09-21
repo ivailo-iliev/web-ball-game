@@ -45,6 +45,7 @@ const PreviewGfx = (() => {
   }
 
   function drawRect(rect, color, which) {
+    if (!window.Controller?.isPreview) return;
     ensure2d();
     const ctx = which === 'front' ? ctxFront2d : ctxTop2d;
     if (!ctx) return;
@@ -59,6 +60,7 @@ const PreviewGfx = (() => {
   }
 
   function drawHit(hit) {
+    if (!window.Controller?.isPreview) return;
     ensure2d();
     if (!ctxFront2d) return;
     const { frontResW, frontResH } = Config.get();
@@ -249,11 +251,7 @@ const Controller = (() => {
   Controller.handleBit = handleBit;
   return Controller;
 })();
-window.PreviewGfx = { drawRect: PreviewGfx.drawRect };
-window.Controller = {
-  handleBit: Controller.handleBit,
-  get isPreview() { return Controller.isPreview; },
-  set isPreview(v) { Controller.isPreview = v; }
-};
+window.PreviewGfx = { drawRect: PreviewGfx.drawRect, clear: PreviewGfx.clear };
+window.Controller = Controller;
 Controller.start();
 })();
