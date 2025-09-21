@@ -34,6 +34,17 @@
       view.colorB = TEAM_INDICES[cfg.teamB];
       view.topRectMM = rectMM(cfg.topRect);
       view.frontRectMM = rectMM(cfg.frontRect);
+
+      // Resolved, color-dependent scalars (no validation, no fallbacks)
+      const iA = view.colorA, iB = view.colorB;
+      view.domThrA = view.domThr[iA];
+      view.satMinA = view.satMin[iA];
+      view.yMinA   = view.yMin[iA];
+      view.yMaxA   = view.yMax[iA];
+      view.domThrB = view.domThr[iB];
+      view.satMinB = view.satMin[iB];
+      view.yMinB   = view.yMin[iB];
+      view.yMaxB   = view.yMax[iB];
       return view;
     }
 
@@ -42,7 +53,16 @@
         _cached = null;
         return;
       }
-      _cached = buildCache();
+      // Keep object identity stable so existing references to Config.get() stay valid
+      const next = buildCache();
+      if (!_cached) {
+        _cached = next;
+      } else {
+        // Remove keys that disappeared
+        for (const k in _cached) if (!(k in next)) delete _cached[k];
+        // Update/insert keys in place
+        Object.assign(_cached, next);
+      }
     }
 
     function load(opts = {}) {
@@ -90,6 +110,19 @@
       return _cached;
     }
 
-    return { load, save, get };
+    const api = { load, save, get };
+
+    Object.defineProperty(api, 'cfg', {
+      enumerable: true,
+      configurable: true,
+      get
+    });
+
+    Object.defineProperty(window, 'cfg', {
+      configurable: true,
+      get
+    });
+
+    return api;
   };
 })();
