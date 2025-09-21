@@ -8,7 +8,7 @@
   let   index   = 0;
 
   function snapTo(i) {
-    index = Math.max(0, Math.min(i, MAX_IDX));
+    index = u.clamp(i, 0, MAX_IDX);
     $('#container').scrollTo({ top: index * PAGE_H(), behavior: 'smooth' });
     window.currentPage = index;          /* 0 launcher | 1 game | 2 config */
     $('#container').dataset.page = index;      /* handy in DevTools */
