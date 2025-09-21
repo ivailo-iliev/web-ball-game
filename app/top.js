@@ -7,7 +7,6 @@
     async function startDetection() {
       if (running) return;
       running = true;
-      const TEAM_INDICES = window.TEAM_INDICES;
       const infoEl = $('#info');
 
       if (!await Feeds.init({ facingMode: 'user' })) {
@@ -31,6 +30,8 @@
       while (running) {
         const frame = await Feeds.frontFrame();
         if (!frame) { await new Promise(r => setTimeout(r, 0)); continue; }
+        const cfg = window.cfg;
+        if (!cfg) { frame.close(); continue; }
 
         const loopStart = performance.now();
         total += loopStart - lastStart;
@@ -52,7 +53,6 @@
             canvas.classList.toggle('rotate', cropW > cropH);
             rotationSet = true;
           }
-          const cfg = window.Config.get();
           const colorA = cfg.colorA;
           const colorB = cfg.colorB;
           const { a, b, w, h, resized } = await GPU.detect({
@@ -61,14 +61,14 @@
             colorA,
             colorB,
             refine: false,
-            domThrA: cfg.domThr[colorA],
-            satMinA: cfg.satMin[colorA],
-            yMinA: cfg.yMin[colorA],
-            yMaxA: cfg.yMax[colorA],
-            domThrB: cfg.domThr[colorB],
-            satMinB: cfg.satMin[colorB],
-            yMinB: cfg.yMin[colorB],
-            yMaxB: cfg.yMax[colorB],
+            domThrA: cfg.domThrA,
+            satMinA: cfg.satMinA,
+            yMinA: cfg.yMinA,
+            yMaxA: cfg.yMaxA,
+            domThrB: cfg.domThrB,
+            satMinB: cfg.satMinB,
+            yMinB: cfg.yMinB,
+            yMaxB: cfg.yMaxB,
             previewCanvas: canvas,
             preview: true,
             activeA: true,

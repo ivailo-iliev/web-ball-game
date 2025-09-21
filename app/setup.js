@@ -121,20 +121,18 @@
         const { createConfig } = window;
         Config = createConfig(DEFAULTS);
         Config.load();
-        cfg = Config.get();
+        cfg = window.cfg;
         for (const k of Object.keys(DEFAULTS)) {
           if (localStorage.getItem(k) === null) {
             Config.save(k, cfg[k]);
           }
         }
-        window.Config = { get: Config.get };
-      } else {
-        cfg = Config.get();
+        window.Config = Config;
       }
       // topMode should already be valid via defaults; do not coerce
       cfg.topMode = Number(cfg.topMode);
       Config.save('topMode', cfg.topMode);
-      // Arrays are already typed in Config.get() cache; do not re-type here
+      // Arrays are already typed in the cached config view; do not re-type here
       // Optional UI wiring (only stores values):
       // Zoom (single control or mirrored)
       $('#frontZoom')?.setAttribute('data-spinner', '');
