@@ -53,6 +53,8 @@
     const buffer = new ArrayBuffer(64);
     const f32 = new Float32Array(buffer);
     const u32 = new Uint32Array(buffer);
+    const lastUniformBits = new Uint32Array(16);
+    let hasUniform = false;
 
     // Uniform layout (64B):
     //  0: u32 rMin.x,  4: u32 rMin.y
@@ -65,7 +67,7 @@
     function writeUniform(queue, rect, radiusPx, colorA, colorB,
                           domThrA, satMinA, yMinA, yMaxA,
                           domThrB, satMinB, yMinB, yMaxB,
-                          activeMask) {
+                          activeMask, force = false) {
       u32[0] = rect.min[0] >>> 0;
       u32[1] = rect.min[1] >>> 0;
       u32[2] = rect.max[0] >>> 0;
@@ -82,7 +84,27 @@
       f32[13] = yMinB;
       f32[14] = yMaxB;
       u32[15] = (activeMask >>> 0);
-      queue.writeBuffer(uni, 0, buffer);
+
+      let changed = force || !hasUniform;
+      if (!changed) {
+        for (let i = 0; i < lastUniformBits.length; i++) {
+          if (lastUniformBits[i] !== u32[i]) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      if (changed) {
+        queue.writeBuffer(uni, 0, buffer);
+        lastUniformBits.set(u32);
+        hasUniform = true;
+      }
+      return changed;
+    }
+
+    function invalidateUniform() {
+      hasUniform = false;
     }
 
     function resetStats(queue) {
@@ -105,7 +127,7 @@
       return { a, b };
     }
 
-    return { uni, statsA, statsB, bestA, bestB, grid, readA, readB, writeUniform, resetStats, readBest };
+    return { uni, statsA, statsB, bestA, bestB, grid, readA, readB, writeUniform, resetStats, readBest, invalidateUniform };
   }
 
   function createFeed(device, pipelines, sampler, w, h) {
@@ -256,7 +278,7 @@
     let ctx = state.ctxByKey.get(key);
     if (!ctx) {
       const pack = createUniformPack(device);
-      ctx = { pack, feed: null, canvasCtx: null };
+      ctx = { pack, feed: null, canvasCtx: null, canvasSize: null };
       state.ctxByKey.set(key, ctx);
     }
 
@@ -268,18 +290,26 @@
       // Internal textures use RGBA format to support storage binding;
       // the canvas may still prefer a BGRA format for presentation.
       ctx.feed = createFeed(device, state.pipelines, state.sampler, w, h);
+      ctx.pack.invalidateUniform();
       resized = true;
     }
 
     let view = null;
     if (preview && previewCanvas) {
-      if (!ctx.canvasCtx || resized) {
+      if (!ctx.canvasCtx) {
         ctx.canvasCtx = previewCanvas.getContext('webgpu');
-        previewCanvas.width = w;
-        previewCanvas.height = h;
-        ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
+        ctx.canvasSize = null;
       }
-      view = ctx.canvasCtx.getCurrentTexture().createView();
+      if (ctx.canvasCtx) {
+        const prevSize = ctx.canvasSize || { w: 0, h: 0 };
+        if (resized || prevSize.w !== w || prevSize.h !== h) {
+          previewCanvas.width = w;
+          previewCanvas.height = h;
+          ctx.canvasCtx.configure({ device, format: _format, alphaMode: 'opaque' });
+          ctx.canvasSize = { w, h };
+        }
+        view = ctx.canvasCtx.getCurrentTexture().createView();
+      }
     }
 
     // activeMask for the new WGSL: bit0(A), bit1(B)
@@ -289,6 +319,7 @@
     const roi = (rect && rect.min && rect.max)
       ? rect
       : { min: new Float32Array([0, 0]), max: new Float32Array([w, h]) };
+
     ctx.pack.writeUniform(
       device.queue,
       roi,
@@ -296,7 +327,8 @@
       colorA, colorB,
       domThrA, satMinA, yMinA, yMaxA,
       domThrB, satMinB, yMinB, yMaxB,
-      activeMask
+      activeMask,
+      resized
     );
 
     device.queue.copyExternalImageToTexture(
@@ -307,7 +339,7 @@
 
     const enc = device.createCommandEncoder();
     // (Optional) clear preview target if you use it
-    if (preview) {
+    if (preview && view) {
       enc.beginRenderPass({ colorAttachments: [{ view: ctx.feed.maskView, loadOp: 'clear', storeOp: 'store' }] }).end();
     }
 
@@ -318,7 +350,7 @@
     // Dispatch over the GRID, not full image:
     const roiW = roi.max[0] - roi.min[0];
     const roiH = roi.max[1] - roi.min[1];
-    const gridStride = Math.max(1, Math.round((radiusPx * 2) / 3));
+    const gridStride = ((radiusPx * 2 / 3) | 0) || 1;
     const gridW = Math.ceil(roiW / gridStride);
     const gridH = Math.ceil(roiH / gridStride);
     seedPass.dispatchWorkgroups(gridW, gridH);
