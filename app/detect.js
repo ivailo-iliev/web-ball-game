@@ -278,7 +278,7 @@
     let ctx = state.ctxByKey.get(key);
     if (!ctx) {
       const pack = createUniformPack(device);
-      ctx = { pack, feed: null, canvasCtx: null, canvasSize: null };
+      ctx = { pack, feed: null, canvasCtx: null, canvasSize: null, fullFrameROI: null };
       state.ctxByKey.set(key, ctx);
     }
 
@@ -316,9 +316,18 @@
     const activeMask = (activeA ? 1 : 0) | (activeB ? 2 : 0);
     ctx.pack.resetStats(device.queue);
     // Sole fallback allowed: full-frame when rect is null/undefined
-    const roi = (rect && rect.min && rect.max)
-      ? rect
-      : { min: new Float32Array([0, 0]), max: new Float32Array([w, h]) };
+    const roi = (rect?.min && rect?.max) ? rect : (() => {
+      const fullROI = ctx.fullFrameROI ??= {
+        min: new Float32Array(2),
+        max: new Float32Array(2)
+      };
+      if (resized || fullROI.max[0] !== w || fullROI.max[1] !== h) {
+        fullROI.min.fill(0);
+        fullROI.max[0] = w;
+        fullROI.max[1] = h;
+      }
+      return fullROI;
+    })();
 
     ctx.pack.writeUniform(
       device.queue,
