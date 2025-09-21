@@ -238,10 +238,12 @@
     colorB,
     domThrA, satMinA, yMinA, yMaxA,
     domThrB, satMinB, yMinB, yMaxB,
-    radiusPx
+    radiusPx,
+    refine
   }) {
     const device = await _ensureDevice();
     if (!source) throw new Error('detect: source required');
+    if (typeof refine !== 'boolean') throw new Error('detect: refine flag required');
 
     let state = _devState.get(device);
     if (!state) {
@@ -321,11 +323,13 @@
     seedPass.end();
 
     // Pass 2: tiny refine around seeds (tile grid)
-    const refinePass = enc.beginComputePass({ label: 'detect:refine_micro' });
-    refinePass.setPipeline(state.pipelines.computeRefine);
-    refinePass.setBindGroup(0, ctx.feed.computeBGRefine(ctx.pack));
-    refinePass.dispatchWorkgroups(Math.ceil(roiW / 8), Math.ceil(roiH / 8));
-    refinePass.end();
+    if (refine) {
+      const refinePass = enc.beginComputePass({ label: 'detect:refine_micro' });
+      refinePass.setPipeline(state.pipelines.computeRefine);
+      refinePass.setBindGroup(0, ctx.feed.computeBGRefine(ctx.pack));
+      refinePass.dispatchWorkgroups(Math.ceil(roiW / 8), Math.ceil(roiH / 8));
+      refinePass.end();
+    }
 
     // Read back winning seeds (BestA/BestB: key,x,y) — centroid finalized on GPU
     enc.copyBufferToBuffer(ctx.pack.bestA, 0, ctx.pack.readA, 0, 12);
