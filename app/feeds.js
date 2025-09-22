@@ -48,8 +48,9 @@ self.onmessage = async ({ data }) => {
     // Crop = Zoom (centered). Uses only Config.zoom (>= 1).
     function zoomFrame(frame) {
       const rect = frame.visibleRect || { x: 0, y: 0, width: frame.codedWidth, height: frame.codedHeight };
-      const cfg = window.cfg;
-      const zoom = u.clamp(Number(cfg?.zoom) || 1, 1, Number.POSITIVE_INFINITY);
+      const cfg = window.cfg;                  // single source of truth from setup.js
+      const zoom = Number(cfg?.zoom);          // setup.js ensures valid defaults
+      if (!Number.isFinite(zoom) || zoom < 1) throw new Error(`feeds.zoomFrame: invalid zoom=${cfg?.zoom}`);
       // compute even crop size from current frame rect using zoom ratio
       let cropW = u.toEvenInt(rect.width  / zoom);
       let cropH = u.toEvenInt(rect.height / zoom);
@@ -69,8 +70,9 @@ self.onmessage = async ({ data }) => {
       if (!cfg) return false;
 
       // Request resolution comes from config (single source of truth).
-      const reqW = Number(cfg.camW) || 0;
-      const reqH = Number(cfg.camH) || 0;
+      const reqW = Number(cfg.camW);
+      const reqH = Number(cfg.camH);
+      if (!Number.isFinite(reqW) || !Number.isFinite(reqH)) throw new Error('feeds.init: invalid camW/camH');
 
       if (cfg.topMode === 1 && cfg.url && $('#topTex')) {
         videoTop = new Image();
