@@ -124,7 +124,7 @@
         cfg = window.cfg;
         for (const k of Object.keys(DEFAULTS)) {
           if (localStorage.getItem(k) === null) {
-            Config.save(k, cfg[k]);
+            Config.save(k, DEFAULTS[k]);
           }
         }
         window.Config = Config;
