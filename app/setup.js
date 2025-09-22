@@ -6,7 +6,7 @@
   const DEFAULTS = {
     // Single source of truth
     camW: 1920,
-    camH: 1080,
+    camH: 886,
     zoom: 1,
     topMinArea: 0.025,
     frontMinArea: 8000,
@@ -18,9 +18,9 @@
     yMax: Array(4).fill(0.70),
     radiusPx: 18,
     url: 'http://192.168.43.1:8080/video',
-    topRect: { x: 0, y: 0, w: 1920, h: 1080 },
+    topRect: { x: 0, y: 0, w: 1920, h: 886 },
     frontRect: { x: 0, y: 0, w: 0, h: 0 },
-    topH: 1080,
+    topH: 886,
     frontH: 220,
     topMode: 0,
     COLOR_TABLE: [
