@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Ferris wheel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* ===== Consolidated Styles ===== */
+    /* One animation drives everything via a custom property */
+    @property --spin {
+      syntax: '<angle>';
+      inherits: true;
+      initial-value: 0deg;
+    }
+    @keyframes spin { to { --spin: 360deg; } }
+
+    /* Global knobs */
+    svg {
+      --period: 8s;
+      --r: 190px;               /* cart radius */
+      shape-rendering: optimizeSpeed;
+      text-rendering: optimizeSpeed;
+      contain: content;
+      animation: spin var(--period) linear infinite;
+    }
+
+    /* Wheel rotation */
+    .wheel{
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
+      transform: rotate(var(--spin));
+      will-change: transform;
+    }
+
+    /* Keep carts upright while orbiting the hub via pure transforms */
+    .carts > use{
+      transform-box: view-box;
+      /* rotate around the SVG center */
+      transform-origin: 256px 256px;
+      transform:
+        rotate(calc(var(--theta) + var(--spin)))
+        translate(var(--r))
+        rotate(calc(-1 * (var(--theta) + var(--spin))));
+      will-change: transform;
+      backface-visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* 8 evenly spaced carts */
+    .carts > use:nth-child(1){ --theta:   0deg; }
+    .carts > use:nth-child(2){ --theta:  45deg; }
+    .carts > use:nth-child(3){ --theta:  90deg; }
+    .carts > use:nth-child(4){ --theta: 135deg; }
+    .carts > use:nth-child(5){ --theta: 180deg; }
+    .carts > use:nth-child(6){ --theta: 225deg; }
+    .carts > use:nth-child(7){ --theta: 270deg; }
+    .carts > use:nth-child(8){ --theta: 315deg; }
+
+    /* Symbol path colors via CSS variables */
+    #cart .c1 { fill: var(--c1, #f47daa) }
+    #cart .c2 { fill: var(--c2, #ea4889) }
+
+    /* Per-instance colors */
+    .carts > use:nth-child(1){ --c1:#f47daa; --c2:#ea4889; }
+    .carts > use:nth-child(2){ --c1:#a47ecc; --c2:#7a56bf; }
+    .carts > use:nth-child(3){ --c1:#2584ff; --c2:#014fab; }
+    .carts > use:nth-child(4){ --c1:#69a5ad; --c2:#41727a; }
+    .carts > use:nth-child(5){ --c1:#02ad41; --c2:#2f7c31; }
+    .carts > use:nth-child(6){ --c1:#ffd61c; --c2:#ffa42d; }
+    .carts > use:nth-child(7){ --c1:#ff8e05; --c2:#ff4c1c; }
+    .carts > use:nth-child(8){ --c1:#fc2b26; --c2:#da0a26; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <symbol id="cart" viewBox="0 0 78 68">
+      <path class="c1" d="M17 0c-6 0-7 5-8 10L3 43h72L70 9c-1-5-2-8-8-9H17Z"/>
+      <path class="c2" d="M0 56c-1 6 5 12 8 12h61c5 0 9-3 8-10l-2-15H3L0 56Z"/>
+    </symbol>
+  </defs>
+
+  <!-- background shapes (simplified geometry preserved) -->
+  <g>
+    <path fill="#7956c0" d="M-16 193 98-60l25-128-28-21L39-39l-162 248 107-16Z"
+          transform="matrix(.47 0 0 .47 193.13 394.56)"/>
+    <path fill="#7956c0" d="M-128-173c1 15 35 129 35 129L33 207l95 3L-52-51l-55-159-21 37Z"
+          transform="matrix(.47 0 0 .47 320.03 389.39)"/>
+    <path fill="#8f7cf3" d="M-120 190c7-7 163-249 163-249l55-154 24 28L90-52-85 211l-37 2 2-23Z"
+          transform="matrix(.47 0 0 .47 187.02 390.80)"/>
+    <path fill="#8f7cf3" d="m-130-191 41 138L88 212l42-4L-48-62l-58-150-24 21Z"
+          transform="matrix(.47 0 0 .47 327.08 391.74)"/>
+    <path fill="#8f7cf3" d="M-326-28c-7 7-4 54 1 56 3 1 159 2 321 2s328 2 331 0c6-2 5-52 0-56-2-3-166-3-329-4-162-1-320-2-324 2Z"
+          transform="matrix(.47 0 0 .47 258.46 495.14)"/>
+  </g>
+
+  <!-- wheel -->
+  <g class="wheel">
+    <path fill="none" stroke="#c9c9c9" stroke-width="9.2"
+      d="M256 73v185l130-131-130 131h184-184l130 130-130-130v184-184L126 388l130-130H72h184L126 127l130 131Zm0 0a184 184 0 0 0 0 369 184 184 0 0 0 0-369"/>
+    <path fill="none" stroke="#c9c9c9" stroke-width="11"
+      d="m256 78 48 63 79-11-11 79 64 49-64 48 11 79-79-11-48 63-48-63-79 11 11-79-64-48 64-49-11-79 79 11Zm0 59a120 120 0 0 0 0 241 120 120 0 0 0 0-241"/>
+  </g>
+
+  <!-- hub -->
+  <path fill="#f0edec" stroke="#c8c8c8" stroke-width="12"
+    d="m256 206 15 16 22-1-1 22 16 15-16 14 1 22h-22l-15 16-15-16h-22l1-22-16-14 16-15-1-22 22 1Z"/>
+
+  <!-- 8 carts -->
+  <g class="carts">
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+  </g>
+</svg>
+</div>
+</body>
+</html>
