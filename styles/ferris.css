@@ -1,0 +1,109 @@
+/* Ferris game styles */
+.game.ferris {
+  --ground-height: 60vh;
+  --sky-zenith:#4aa3ff;
+  --sky-horizon:#cfe8ff;
+  --grass-top:#8fe17f;
+  --grass-bottom:#2c9b49;
+  --ferris-size: 46vmin;
+  --tent-size: 30vmin;
+  --carousel-size: 50vmin;
+  background-image:
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500"><rect width="100%" height="100%" fill="none"/><text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" font-size="440">🎪</text></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500"><rect width="100%" height="100%" fill="none"/><text x="150" y="250" text-anchor="middle" dominant-baseline="middle" font-size="200">🎢</text><text x="350" y="250" text-anchor="middle" dominant-baseline="middle" font-size="200" style="transform-box: fill-box; transform-origin: center; transform: scaleX(-1);">🎢</text></svg>'),
+    linear-gradient(to top, rgba(255,255,255,.7), rgba(255,255,255,0)),
+    linear-gradient(to top, var(--grass-bottom) 0%, var(--grass-top) 100%),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="520" height="260"><rect width="100%" height="100%" fill="none"/><g font-size="120" opacity=".7"><text x="30" y="70">☁️</text><text x="330" y="90">☁️</text></g></svg>'),
+    linear-gradient(to bottom, var(--sky-zenith) 0%, var(--sky-horizon) 65%);
+    background-size:
+    var(--tent-size) var(--tent-size),
+    var(--carousel-size) var(--carousel-size),
+    100% 16vh,
+    100% var(--ground-height),
+    520px 260px,
+    100% 100%;
+  background-position:
+    85% calc(100% - var(--ground-height) + var(--tent-size) + 2vmin),
+    15% calc(100% - var(--ground-height) + var(--carousel-size) + 2vmin),
+    center calc(100% - var(--ground-height)),
+    center bottom,
+    center top,
+    center center;
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    repeat-x,
+    no-repeat;
+}
+
+.game.ferris .pop {
+  animation: riderPop 1s ease-out forwards;
+}
+
+@keyframes riderPop {
+  to { transform: translateX(var(--flyX)) rotate(360deg); }
+}
+
+@property --spin {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+@keyframes spin { to { --spin: 360deg; } }
+
+.game.ferris svg {
+  --period: 8s;
+  --r: 190px;               /* cart radius */
+  shape-rendering: optimizeSpeed;
+  text-rendering: optimizeSpeed;
+  contain: content;
+  animation: spin var(--period) linear infinite;
+}
+
+/* Wheel rotation */
+.game.ferris .wheel{
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: rotate(var(--spin));
+  will-change: transform;
+}
+
+/* Keep carts upright while orbiting the hub via pure transforms */
+.ferris-carts > use{
+  transform-box: view-box;
+  /* rotate around the SVG center */
+  transform-origin: 256px 256px;
+  transform:
+    rotate(calc(var(--theta) + var(--spin)))
+    translate(var(--r))
+    rotate(calc(-1 * (var(--theta) + var(--spin))));
+  will-change: transform;
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+/* 8 evenly spaced carts */
+.ferris-carts > use:nth-child(1){ --theta:   0deg; }
+.ferris-carts > use:nth-child(2){ --theta:  45deg; }
+.ferris-carts > use:nth-child(3){ --theta:  90deg; }
+.ferris-carts > use:nth-child(4){ --theta: 135deg; }
+.ferris-carts > use:nth-child(5){ --theta: 180deg; }
+.ferris-carts > use:nth-child(6){ --theta: 225deg; }
+.ferris-carts > use:nth-child(7){ --theta: 270deg; }
+.ferris-carts > use:nth-child(8){ --theta: 315deg; }
+
+/* Symbol path colors via CSS variables */
+#cart .c1 { fill: var(--c1, #f47daa) }
+#cart .c2 { fill: var(--c2, #ea4889) }
+
+/* Per-instance colors */
+.ferris-carts > use:nth-child(1){ --c1:#f47daa; --c2:#ea4889; }
+.ferris-carts > use:nth-child(2){ --c1:#a47ecc; --c2:#7a56bf; }
+.ferris-carts > use:nth-child(3){ --c1:#2584ff; --c2:#014fab; }
+.ferris-carts > use:nth-child(4){ --c1:#69a5ad; --c2:#41727a; }
+.ferris-carts > use:nth-child(5){ --c1:#02ad41; --c2:#2f7c31; }
+.ferris-carts > use:nth-child(6){ --c1:#ffd61c; --c2:#ffa42d; }
+.ferris-carts > use:nth-child(7){ --c1:#ff8e05; --c2:#ff4c1c; }
+.ferris-carts > use:nth-child(8){ --c1:#fc2b26; --c2:#da0a26; }

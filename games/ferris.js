@@ -1,0 +1,113 @@
+(function(g){
+  const { between, pick, rand } = g.u;
+  const TAU = Math.PI * 2;
+  const RIDER_LIFETIME_SECS = 32;
+  const RIDER_MAX = 8;
+  const RIDER_EMOJIS = ['😄','😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','🙂','🙃','😉','😍','🥰','😘','😗','😙','😚','🤩','🥳','😎','🤗','🤭','😺','😸','😹','😻','😼','😽','🥳'];
+  const SPAWN_DELAY_RANGE = [0, 3];
+
+  g.Game.register('ferris', g.BaseGame.make({
+    icon: '🎡',
+    max: RIDER_MAX,
+    emojis: RIDER_EMOJIS,
+    burst: ['💫'],
+    spawnDelayRange: SPAWN_DELAY_RANGE,
+
+    onStart(){
+      const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <symbol id="cart" viewBox="0 0 78 68">
+      <path class="c1" d="M17 0c-6 0-7 5-8 10L3 43h72L70 9c-1-5-2-8-8-9H17Z"/>
+      <path class="c2" d="M0 56c-1 6 5 12 8 12h61c5 0 9-3 8-10l-2-15H3L0 56Z"/>
+    </symbol>
+  </defs>
+
+  <!-- background shapes (simplified geometry preserved) -->
+  <g>
+    <path fill="#7956c0" d="M-16 193 98-60l25-128-28-21L39-39l-162 248 107-16Z"
+          transform="matrix(.47 0 0 .47 193.13 394.56)"/>
+    <path fill="#7956c0" d="M-128-173c1 15 35 129 35 129L33 207l95 3L-52-51l-55-159-21 37Z"
+          transform="matrix(.47 0 0 .47 320.03 389.39)"/>
+    <path fill="#8f7cf3" d="M-120 190c7-7 163-249 163-249l55-154 24 28L90-52-85 211l-37 2 2-23Z"
+          transform="matrix(.47 0 0 .47 187.02 390.80)"/>
+    <path fill="#8f7cf3" d="m-130-191 41 138L88 212l42-4L-48-62l-58-150-24 21Z"
+          transform="matrix(.47 0 0 .47 327.08 391.74)"/>
+    <path fill="#8f7cf3" d="M-326-28c-7 7-4 54 1 56 3 1 159 2 321 2s328 2 331 0c6-2 5-52 0-56-2-3-166-3-329-4-162-1-320-2-324 2Z"
+          transform="matrix(.47 0 0 .47 258.46 495.14)"/>
+  </g>
+
+  <!-- wheel -->
+  <g class="wheel">
+    <path fill="none" stroke="#c9c9c9" stroke-width="9.2"
+      d="M256 73v185l130-131-130 131h184-184l130 130-130-130v184-184L126 388l130-130H72h184L126 127l130 131Zm0 0a184 184 0 0 0 0 369 184 184 0 0 0 0-369"/>
+    <path fill="none" stroke="#c9c9c9" stroke-width="11"
+      d="m256 78 48 63 79-11-11 79 64 49-64 48 11 79-79-11-48 63-48-63-79 11 11-79-64-48 64-49-11-79 79 11Zm0 59a120 120 0 0 0 0 241 120 120 0 0 0 0-241"/>
+  </g>
+
+  <!-- hub -->
+  <path fill="#f0edec" stroke="#c8c8c8" stroke-width="12"
+    d="m256 206 15 16 22-1-1 22 16 15-16 14 1 22h-22l-15 16-15-16h-22l1-22-16-14 16-15-1-22 22 1Z"/>
+
+  <!-- 8 carts -->
+  <g class="ferris-carts">
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+    <use href="#cart" width="80" height="70" x="216" y="246"/>
+  </g>
+</svg>`;
+
+      const { documentElement: svg } =
+      new DOMParser().parseFromString(svgString, "image/svg+xml");
+      this.container.appendChild(document.importNode(svg, true));
+    // define the placeholders for spawning new emoji. emoji can only board the ferris wheel when an empty cart is at the bottom of the wheel.
+    },
+
+
+    spawn(){
+      const freeCarts = this.carts.filter(h => !h.occupied);
+      if (!freeCarts.length) return null;
+      const cart = pick(freeCarts);
+      const idx = this.carts.indexOf(cart);
+      cart.occupied = true;
+
+      const d = {
+        x: cart.x,
+        y: cart.y - this.cartR,
+        dx: 0,
+        dy: 0,
+        r: this.cartR,
+        e: pick(this.emojis),
+        ttl: RIDER_LIFETIME_SECS,
+        cartIndex: idx,
+        p: {
+          '--px':     `${cart.x - this.cartR}px`,
+          '--py':     `${this.H - cart.y}px`
+        }
+      };
+      return d;
+    },
+
+    move(s, dt){
+      s.x += s.dx * dt;
+      s.y += s.dy * dt;
+      s.angle = Math.sin((s.x + s.y) * ROT_FREQ) * ROT_AMPL;
+      //emojis need to circle around the ferris wheel in sync with the carts until hit
+    },
+
+    onHit(sp, team){
+      const idx = sp.cartIndex;
+      if(idx !== undefined) this.carts[idx].occupied = false;
+    },
+
+    onMiss(sp){
+      const idx = sp.cartIndex;
+      if(idx !== undefined) this.carts[idx].occupied = false;
+    }
+
+  }));
+})(window);
