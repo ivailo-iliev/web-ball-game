@@ -1,10 +1,11 @@
 (function(g){
-  const { between, pick, rand } = g.u;
-  const TAU = Math.PI * 2;
+  const { pick } = g.u;
   const RIDER_LIFETIME_SECS = 32;
   const RIDER_MAX = 8;
   const RIDER_EMOJIS = ['😄','😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','🙂','🙃','😉','😍','🥰','😘','😗','😙','😚','🤩','🥳','😎','🤗','🤭','😺','😸','😹','😻','😼','😽','🥳'];
   const SPAWN_DELAY_RANGE = [0, 3];
+  const ROT_FREQ  = 0.03;
+  const ROT_AMPL  = 0.10;
 
   g.Game.register('ferris', g.BaseGame.make({
     icon: '🎡',
@@ -61,14 +62,46 @@
   </g>
 </svg>`;
 
-      const { documentElement: svg } =
-      new DOMParser().parseFromString(svgString, "image/svg+xml");
-      this.container.appendChild(document.importNode(svg, true));
-    // define the placeholders for spawning new emoji. emoji can only board the ferris wheel when an empty cart is at the bottom of the wheel.
+      const { documentElement: svgRoot } =
+        new DOMParser().parseFromString(svgString, "image/svg+xml");
+      svgRoot.setAttribute('width', '100vmin');
+      svgRoot.setAttribute('height', '100vmin');
+      const wheel = document.importNode(svgRoot, true);
+      this.container.appendChild(wheel);
+
+      this.carts = Array.from(wheel.querySelectorAll('.ferris-carts use'), el => ({
+        el,
+        occupied: false,
+        x: 0,
+        y: 0
+      }));
+      this.cartR = 0;
+
+      this._updateCartPositions = () => {
+        if (!this.carts?.length) return;
+        const containerRect = this.container.getBoundingClientRect();
+        let maxHeight = 0;
+        for (const cart of this.carts) {
+          const rect = cart.el.getBoundingClientRect();
+          cart.x = rect.left - containerRect.left + rect.width / 2;
+          cart.y = rect.bottom - containerRect.top - rect.height * 0.18;
+          if (rect.height > maxHeight) maxHeight = rect.height;
+        }
+        if (maxHeight) {
+          this.cartR = maxHeight * 0.32;
+        }
+      };
+
+      this._updateCartPositions();
+      requestAnimationFrame(() => this._updateCartPositions());
     },
 
 
     spawn(){
+      if (typeof this._updateCartPositions === 'function') {
+        this._updateCartPositions();
+      }
+      if (!this.cartR) return null;
       const freeCarts = this.carts.filter(h => !h.occupied);
       if (!freeCarts.length) return null;
       const cart = pick(freeCarts);
@@ -84,19 +117,24 @@
         e: pick(this.emojis),
         ttl: RIDER_LIFETIME_SECS,
         cartIndex: idx,
-        p: {
-          '--px':     `${cart.x - this.cartR}px`,
-          '--py':     `${this.H - cart.y}px`
-        }
       };
       return d;
     },
 
     move(s, dt){
-      s.x += s.dx * dt;
-      s.y += s.dy * dt;
+      if (typeof this._updateCartPositions === 'function') {
+        this._updateCartPositions();
+      }
+      const cart = this.carts?.[s.cartIndex];
+      if (cart) {
+        const radius = this.cartR || s.r;
+        s.x = cart.x;
+        s.y = cart.y - radius;
+      } else {
+        s.x += s.dx * dt;
+        s.y += s.dy * dt;
+      }
       s.angle = Math.sin((s.x + s.y) * ROT_FREQ) * ROT_AMPL;
-      //emojis need to circle around the ferris wheel in sync with the carts until hit
     },
 
     onHit(sp, team){
