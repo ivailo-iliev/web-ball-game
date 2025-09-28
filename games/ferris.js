@@ -15,6 +15,15 @@
     spawnDelayRange: SPAWN_DELAY_RANGE,
 
     onStart(){
+      const q = document.createElement('div');
+      q.className = 'queue';
+      this.container.appendChild(q);
+      let qs = 0;
+      this._tickQueue = () => {
+        qs += 1;                        // advance by one step
+        q.style.setProperty('--n', qs);
+        q.style.setProperty('--m', qs+1);
+      }
       const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <symbol id="cart" viewBox="0 0 78 68">
@@ -96,7 +105,7 @@
           }
         }
         if (maxHeight) {
-          this.cartR = maxHeight * 0.32;
+          this.cartR = maxHeight * 0.5;
         }
         this.bottomIndex = bottomIdx;
       };
@@ -115,6 +124,7 @@
       const cart = this.carts[idx];
       if (!cart || cart.occupied) return null;
       cart.occupied = true;
+      this._tickQueue();
 
       const d = {
         x: cart.x,
