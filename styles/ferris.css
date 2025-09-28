@@ -11,7 +11,7 @@
   position: relative;
   background-image:
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500"><rect width="100%" height="100%" fill="none"/><text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" font-size="440">🎪</text></svg>'),
-    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500"><rect width="100%" height="100%" fill="none"/><text x="150" y="250" text-anchor="middle" dominant-baseline="middle" font-size="200">🎢</text><text x="350" y="250" text-anchor="middle" dominant-baseline="middle" font-size="200" style="transform-box: fill-box; transform-origin: center; transform: scaleX(-1);">🎢</text></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500"><rect width="100%" height="100%" fill="none"/><text x="150" y="250" text-anchor="middle" dominant-baseline="middle" font-size="200">🎢</text><g transform="translate(350 250) scale(-1 1)"><text x="0" y="0" text-anchor="middle" dominant-baseline="middle" font-size="200">🎢</text></g></svg>'),
     linear-gradient(to top, rgba(255,255,255,.7), rgba(255,255,255,0)),
     linear-gradient(to top, var(--grass-bottom) 0%, var(--grass-top) 100%),
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="520" height="260"><rect width="100%" height="100%" fill="none"/><g font-size="120" opacity=".7"><text x="30" y="70">☁️</text><text x="330" y="90">☁️</text></g></svg>'),
