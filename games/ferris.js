@@ -76,24 +76,32 @@
         y: 0
       }));
       this.cartR = 0;
+      this.bottomIndex = -1;
 
       this._updateCartPositions = () => {
         if (!this.carts?.length) return;
         const containerRect = this.container.getBoundingClientRect();
         let maxHeight = 0;
-        for (const cart of this.carts) {
+        let bottomIdx = -1;
+        let bottomY = -Infinity;
+        for (let i = 0; i < this.carts.length; i++) {
+          const cart = this.carts[i];
           const rect = cart.el.getBoundingClientRect();
           cart.x = rect.left - containerRect.left + rect.width / 2;
           cart.y = rect.bottom - containerRect.top - rect.height * 0.18;
           if (rect.height > maxHeight) maxHeight = rect.height;
+          if (cart.y > bottomY) {
+            bottomY = cart.y;
+            bottomIdx = i;
+          }
         }
         if (maxHeight) {
           this.cartR = maxHeight * 0.32;
         }
+        this.bottomIndex = bottomIdx;
       };
 
       this._updateCartPositions();
-      requestAnimationFrame(() => this._updateCartPositions());
     },
 
 
@@ -102,10 +110,10 @@
         this._updateCartPositions();
       }
       if (!this.cartR) return null;
-      const freeCarts = this.carts.filter(h => !h.occupied);
-      if (!freeCarts.length) return null;
-      const cart = pick(freeCarts);
-      const idx = this.carts.indexOf(cart);
+      const idx = this.bottomIndex;
+      if (idx === undefined || idx < 0) return null;
+      const cart = this.carts[idx];
+      if (!cart || cart.occupied) return null;
       cart.occupied = true;
 
       const d = {
@@ -125,6 +133,7 @@
       if (typeof this._updateCartPositions === 'function') {
         this._updateCartPositions();
       }
+
       const cart = this.carts?.[s.cartIndex];
       if (cart) {
         const radius = this.cartR || s.r;
