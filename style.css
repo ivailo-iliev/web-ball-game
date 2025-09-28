@@ -177,7 +177,7 @@ input {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 24px;
