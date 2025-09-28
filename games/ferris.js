@@ -19,11 +19,12 @@
       q.className = 'queue';
       this.container.appendChild(q);
       let qs = 0;
+      const { style: qStyle } = q;
       this._tickQueue = () => {
         qs += 1;                        // advance by one step
-        q.style.setProperty('--n', qs);
-        q.style.setProperty('--m', qs+1);
-      }
+        qStyle.setProperty('--n', qs);
+        qStyle.setProperty('--m', qs + 1);
+      };
       const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <symbol id="cart" viewBox="0 0 78 68">
@@ -88,19 +89,23 @@
       this.bottomIndex = -1;
 
       this._updateCartPositions = () => {
-        if (!this.carts?.length) return;
+        const { carts } = this;
+        if (!carts.length) return;
+
         const containerRect = this.container.getBoundingClientRect();
         let maxHeight = 0;
         let bottomIdx = -1;
         let bottomY = -Infinity;
-        for (let i = 0; i < this.carts.length; i++) {
-          const cart = this.carts[i];
+        for (let i = 0; i < carts.length; i += 1) {
+          const cart = carts[i];
           const rect = cart.el.getBoundingClientRect();
-          cart.x = rect.left - containerRect.left + rect.width / 2;
-          cart.y = rect.bottom - containerRect.top - rect.height * 0.18;
+          const x = rect.left - containerRect.left + rect.width * 0.5;
+          const y = rect.bottom - containerRect.top - rect.height * 0.18;
+          cart.x = x;
+          cart.y = y;
           if (rect.height > maxHeight) maxHeight = rect.height;
-          if (cart.y > bottomY) {
-            bottomY = cart.y;
+          if (y > bottomY) {
+            bottomY = y;
             bottomIdx = i;
           }
         }
@@ -115,12 +120,9 @@
 
 
     spawn(){
-      if (typeof this._updateCartPositions === 'function') {
-        this._updateCartPositions();
-      }
+      this._updateCartPositions();
       if (!this.cartR) return null;
       const idx = this.bottomIndex;
-      if (idx === undefined || idx < 0) return null;
       const cart = this.carts[idx];
       if (!cart || cart.occupied) return null;
       cart.occupied = true;
@@ -140,11 +142,9 @@
     },
 
     move(s, dt){
-      if (typeof this._updateCartPositions === 'function') {
-        this._updateCartPositions();
-      }
+      this._updateCartPositions();
 
-      const cart = this.carts?.[s.cartIndex];
+      const cart = this.carts[s.cartIndex];
       if (cart) {
         const radius = this.cartR || s.r;
         s.x = cart.x;
@@ -157,13 +157,13 @@
     },
 
     onHit(sp, team){
-      const idx = sp.cartIndex;
-      if(idx !== undefined) this.carts[idx].occupied = false;
+      const cart = this.carts[sp.cartIndex];
+      if (cart) cart.occupied = false;
     },
 
     onMiss(sp){
-      const idx = sp.cartIndex;
-      if(idx !== undefined) this.carts[idx].occupied = false;
+      const cart = this.carts[sp.cartIndex];
+      if (cart) cart.occupied = false;
     }
 
   }));
