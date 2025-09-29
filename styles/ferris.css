@@ -83,6 +83,20 @@
   pointer-events: none;
 }
 
+.game.ferris .hub
+{
+  filter: hue-rotate(0deg) saturate(1.4);
+  animation: spinHue var(--duration) linear infinite;
+  will-change: filter;
+  text-shadow: 0 0 6px rgba(255,255,255,.25), 0 0 22px rgba(255,255,200,.18);
+  transform-origin: center;
+}
+
+@keyframes spinHue {
+  from { filter: hue-rotate(0deg) saturate(1.4); }
+  to   { filter: hue-rotate(360deg) saturate(1.4); }
+}
+
 /* Wheel rotation */
 .game.ferris .wheel{
   transform-box: fill-box;
@@ -103,6 +117,8 @@
   will-change: transform;
   backface-visibility: hidden;
   pointer-events: none;
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 
 /* 8 evenly spaced carts */

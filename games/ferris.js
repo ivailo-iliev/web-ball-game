@@ -56,8 +56,7 @@
   </g>
 
   <!-- hub -->
-  <path fill="#f0edec" stroke="#c8c8c8" stroke-width="12"
-    d="m256 206 15 16 22-1-1 22 16 15-16 14 1 22h-22l-15 16-15-16h-22l1-22-16-14 16-15-1-22 22 1Z"/>
+  <text class="hub" font-size="90" x="50%" y="50%">🌟</text>
 
   <!-- 8 carts -->
   <g class="ferris-carts">
