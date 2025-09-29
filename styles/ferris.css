@@ -1,5 +1,6 @@
 /* Ferris game styles */
 .game.ferris {
+  --color-period: 12s;
   --ground-height: 35vh;
   --sky-zenith:#4aa3ff;
   --sky-horizon:#cfe8ff;
@@ -16,15 +17,27 @@
     linear-gradient(to top, var(--grass-bottom) 0%, var(--grass-top) 100%),
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="520" height="260"><rect width="100%" height="100%" fill="none"/><g font-size="120" opacity=".7"><text x="30" y="70">☁️</text><text x="330" y="90">☁️</text></g></svg>'),
     linear-gradient(to bottom, var(--sky-zenith) 0%, var(--sky-horizon) 65%);
-    background-size:
+  background-size:
     var(--tent-size) var(--tent-size),
     var(--carousel-size) var(--carousel-size),
     100% 16vh,
     100% var(--ground-height),
     520px 260px,
     100% 100%;
-    background-position: 95% calc(100% - var(--ground-height) + var(--tent-size) + -27vmin), 0% calc(100% - var(--ground-height) + var(--carousel-size) + -28vmin), center calc(100% - var(--ground-height)), center bottom, center top, center center;
-    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
+  background-position: 95% calc(100% - var(--ground-height) + var(--tent-size) + -27vmin), 0% calc(100% - var(--ground-height) + var(--carousel-size) + -28vmin), center calc(100% - var(--ground-height)), center bottom, center top, center center;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
+  animation: hueCycle var(--color-period) steps(120) infinite;
+  contain: layout paint size style;
+}
+
+@keyframes hueCycle {
+  to { --hue: 360deg; }
+}
+
+@property --hue {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
 }
 
 .game.ferris .queue {
@@ -65,15 +78,16 @@
   inherits: true;
   initial-value: 0deg;
 }
-@keyframes spin { to { --spin: 360deg; } }
+/* keyframes spin no longer used; --spin is driven by WAAPI */
+/*@keyframes spin { to { --spin: 360deg; } }*/
 
+/* Center the SVG in the viewport; screen center == wheel center */
 .game.ferris svg {
   --period: 8s;
   --r: 190px;               /* cart radius */
   shape-rendering: optimizeSpeed;
   text-rendering: optimizeSpeed;
   contain: content;
-  animation: spin var(--period) linear infinite;
   position: absolute;
   left: 50%;
   top: 50%;
@@ -84,30 +98,17 @@
 }
 
 .game.ferris .hub {
-  filter: hue-rotate(0deg) saturate(1.4);
-  animation: spinHue var(--period) linear infinite;
+  transform-origin: center;
+  filter: hue-rotate(var(--hue)) saturate(1.15);
   will-change: filter;
   text-shadow: 0 0 6px rgba(255,255,255,.25), 0 0 22px rgba(255,255,200,.18);
-  transform-origin: center;
 }
 
-@keyframes spinHue {
-  from { filter: hue-rotate(0deg) saturate(1.4); }
-  to   { filter: hue-rotate(360deg) saturate(1.4); }
-}
-
-@keyframes wheelHue {
-  from { filter: hue-rotate(0deg); }
-  to   { filter: hue-rotate(360deg); }
-}
-
-/* Wheel rotation + hue cycle */
-.game.ferris .wheel {
+.game.ferris .wheel{
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  transform: rotate(var(--spin));
-  filter: hue-rotate(0deg);
-  animation: wheelHue var(--period) linear infinite;
+  transform: rotate(var(--spin)) translateZ(0);
+  filter: hue-rotate(var(--hue)) saturate(1.15);
   will-change: transform, filter;
 }
 

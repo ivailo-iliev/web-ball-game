@@ -3,9 +3,17 @@
   const RIDER_LIFETIME_SECS = 32;
   const RIDER_MAX = 8;
   const RIDER_EMOJIS = ['😄','😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','🙂','🙃','😉','😍','🥰','😘','😗','😙','😚','🤩','🥳','😎','🤗','🤭','😺','😸','😹','😻','😼','😽','🥳'];
-  const SPAWN_DELAY_RANGE = [0, 3];
-  const ROT_FREQ  = 0.03;
-  const ROT_AMPL  = 0.10;
+  const SPAWN_DELAY_RANGE = [0, 0.5];
+
+  // Performance + control
+  const TAU = Math.PI * 2;
+  const DURATION_MS = 12000;      // 1 revolution (slower ⇒ fewer spawn/exit churn events)
+  const BOARD_GAP_TURNS = 0.02;   // debounce boarding (once per bottom pass)
+  const N_SEATS = 8;
+  const RADIUS = 150;             // px; matches --r in CSS
+  const INSET  = 5;              // nudge inward so riders sit “in” the cart
+  const RIDER_R = 20;             // emoji visual radius (approx half of cart height 70px)
+  const BOTTOM = TAU * 0.25;      // screen-down angle
 
   g.Game.register('ferris', g.BaseGame.make({
     icon: '🎡',
@@ -15,6 +23,7 @@
     spawnDelayRange: SPAWN_DELAY_RANGE,
 
     onStart(){
+      // Decorative queue
       const q = document.createElement('div');
       q.className = 'queue';
       this.container.appendChild(q);
@@ -25,6 +34,8 @@
         qStyle.setProperty('--n', qs);
         qStyle.setProperty('--m', qs + 1);
       };
+
+      // Inject SVG wheel
       const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <radialGradient id="wheelGradient" cx="256" cy="256" r="220" gradientUnits="userSpaceOnUse">
@@ -88,81 +99,91 @@
       const wheel = document.importNode(svgRoot, true);
       this.container.appendChild(wheel);
 
-      this.carts = Array.from(wheel.querySelectorAll('.ferris-carts use'), el => ({
-        el,
+      // ── single clock: animate --spin on container (inherited by SVG -> .wheel)
+      this.spin = this.container.animate(
+        { '--spin': ['0deg','360deg'] },
+        { duration: DURATION_MS, iterations: Infinity, easing: 'linear' }
+      );
+      this.turns = () => (this.spin.currentTime % DURATION_MS) / DURATION_MS; // 0..1
+
+      // ── seat model (math only; no DOM reads)
+      this.N = N_SEATS;
+      this.step = Math.PI * 2 / this.N;
+      this.carts = Array.from({ length: this.N }, (_, i) => ({
+        index: i,
+        c0: Math.cos(i * this.step),
+        s0: Math.sin(i * this.step),
         occupied: false,
-        x: 0,
-        y: 0
+        lastBoardTurn: -1
       }));
-      this.cartR = 0;
-      this.bottomIndex = -1;
 
-      this._updateCartPositions = () => {
-        const { carts } = this;
-        if (!carts.length) return;
+      // viewport-locked center (no resize support)
+      this.cx = this.container.clientWidth  / 2;
+      this.cy = this.container.clientHeight / 2;
 
-        const containerRect = this.container.getBoundingClientRect();
-        let maxHeight = 0;
-        let bottomIdx = -1;
-        let bottomY = -Infinity;
-        for (let i = 0; i < carts.length; i += 1) {
-          const cart = carts[i];
-          const rect = cart.el.getBoundingClientRect();
-          const x = rect.left - containerRect.left + rect.width * 0.5;
-          const y = rect.bottom - containerRect.top - rect.height * 0.18;
-          cart.x = x;
-          cart.y = y;
-          if (rect.height > maxHeight) maxHeight = rect.height;
-          if (y > bottomY) {
-            bottomY = y;
-            bottomIdx = i;
-          }
-        }
-        if (maxHeight) {
-          this.cartR = maxHeight * 0.5;
-        }
-        this.bottomIndex = bottomIdx;
+      // micro-opt cache: cos/sin/angle/turn computed once per frame
+      this._lastTime = -1;
+      this._A = 0; this._cos = 1; this._sin = 0; this._turn = 0;
+
+      // local helpers
+      const mod = (n, m) => ((n % m) + m) % m;
+
+      this._updateFrameTrigs = () => {
+        const t = this.spin.currentTime;
+        if (t === this._lastTime) return;  // same animation frame: reuse values
+        this._lastTime = t;
+        this._turn = this.turns();
+        this._A = this._turn * Math.PI * 2;
+        this._cos = Math.cos(this._A);
+        this._sin = Math.sin(this._A);
       };
 
-      this._updateCartPositions();
+      this._seatPos = (idx) => {
+        const seat = this.carts[idx];
+        const vx = seat.c0 * this._cos - seat.s0 * this._sin;
+        const vy = seat.s0 * this._cos + seat.c0 * this._sin;
+        const r = (RADIUS - INSET);
+        return { x: this.cx + r * vx, y: this.cy + r * vy };
+      };
+
+      this._bottomIndex = () => mod(Math.round((BOTTOM - this._A) / this.step), this.N);
     },
 
 
     spawn(){
-      this._updateCartPositions();
-      if (!this.cartR) return null;
-      const idx = this.bottomIndex;
+      // board only when the bottom cart is free
+      if (!this.carts || !this.carts.length) return null;
+      this._updateFrameTrigs();
+
+      const idx = this._bottomIndex();
       const cart = this.carts[idx];
-      if (!cart || cart.occupied) return null;
+      const canBoard = cart && !cart.occupied && (this._turn - cart.lastBoardTurn) > BOARD_GAP_TURNS;
+      if (!canBoard) return null;
+
       cart.occupied = true;
+      cart.lastBoardTurn = this._turn;
       this._tickQueue();
 
-      const d = {
-        x: cart.x,
-        y: cart.y - this.cartR,
-        dx: 0,
-        dy: 0,
-        r: this.cartR,
+      const p = this._seatPos(idx);
+      return {
+        x: p.x,
+        y: p.y + RIDER_R,
+        dx: 0, dy: 0,
+        r: RIDER_R,
         e: pick(this.emojis),
         ttl: RIDER_LIFETIME_SECS,
-        cartIndex: idx,
+        cartIndex: idx
       };
-      return d;
     },
 
     move(s, dt){
-      this._updateCartPositions();
-
-      const cart = this.carts[s.cartIndex];
-      if (cart) {
-        const radius = this.cartR || s.r;
-        s.x = cart.x;
-        s.y = cart.y - radius;
-      } else {
-        s.x += s.dx * dt;
-        s.y += s.dy * dt;
-      }
-      s.angle = Math.sin((s.x + s.y) * ROT_FREQ) * ROT_AMPL;
+      // keep riders glued to their cart position; upright
+      if (s.cartIndex === undefined) return;
+      this._updateFrameTrigs();
+      const p = this._seatPos(s.cartIndex);
+      s.x = p.x;
+      s.y = p.y + s.r;
+      s.angle = 0;
     },
 
     onHit(sp, team){
