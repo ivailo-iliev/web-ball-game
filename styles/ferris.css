@@ -27,7 +27,10 @@
   background-position: 95% calc(100% - var(--ground-height) + var(--tent-size) + -27vmin), 0% calc(100% - var(--ground-height) + var(--carousel-size) + -28vmin), center calc(100% - var(--ground-height)), center bottom, center top, center center;
   background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
   animation: hueCycle var(--color-period) steps(120) infinite;
-  contain: layout paint size style;
+  /* NOTE: Safari/iOS 17 fails to propagate the animated --hue custom
+     property to descendants when style containment is enabled, so drop the
+     "style" containment flag. */
+  contain: layout paint size;
 }
 
 @keyframes hueCycle {
