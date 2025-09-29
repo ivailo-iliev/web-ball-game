@@ -43,7 +43,7 @@
   </defs>
 
   <!-- background shapes (simplified geometry preserved) -->
-  <g>
+  <!--<g>
     <path fill="#7956c0" d="M-16 193 98-60l25-128-28-21L39-39l-162 248 107-16Z"
           transform="matrix(.47 0 0 .47 193.13 394.56)"/>
     <path fill="#7956c0" d="M-128-173c1 15 35 129 35 129L33 207l95 3L-52-51l-55-159-21 37Z"
@@ -54,18 +54,19 @@
           transform="matrix(.47 0 0 .47 327.08 391.74)"/>
     <path fill="#8f7cf3" d="M-326-28c-7 7-4 54 1 56 3 1 159 2 321 2s328 2 331 0c6-2 5-52 0-56-2-3-166-3-329-4-162-1-320-2-324 2Z"
           transform="matrix(.47 0 0 .47 258.46 495.14)"/>
-  </g>
+  </g>-->
+  <text class="base" font-size="400" x="50%" y="400" text-anchor="middle" dominant-baseline="middle" fill="#8f7cf3" stroke="#7956c0" stroke-width="20" stroke-linejoin="round" paint-order="stroke fill">⧍</text>
 
   <!-- wheel -->
   <g class="wheel">
-    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2 18" stroke-width="9.2"
+    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2 10" stroke-width="10"
       d="M256 73v185l130-131-130 131h184-184l130 130-130-130v184-184L126 388l130-130H72h184L126 127l130 131Zm0 0a184 184 0 0 0 0 369 184 184 0 0 0 0-369"/>
-    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2.5 20" stroke-width="11"
+    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2 10" stroke-width="10"
       d="m256 78 48 63 79-11-11 79 64 49-64 48 11 79-79-11-48 63-48-63-79 11 11-79-64-48 64-49-11-79 79 11Zm0 59a120 120 0 0 0 0 241 120 120 0 0 0 0-241"/>
   </g>
 
   <!-- hub -->
-  <text class="hub" font-size="90" x="50%" y="50%" text-anchor="middle" dominant-baseline="middle">🌟</text>
+  <text class="hub" font-size="120" line-ieight="100" x="50%" y="52%" text-anchor="middle" dominant-baseline="middle">🌟</text>
 
   <!-- 8 carts -->
   <g class="ferris-carts">
