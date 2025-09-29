@@ -56,7 +56,7 @@
   </g>
 
   <!-- hub -->
-  <text class="hub" font-size="90" x="50%" y="50%">🌟</text>
+  <text class="hub" font-size="90" x="50%" y="50%" text-anchor="middle" dominant-baseline="middle">🌟</text>
 
   <!-- 8 carts -->
   <g class="ferris-carts">
