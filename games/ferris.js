@@ -27,6 +27,15 @@
       };
       const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
+    <radialGradient id="wheelGradient" cx="256" cy="256" r="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff0040"/>
+      <stop offset="16%" stop-color="#ffa500"/>
+      <stop offset="32%" stop-color="#ffff00"/>
+      <stop offset="48%" stop-color="#00ff00"/>
+      <stop offset="64%" stop-color="#00bfff"/>
+      <stop offset="80%" stop-color="#7a00ff"/>
+      <stop offset="100%" stop-color="#ff00ff"/>
+    </radialGradient>
     <symbol id="cart" viewBox="0 0 78 68">
       <path class="c1" d="M17 0c-6 0-7 5-8 10L3 43h72L70 9c-1-5-2-8-8-9H17Z"/>
       <path class="c2" d="M0 56c-1 6 5 12 8 12h61c5 0 9-3 8-10l-2-15H3L0 56Z"/>
@@ -49,14 +58,14 @@
 
   <!-- wheel -->
   <g class="wheel">
-    <path fill="none" stroke="#c9c9c9" stroke-width="9.2"
+    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2 18" stroke-width="9.2"
       d="M256 73v185l130-131-130 131h184-184l130 130-130-130v184-184L126 388l130-130H72h184L126 127l130 131Zm0 0a184 184 0 0 0 0 369 184 184 0 0 0 0-369"/>
-    <path fill="none" stroke="#c9c9c9" stroke-width="11"
+    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2.5 20" stroke-width="11"
       d="m256 78 48 63 79-11-11 79 64 49-64 48 11 79-79-11-48 63-48-63-79 11 11-79-64-48 64-49-11-79 79 11Zm0 59a120 120 0 0 0 0 241 120 120 0 0 0 0-241"/>
   </g>
 
   <!-- hub -->
-  <text class="hub" font-size="90" x="50%" y="50%">🌟</text>
+  <text class="hub" font-size="90" x="50%" y="50%" text-anchor="middle" dominant-baseline="middle">🌟</text>
 
   <!-- 8 carts -->
   <g class="ferris-carts">
