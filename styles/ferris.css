@@ -26,21 +26,7 @@
     100% 100%;
   background-position: 95% calc(100% - var(--ground-height) + var(--tent-size) + -27vmin), 0% calc(100% - var(--ground-height) + var(--carousel-size) + -28vmin), center calc(100% - var(--ground-height)), center bottom, center top, center center;
   background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
-  animation: hueCycle var(--color-period) steps(120) infinite;
-  /* NOTE: Safari/iOS 17 fails to propagate the animated --hue custom
-     property to descendants when style containment is enabled, so drop the
-     "style" containment flag. */
   contain: layout paint size;
-}
-
-@keyframes hueCycle {
-  to { --hue: 360deg; }
-}
-
-@property --hue {
-  syntax: '<angle>';
-  inherits: true;
-  initial-value: 0deg;
 }
 
 .game.ferris .queue {
@@ -102,7 +88,8 @@
 
 .game.ferris .hub {
   transform-origin: center;
-  filter: hue-rotate(var(--hue)) saturate(1.15);
+  filter: hue-rotate(0deg) saturate(1.15);
+  animation: ferrisFilter var(--color-period) steps(120) infinite;
   will-change: filter;
   text-shadow: 0 0 6px rgba(255,255,255,.25), 0 0 22px rgba(255,255,200,.18);
 }
@@ -111,8 +98,13 @@
   transform-box: fill-box;
   transform-origin: 50% 50%;
   transform: rotate(var(--spin)) translateZ(0);
-  filter: hue-rotate(var(--hue)) saturate(1.15);
+  filter: hue-rotate(0deg) saturate(1.15);
+  animation: ferrisFilter var(--color-period) steps(120) infinite;
   will-change: transform, filter;
+}
+
+@keyframes ferrisFilter {
+  to { filter: hue-rotate(1turn) saturate(1.15); }
 }
 
 /* Keep carts upright while orbiting the hub via pure transforms */
