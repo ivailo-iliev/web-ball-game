@@ -136,10 +136,6 @@
       if (!frame) return { detected: false, hits: [] };
       const colorA = cfg.colorA;
       const colorB = cfg.colorB;
-      const frontRect = cfg.frontRectMM;
-      const validFrontRect = frontRect?.min && frontRect?.max &&
-        frontRect.max[0] > frontRect.min[0] &&
-        frontRect.max[1] > frontRect.min[1];
       const { a, b, w, h, resized } = await GPU.detect({
         key: 'front',
         source: frame,
@@ -155,7 +151,7 @@
         yMinB: cfg.yMinB,
         yMaxB: cfg.yMaxB,
         radiusPx: cfg.radiusPx,
-        rect: validFrontRect ? frontRect : null,  // may be null -> full-frame inside detect.js
+        rect: cfg.frontRectMM,  // may be null -> full-frame inside detect.js
         previewCanvas: preview ? $('#frontTex') : null,
         preview,
         activeA: aActive,
