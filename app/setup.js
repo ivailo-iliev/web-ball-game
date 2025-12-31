@@ -304,11 +304,6 @@
 
         // Front ROI: fixed aspect, height-driven; gesture = drag only
         const frontAspect = cfg.frontResW / cfg.frontResH;
-        if (!cfg.frontRect || !(cfg.frontRect.w > 0) || !(cfg.frontRect.h > 0)) {
-          const width = Math.round(cfg.frontH * frontAspect);
-          cfg.frontRect = { x: 0, y: 0, w: width, h: cfg.frontH };
-          Config.save('frontRect', cfg.frontRect);
-        }
         let roi = { x: 0, y: 0, w: cfg.frontH * frontAspect, h: cfg.frontH };
         if (cfg.frontRect) {
           const x0 = cfg.frontRect.x, y0 = cfg.frontRect.y;
