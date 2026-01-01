@@ -46,12 +46,16 @@
         .replace(/\.$/, '');
     };
 
+    let frontResW = 0;
+    let frontResH = 0;
     function recomputeSizes() {
       if (!cfg) return;
       cfg.topResW = u.toEvenInt(cfg.camW);
       cfg.topResH = u.toEvenInt(cfg.camH);
       cfg.frontResW = u.toEvenInt(cfg.camW / cfg.zoom);
       cfg.frontResH = u.toEvenInt(cfg.camH / cfg.zoom);
+      frontResW = cfg.frontResW;
+      frontResH = cfg.frontResH;
       if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
       if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
       if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
@@ -304,23 +308,23 @@
       commitTop();
 
         // Front ROI: fixed aspect, height-driven; gesture = drag only
-        const frontAspect = cfg.frontResW / cfg.frontResH;
-        let roi = { x: 0, y: 0, w: cfg.frontH * frontAspect, h: cfg.frontH };
+        const frontAspect = () => frontResW / frontResH;
+        let roi = { x: 0, y: 0, w: cfg.frontH * frontAspect(), h: cfg.frontH };
         if (cfg.frontRect) {
           const x0 = cfg.frontRect.x, y0 = cfg.frontRect.y;
           const x1 = x0 + cfg.frontRect.w, y1 = y0 + cfg.frontRect.h;
           roi = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
           // re-lock width to height*aspect in case stored rect drifted
-          roi.h = u.clamp(roi.h, 10, cfg.frontResH);
-          roi.w = roi.h * frontAspect;
+          roi.h = u.clamp(roi.h, 10, frontResH);
+          roi.w = roi.h * frontAspect();
         }
 
         function commit() {
           // lock width to height * aspect and clamp inside framebuffer
-          roi.h = u.clamp(roi.h, 10, cfg.frontResH);
-          roi.w = roi.h * frontAspect;
-          roi.x = u.clamp(roi.x, 0, cfg.frontResW - roi.w);
-          roi.y = u.clamp(roi.y, 0, cfg.frontResH - roi.h);
+          roi.h = u.clamp(roi.h, 10, frontResH);
+          roi.w = roi.h * frontAspect();
+          roi.x = u.clamp(roi.x, 0, frontResW - roi.w);
+          roi.y = u.clamp(roi.y, 0, frontResH - roi.h);
           // write rectangle (x,y,w,h) for downstream code
           const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
           const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
@@ -333,15 +337,15 @@
         function toCanvas(e) {
           const r = $('#frontOv').getBoundingClientRect();
           return {
-            x: (e.clientX - r.left) * cfg.frontResW / r.width,
-            y: (e.clientY - r.top) * cfg.frontResH / r.height
+            x: (e.clientX - r.left) * frontResW / r.width,
+            y: (e.clientY - r.top) * frontResH / r.height
           };
         }
 
         // Drag-only gesture
         let dragStart, roiStart;
-          $('#frontOv')?.addEventListener('pointerdown', e => {
-            if (!window.Controller?.isPreview) return;
+        $('#frontOv')?.addEventListener('pointerdown', e => {
+          if (!window.Controller?.isPreview) return;
           $('#frontOv').setPointerCapture(e.pointerId);
           dragStart = toCanvas(e);
           roiStart = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
@@ -370,7 +374,7 @@
           commitTop();
         });
         $('#frontHInp')?.addEventListener('input', e => {
-          cfg.frontH = u.clamp(+e.target.value, 10, cfg.frontResH);
+          cfg.frontH = u.clamp(+e.target.value, 10, frontResH);
           Config.save('frontH', cfg.frontH);
           roi.h = cfg.frontH;               // width is recomputed in commit()
           commit();
