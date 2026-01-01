@@ -45,6 +45,7 @@
         .replace(/\.0+$/, '')
         .replace(/\.$/, '');
     };
+    const toFixedArray = (values) => Array.from(values, value => toFixedStr(value));
 
     let frontResW = 0;
     let frontResH = 0;
@@ -205,35 +206,35 @@
         $('#domA')?.addEventListener('input', e => {
           cfg.domThr[TEAM_INDICES[teamA]] = domThrA = +e.target.value;
           // Store trimmed strings → no FP junk in storage/UI; cache auto-rebuilt by save()
-          Config.save('domThr', Array.from(cfg.domThr, toFixedStr));
+          Config.save('domThr', toFixedArray(cfg.domThr));
         });
         $('#domB')?.addEventListener('input', e => {
           cfg.domThr[TEAM_INDICES[teamB]] = domThrB = +e.target.value;
-          Config.save('domThr', Array.from(cfg.domThr, toFixedStr));
+          Config.save('domThr', toFixedArray(cfg.domThr));
         });
         $('#satMinA')?.addEventListener('input', e => {
           cfg.satMin[TEAM_INDICES[teamA]] = satMinA = +e.target.value;
-          Config.save('satMin', Array.from(cfg.satMin, toFixedStr));
+          Config.save('satMin', toFixedArray(cfg.satMin));
         });
         $('#satMinB')?.addEventListener('input', e => {
           cfg.satMin[TEAM_INDICES[teamB]] = satMinB = +e.target.value;
-          Config.save('satMin', Array.from(cfg.satMin, toFixedStr));
+          Config.save('satMin', toFixedArray(cfg.satMin));
         });
         $('#yMinA')?.addEventListener('input', e => {
           cfg.yMin[TEAM_INDICES[teamA]] = yMinA = +e.target.value;
-          Config.save('yMin', Array.from(cfg.yMin, toFixedStr));
+          Config.save('yMin', toFixedArray(cfg.yMin));
         });
         $('#yMinB')?.addEventListener('input', e => {
           cfg.yMin[TEAM_INDICES[teamB]] = yMinB = +e.target.value;
-          Config.save('yMin', Array.from(cfg.yMin, toFixedStr));
+          Config.save('yMin', toFixedArray(cfg.yMin));
         });
         $('#yMaxA')?.addEventListener('input', e => {
           cfg.yMax[TEAM_INDICES[teamA]] = yMaxA = +e.target.value;
-          Config.save('yMax', Array.from(cfg.yMax, toFixedStr));
+          Config.save('yMax', toFixedArray(cfg.yMax));
         });
         $('#yMaxB')?.addEventListener('input', e => {
           cfg.yMax[TEAM_INDICES[teamB]] = yMaxB = +e.target.value;
-          Config.save('yMax', Array.from(cfg.yMax, toFixedStr));
+          Config.save('yMax', toFixedArray(cfg.yMax));
         });
         $('#radiusPx')?.addEventListener('input', e => {
           cfg.radiusPx = Math.max(0, +e.target.value);
