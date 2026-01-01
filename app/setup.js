@@ -19,7 +19,7 @@
     radiusPx: 18,
     url: 'http://192.168.43.1:8080/video',
     topRect: { x: 0, y: 0, w: 1920, h: 886 },
-    frontRect: { x: 0, y: 0, w: 0, h: 0 },
+    frontRect: { x: 0, y: 0, w: 1920, h: 886 },
     topH: 886,
     frontH: 220,
     topMode: 0,
@@ -50,8 +50,8 @@
       if (!cfg) return;
       cfg.topResW = u.toEvenInt(cfg.camW);
       cfg.topResH = u.toEvenInt(cfg.camH);
-      cfg.frontResW = u.toEvenInt(cfg.topResW / cfg.zoom);
-      cfg.frontResH = u.toEvenInt(cfg.topResH / cfg.zoom);
+      cfg.frontResW = u.toEvenInt(cfg.camW / cfg.zoom);
+      cfg.frontResH = u.toEvenInt(cfg.camH / cfg.zoom);
       if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
       if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
       if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
