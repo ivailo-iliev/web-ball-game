@@ -269,6 +269,7 @@
       const { y, h } = topROI;
       cfg.topRect = { x: 0, y, w: cfg.topResW, h };
       Config.save('topRect', cfg.topRect);
+      recomputeSizes();
       drawRectTop();
     }
 
