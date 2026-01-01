@@ -326,6 +326,7 @@
           const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
           cfg.frontRect = { x: x0, y: y0, w: (x1 - x0), h: (y1 - y0) };
           Config.save('frontRect', cfg.frontRect);
+          recomputeSizes();
           drawRectFront();
         }
 
