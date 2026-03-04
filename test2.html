@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport"
-        content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+        content="width=device-width,initial-scale=1,maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Magenta Dot Sharpness Test</title>
   <style>
     html, body {
@@ -12,34 +12,47 @@
       background: #000;
       overflow: hidden;
     }
-    #wrap {
+
+    /* Canvas fills the app viewport */
+    canvas {
       position: fixed;
       inset: 0;
-      display: grid;
-      place-items: center;
+      width: 100vw;
+      height: 100vh;
       background: #000;
-    }
-    canvas {
-      background: #000;
-      /* JS sets CSS size to preserve 4:3 */
+      touch-action: manipulation;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
-      touch-action: manipulation;
     }
+
+    /* Button overlay */
+    #fsBtn {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 12px);
+      right: calc(env(safe-area-inset-right) + 12px);
+      z-index: 10;
+      font: 15px/1 -apple-system, system-ui, sans-serif;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.55);
+      color: rgba(255,255,255,0.92);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+    #fsBtn:active { transform: scale(0.98); }
   </style>
 </head>
 
 <body>
-  <div id="wrap">
-    <canvas id="out"></canvas>
-  </div>
+  <button id="fsBtn" type="button">Full Screen</button>
+  <canvas id="out"></canvas>
 
 <script>
 (() => {
   const OUT_W = 1600, OUT_H = 1200;   // reported input
   const LOG_W = 1024, LOG_H = 768;    // projector native (XGA)
 
-  // Dot sizes (in logical px for LOG modes; also used directly in OUT mode)
   const sizes = [1,2,3,4,5,6,8,10,12,14,16,18,20,24,28,32];
 
   const out = document.getElementById('out');
@@ -56,21 +69,6 @@
   let mode = 1; // 1=Direct OUT, 2=LOG->OUT smoothing, 3=LOG->OUT nearest
   let lastToggleAt = 0;
 
-  function fitCanvasCSS() {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const aspect = OUT_W / OUT_H;
-
-    let w = vw;
-    let h = Math.round(vw / aspect);
-    if (h > vh) {
-      h = vh;
-      w = Math.round(vh * aspect);
-    }
-    out.style.width = w + "px";
-    out.style.height = h + "px";
-  }
-
   function clear(ctx, w, h) {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, w, h);
@@ -79,22 +77,18 @@
   function drawScene(ctx, W, H, dotSizes, title) {
     clear(ctx, W, H);
 
-    // Title (on-canvas, big)
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.font = "30px -apple-system, system-ui, sans-serif";
     ctx.fillText(title, 24, 46);
 
-    // Frame
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 4;
     ctx.strokeRect(10, 80, W - 20, H - 90);
 
-    // Crosshair
     ctx.fillStyle = "rgba(255,255,255,0.15)";
     ctx.fillRect(Math.floor(W/2), 80, 1, H - 80);
     ctx.fillRect(0, Math.floor((H + 80)/2), W, 1);
 
-    // Grid layout
     const cols = 4;
     const rows = Math.ceil(dotSizes.length / cols);
     const cellW = Math.floor(W / cols);
@@ -108,11 +102,9 @@
       const cx = c * cellW + Math.floor(cellW / 2);
       const cy = 90 + r * cellH + Math.floor(cellH / 2);
 
-      // Magenta square "dot"
       ctx.fillStyle = "#ff00ff";
       ctx.fillRect(cx - Math.floor(s/2), cy - Math.floor(s/2), s, s);
 
-      // Label (big enough to avoid tiny-text aliasing)
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.font = "24px -apple-system, system-ui, sans-serif";
       ctx.fillText(`${s}px`, cx - 26, cy + Math.floor(cellH/2) - 16);
@@ -120,15 +112,12 @@
   }
 
   function render() {
-    fitCanvasCSS();
-
     if (mode === 1) {
       octx.imageSmoothingEnabled = false;
       drawScene(octx, OUT_W, OUT_H, sizes, "Mode 1/3: Direct 1600×1200 (no smoothing)");
       return;
     }
 
-    // Draw on logical grid first
     lctx.imageSmoothingEnabled = false;
 
     if (mode === 2) {
@@ -144,25 +133,38 @@
   }
 
   function toggleMode() {
-    // Debounce (prevents double-firing when Safari sends multiple events)
     const now = performance.now();
     if (now - lastToggleAt < 250) return;
     lastToggleAt = now;
-
     mode = (mode % 3) + 1;
     render();
   }
 
-  // Prefer pointer events in modern iOS Safari / A2HS
   if (window.PointerEvent) {
     out.addEventListener('pointerup', toggleMode, { passive: true });
   } else {
-    // Fallbacks
     out.addEventListener('touchend', toggleMode, { passive: true });
     out.addEventListener('mouseup', toggleMode, { passive: true });
   }
 
-  window.addEventListener('resize', render);
+  // Fullscreen button (works where supported; safe no-op otherwise)
+  const fsBtn = document.getElementById('fsBtn');
+  fsBtn.addEventListener('click', async (e) => {
+    e.stopPropagation(); // don't toggle mode when pressing the button
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // Ignore: A2HS/Web App mode may block Fullscreen API.
+    }
+  });
+
+  // Some iOS versions need a re-render after orientation/fullscreen changes
+  window.addEventListener('resize', () => requestAnimationFrame(render));
+
   render();
 })();
 </script>
