@@ -21,24 +21,11 @@
     }
     canvas {
       background: #000;
-      /* Will be sized by JS to preserve 4:3 */
+      /* JS sets CSS size to preserve 4:3 */
       image-rendering: pixelated;
       image-rendering: crisp-edges;
       touch-action: manipulation;
     }
-    #hud {
-      position: fixed;
-      left: 12px;
-      bottom: 12px;
-      max-width: min(560px, calc(100vw - 24px));
-      font: 14px/1.35 -apple-system, system-ui, sans-serif;
-      color: rgba(255,255,255,0.9);
-      background: rgba(0,0,0,0.45);
-      padding: 10px 12px;
-      border-radius: 10px;
-      user-select: none;
-    }
-    #hud b { font-weight: 700; }
   </style>
 </head>
 
@@ -46,16 +33,14 @@
   <div id="wrap">
     <canvas id="out"></canvas>
   </div>
-  <div id="hud"></div>
 
 <script>
 (() => {
-  // What the projector reports receiving.
-  const OUT_W = 1600, OUT_H = 1200;   // 4:3
-  // Projector native (EB-X92 is XGA 1024x768).
-  const LOG_W = 1024, LOG_H = 768;
+  const OUT_W = 1600, OUT_H = 1200;   // reported input
+  const LOG_W = 1024, LOG_H = 768;    // projector native (XGA)
 
-  const sizes = [1,2,3,4,5,6,8,10,12,14,16,18,20,24,28,32]; // in "logical px" for LOG modes
+  // Dot sizes (in logical px for LOG modes; also used directly in OUT mode)
+  const sizes = [1,2,3,4,5,6,8,10,12,14,16,18,20,24,28,32];
 
   const out = document.getElementById('out');
   const octx = out.getContext('2d', { alpha:false, desynchronized:true });
@@ -63,17 +48,15 @@
   out.width = OUT_W;
   out.height = OUT_H;
 
-  // Offscreen logical canvas (XGA)
   const logical = document.createElement('canvas');
   logical.width = LOG_W;
   logical.height = LOG_H;
   const lctx = logical.getContext('2d', { alpha:false });
 
   let mode = 1; // 1=Direct OUT, 2=LOG->OUT smoothing, 3=LOG->OUT nearest
-  const hud = document.getElementById('hud');
+  let lastToggleAt = 0;
 
   function fitCanvasCSS() {
-    // Keep 4:3 aspect ratio inside the current viewport
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const aspect = OUT_W / OUT_H;
@@ -84,37 +67,38 @@
       h = vh;
       w = Math.round(vh * aspect);
     }
-
     out.style.width = w + "px";
     out.style.height = h + "px";
   }
 
   function clear(ctx, w, h) {
     ctx.fillStyle = "#000";
-    ctx.fillRect(0,0,w,h);
+    ctx.fillRect(0, 0, w, h);
   }
 
-  function drawDotsOn(ctx, W, H, dotSizes, label, sizeIsInThisGrid=true) {
+  function drawScene(ctx, W, H, dotSizes, title) {
     clear(ctx, W, H);
 
-    // Big, low-frequency title (avoid tiny text)
+    // Title (on-canvas, big)
     ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.font = "28px -apple-system, system-ui, sans-serif";
-    ctx.fillText(label, 24, 44);
+    ctx.font = "30px -apple-system, system-ui, sans-serif";
+    ctx.fillText(title, 24, 46);
 
-    // Layout: 4 columns x 4 rows
+    // Frame
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(10, 80, W - 20, H - 90);
+
+    // Crosshair
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(Math.floor(W/2), 80, 1, H - 80);
+    ctx.fillRect(0, Math.floor((H + 80)/2), W, 1);
+
+    // Grid layout
     const cols = 4;
     const rows = Math.ceil(dotSizes.length / cols);
     const cellW = Math.floor(W / cols);
-    const cellH = Math.floor((H - 70) / rows);
-
-    // Crosshair to help focus
-    ctx.fillStyle = "rgba(255,255,255,0.15)";
-    ctx.fillRect(Math.floor(W/2), 70, 1, H-70);
-    ctx.fillRect(0, Math.floor((H+70)/2), W, 1);
-
-    // Dots
-    ctx.fillStyle = "#ff00ff";
+    const cellH = Math.floor((H - 90) / rows);
 
     for (let i = 0; i < dotSizes.length; i++) {
       const s = dotSizes[i];
@@ -122,75 +106,63 @@
       const c = i % cols;
 
       const cx = c * cellW + Math.floor(cellW / 2);
-      const cy = 70 + r * cellH + Math.floor(cellH / 2);
+      const cy = 90 + r * cellH + Math.floor(cellH / 2);
 
-      // Square "dot" of size s x s
-      const x = cx - Math.floor(s/2);
-      const y = cy - Math.floor(s/2);
-      ctx.fillRect(x, y, s, s);
+      // Magenta square "dot"
+      ctx.fillStyle = "#ff00ff";
+      ctx.fillRect(cx - Math.floor(s/2), cy - Math.floor(s/2), s, s);
 
-      // Label below: keep it big
+      // Label (big enough to avoid tiny-text aliasing)
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.font = "24px -apple-system, system-ui, sans-serif";
       ctx.fillText(`${s}px`, cx - 26, cy + Math.floor(cellH/2) - 16);
-      ctx.fillStyle = "#ff00ff";
     }
-
-    // Border frame (helps spot scaling)
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(8, 78, W-16, H-86);
   }
 
   function render() {
     fitCanvasCSS();
 
     if (mode === 1) {
-      // DIRECT: Draw at 1600x1200 with no smoothing
       octx.imageSmoothingEnabled = false;
-      drawDotsOn(octx, OUT_W, OUT_H, sizes.map(s => s), "Mode 1/3: Direct 1600×1200 (no smoothing)");
+      drawScene(octx, OUT_W, OUT_H, sizes, "Mode 1/3: Direct 1600×1200 (no smoothing)");
+      return;
     }
 
-    if (mode === 2 || mode === 3) {
-      // Draw on logical (XGA), then upscale to OUT
-      lctx.imageSmoothingEnabled = false; // keep dots exact on logical grid
+    // Draw on logical grid first
+    lctx.imageSmoothingEnabled = false;
 
-      drawDotsOn(
-        lctx,
-        LOG_W, LOG_H,
-        sizes,
-        (mode === 2)
-          ? "Mode 2/3: Draw 1024×768 → upscale to 1600×1200 (smoothing ON)"
-          : "Mode 3/3: Draw 1024×768 → upscale to 1600×1200 (nearest-neighbor)"
-      );
-
-      // Copy to OUT with chosen scaling filter
-      octx.imageSmoothingEnabled = (mode === 2);
-      clear(octx, OUT_W, OUT_H);
-      octx.drawImage(logical, 0, 0, LOG_W, LOG_H, 0, 0, OUT_W, OUT_H);
+    if (mode === 2) {
+      drawScene(lctx, LOG_W, LOG_H, sizes, "Mode 2/3: 1024×768 → 1600×1200 (smoothing ON)");
+      octx.imageSmoothingEnabled = true;
+    } else {
+      drawScene(lctx, LOG_W, LOG_H, sizes, "Mode 3/3: 1024×768 → 1600×1200 (nearest-neighbor)");
+      octx.imageSmoothingEnabled = false;
     }
 
-    hud.innerHTML =
-      `<b>Tap</b> to change mode. Look for the magenta block that is most stable (least shimmer/moire).<br>` +
-      `If Mode 2 looks best, use UI with “chunky” elements (4–12px+) on an XGA grid.`;
+    clear(octx, OUT_W, OUT_H);
+    octx.drawImage(logical, 0, 0, LOG_W, LOG_H, 0, 0, OUT_W, OUT_H);
+  }
+
+  function toggleMode() {
+    // Debounce (prevents double-firing when Safari sends multiple events)
+    const now = performance.now();
+    if (now - lastToggleAt < 250) return;
+    lastToggleAt = now;
+
+    mode = (mode % 3) + 1;
+    render();
+  }
+
+  // Prefer pointer events in modern iOS Safari / A2HS
+  if (window.PointerEvent) {
+    out.addEventListener('pointerup', toggleMode, { passive: true });
+  } else {
+    // Fallbacks
+    out.addEventListener('touchend', toggleMode, { passive: true });
+    out.addEventListener('mouseup', toggleMode, { passive: true });
   }
 
   window.addEventListener('resize', render);
-  window.addEventListener('click', () => {
-    mode = (mode % 3) + 1;
-    render();
-  }, { passive: true });
-
-  // Optional: double-tap for fullscreen
-  let lastTap = 0;
-  window.addEventListener('touchend', async () => {
-    const now = Date.now();
-    if (now - lastTap < 300) {
-      try { await document.documentElement.requestFullscreen(); } catch {}
-    }
-    lastTap = now;
-  }, { passive: true });
-
   render();
 })();
 </script>
