@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport"
-        content="width=device-width,initial-scale=1,maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Magenta Dot Sharpness Test</title>
+        content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>Green dot sizes</title>
   <style>
     html, body {
       margin: 0;
@@ -12,160 +12,116 @@
       background: #000;
       overflow: hidden;
     }
-
-    /* Canvas fills the app viewport */
-    canvas {
+    #app {
       position: fixed;
       inset: 0;
-      width: 100vw;
-      height: 100vh;
       background: #000;
       touch-action: manipulation;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
-
-    /* Button overlay */
-    #fsBtn {
+    .dot {
+      position: absolute;
+      background: rgb(0,255,0); /* pure green */
+      /* no transforms (avoid fractional rendering) */
+    }
+    #toast {
       position: fixed;
+      left: calc(env(safe-area-inset-left) + 12px);
       top: calc(env(safe-area-inset-top) + 12px);
-      right: calc(env(safe-area-inset-right) + 12px);
-      z-index: 10;
-      font: 15px/1 -apple-system, system-ui, sans-serif;
       padding: 10px 12px;
       border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.22);
       background: rgba(0,0,0,0.55);
       color: rgba(255,255,255,0.92);
+      font: 18px/1 -apple-system, system-ui, sans-serif;
       -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms linear;
+      user-select: none;
     }
-    #fsBtn:active { transform: scale(0.98); }
+    #toast.show { opacity: 1; }
   </style>
 </head>
-
 <body>
-  <button id="fsBtn" type="button">Full Screen</button>
-  <canvas id="out"></canvas>
+  <div id="app"></div>
+  <div id="toast"></div>
 
 <script>
 (() => {
-  const OUT_W = 1600, OUT_H = 1200;   // reported input
-  const LOG_W = 1024, LOG_H = 768;    // projector native (XGA)
+  const app = document.getElementById('app');
+  const toast = document.getElementById('toast');
 
-  const sizes = [1,2,3,4,5,6,8,10,12,14,16,18,20,24,28,32];
+  // 1..64 CSS pixels
+  const MAX = 64;
+  const sizes = Array.from({ length: MAX }, (_, i) => i + 1);
 
-  const out = document.getElementById('out');
-  const octx = out.getContext('2d', { alpha:false, desynchronized:true });
+  let toastTimer = null;
 
-  out.width = OUT_W;
-  out.height = OUT_H;
-
-  const logical = document.createElement('canvas');
-  logical.width = LOG_W;
-  logical.height = LOG_H;
-  const lctx = logical.getContext('2d', { alpha:false });
-
-  let mode = 1; // 1=Direct OUT, 2=LOG->OUT smoothing, 3=LOG->OUT nearest
-  let lastToggleAt = 0;
-
-  function clear(ctx, w, h) {
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, w, h);
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 900);
   }
 
-  function drawScene(ctx, W, H, dotSizes, title) {
-    clear(ctx, W, H);
+  function clearDots() {
+    app.textContent = '';
+  }
 
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.font = "30px -apple-system, system-ui, sans-serif";
-    ctx.fillText(title, 24, 46);
+  function layout() {
+    clearDots();
 
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(10, 80, W - 20, H - 90);
+    const vw = Math.floor(window.innerWidth);
+    const vh = Math.floor(window.innerHeight);
+    const N = sizes.length;
 
-    ctx.fillStyle = "rgba(255,255,255,0.15)";
-    ctx.fillRect(Math.floor(W/2), 80, 1, H - 80);
-    ctx.fillRect(0, Math.floor((H + 80)/2), W, 1);
+    // Choose cols/rows based on viewport aspect (keeps cells roughly square)
+    const cols = Math.max(1, Math.ceil(Math.sqrt(N * (vw / vh))));
+    const rows = Math.ceil(N / cols);
 
-    const cols = 4;
-    const rows = Math.ceil(dotSizes.length / cols);
-    const cellW = Math.floor(W / cols);
-    const cellH = Math.floor((H - 90) / rows);
+    const cellW = Math.max(1, Math.floor(vw / cols));
+    const cellH = Math.max(1, Math.floor(vh / rows));
 
-    for (let i = 0; i < dotSizes.length; i++) {
-      const s = dotSizes[i];
+    // Place dots cell-by-cell using integer pixel positions
+    for (let i = 0; i < N; i++) {
+      const s = sizes[i];
       const r = Math.floor(i / cols);
       const c = i % cols;
 
+      // Center of cell (integer)
       const cx = c * cellW + Math.floor(cellW / 2);
-      const cy = 90 + r * cellH + Math.floor(cellH / 2);
+      const cy = r * cellH + Math.floor(cellH / 2);
 
-      ctx.fillStyle = "#ff00ff";
-      ctx.fillRect(cx - Math.floor(s/2), cy - Math.floor(s/2), s, s);
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.dataset.size = String(s);
+      dot.style.width = s + 'px';
+      dot.style.height = s + 'px';
+      dot.style.left = (cx - Math.floor(s / 2)) + 'px';
+      dot.style.top  = (cy - Math.floor(s / 2)) + 'px';
 
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.font = "24px -apple-system, system-ui, sans-serif";
-      ctx.fillText(`${s}px`, cx - 26, cy + Math.floor(cellH/2) - 16);
+      app.appendChild(dot);
     }
   }
 
-  function render() {
-    if (mode === 1) {
-      octx.imageSmoothingEnabled = false;
-      drawScene(octx, OUT_W, OUT_H, sizes, "Mode 1/3: Direct 1600×1200 (no smoothing)");
-      return;
-    }
-
-    lctx.imageSmoothingEnabled = false;
-
-    if (mode === 2) {
-      drawScene(lctx, LOG_W, LOG_H, sizes, "Mode 2/3: 1024×768 → 1600×1200 (smoothing ON)");
-      octx.imageSmoothingEnabled = true;
-    } else {
-      drawScene(lctx, LOG_W, LOG_H, sizes, "Mode 3/3: 1024×768 → 1600×1200 (nearest-neighbor)");
-      octx.imageSmoothingEnabled = false;
-    }
-
-    clear(octx, OUT_W, OUT_H);
-    octx.drawImage(logical, 0, 0, LOG_W, LOG_H, 0, 0, OUT_W, OUT_H);
-  }
-
-  function toggleMode() {
+  // Tap a dot to show its size (no persistent labels)
+  let lastTapAt = 0;
+  app.addEventListener('pointerup', (e) => {
     const now = performance.now();
-    if (now - lastToggleAt < 250) return;
-    lastToggleAt = now;
-    mode = (mode % 3) + 1;
-    render();
-  }
+    if (now - lastTapAt < 80) return; // tiny debounce
+    lastTapAt = now;
 
-  if (window.PointerEvent) {
-    out.addEventListener('pointerup', toggleMode, { passive: true });
-  } else {
-    out.addEventListener('touchend', toggleMode, { passive: true });
-    out.addEventListener('mouseup', toggleMode, { passive: true });
-  }
-
-  // Fullscreen button (works where supported; safe no-op otherwise)
-  const fsBtn = document.getElementById('fsBtn');
-  fsBtn.addEventListener('click', async (e) => {
-    e.stopPropagation(); // don't toggle mode when pressing the button
-    try {
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      } else if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      // Ignore: A2HS/Web App mode may block Fullscreen API.
+    const t = e.target;
+    if (t && t.classList && t.classList.contains('dot')) {
+      showToast(`${t.dataset.size}px`);
     }
-  });
+  }, { passive: true });
 
-  // Some iOS versions need a re-render after orientation/fullscreen changes
-  window.addEventListener('resize', () => requestAnimationFrame(render));
+  window.addEventListener('resize', () => requestAnimationFrame(layout), { passive: true });
+  window.addEventListener('orientationchange', () => requestAnimationFrame(layout), { passive: true });
 
-  render();
+  layout();
 })();
 </script>
 </body>
