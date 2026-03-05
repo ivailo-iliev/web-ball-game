@@ -362,6 +362,59 @@
         $('#frontOv')?.addEventListener('pointerup', lift);
         $('#frontOv')?.addEventListener('pointercancel', lift);
 
+        function isTypingTarget(el) {
+          if (!el) return false;
+          const tag = el.tagName;
+          return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+        }
+
+        // Keyboard nudges in front preview:
+        // WASD moves ROI by 1px; [ / ] resize ROI by 1px with fixed aspect ratio.
+        window.addEventListener('keydown', e => {
+          if (!window.Controller?.isPreview || isTypingTarget(e.target)) return;
+
+          let handled = true;
+          switch (e.key.toLowerCase()) {
+            case 'w':
+              roi.y -= 1;
+              break;
+            case 'a':
+              roi.x -= 1;
+              break;
+            case 's':
+              roi.y += 1;
+              break;
+            case 'd':
+              roi.x += 1;
+              break;
+            case '[': {
+              const nextH = u.clamp(Math.round(roi.h + 1), 10, frontResH);
+              const nextW = nextH * frontAspect();
+              roi.x -= (nextW - roi.w) / 2;
+              roi.y -= (nextH - roi.h) / 2;
+              roi.h = nextH;
+              break;
+            }
+            case ']': {
+              const nextH = u.clamp(Math.round(roi.h - 1), 10, frontResH);
+              const nextW = nextH * frontAspect();
+              roi.x -= (nextW - roi.w) / 2;
+              roi.y -= (nextH - roi.h) / 2;
+              roi.h = nextH;
+              break;
+            }
+            default:
+              handled = false;
+          }
+
+          if (!handled) return;
+          e.preventDefault();
+          cfg.frontH = Math.round(roi.h);
+          Config.save('frontH', cfg.frontH);
+          if ($('#frontHInp')) $('#frontHInp').value = cfg.frontH;
+          commit();
+        });
+
         if ($('#frontOv')) $('#frontOv').style.touchAction = 'none';
         if ($('#topHInp')) $('#topHInp').value = cfg.topH;
         if ($('#frontHInp')) $('#frontHInp').value = cfg.frontH;
