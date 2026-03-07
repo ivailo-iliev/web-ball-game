@@ -118,7 +118,6 @@
         update();
       });
     }
-
     function bind() {
       if (bound) return;
       bound = true;
