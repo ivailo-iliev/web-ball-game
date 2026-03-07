@@ -459,7 +459,8 @@ Game.register = (id, cls) => {
   if (launcher && cls.icon) {
     const btn = Object.assign(document.createElement('button'), {
       type: 'button',
-      textContent: cls.icon
+      textContent: cls.icon,
+      tabIndex: 0
     });
     Object.assign(btn.dataset, { game: id });
     launcher.prepend(btn);
