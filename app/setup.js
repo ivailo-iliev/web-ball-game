@@ -248,9 +248,27 @@
 
         initNumberSpinners();
       $('#btnStart')?.addEventListener('click', () => Screen.snapTo(1));
-      $('#btnTop')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyTop'));
-      $('#btnFront')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = 'onlyFront'));
-      $('#btnBoth')?.addEventListener('click', () => $('#configScreen') && ($('#configScreen').className = ''));
+
+      const VIEW_ICONS = {
+        onlyFront: '⛶',
+        onlyTop: '⇥',
+        both: '🀱'
+      };
+      const NEXT_VIEW_MODE = {
+        onlyFront: 'onlyTop',
+        onlyTop: 'both',
+        both: 'onlyFront'
+      };
+
+      let viewMode = 'onlyFront';
+      if ($('#configScreen')) $('#configScreen').className = viewMode;
+      if ($('#btnViewCycle')) $('#btnViewCycle').textContent = VIEW_ICONS[viewMode];
+
+      $('#btnViewCycle')?.addEventListener('click', () => {
+        viewMode = NEXT_VIEW_MODE[viewMode] || 'onlyFront';
+        if ($('#btnViewCycle')) $('#btnViewCycle').textContent = VIEW_ICONS[viewMode];
+        if ($('#configScreen') && $('#configScreen').className !== viewMode) $('#configScreen').className = viewMode;
+      });
 
       $('#start')?.addEventListener('click', () => {
         $('#start').disabled = true;
