@@ -139,7 +139,6 @@
       // Arrays are already typed in the cached config view; do not re-type here
       // Optional UI wiring (only stores values):
       // Zoom (single control or mirrored)
-      $('#frontZoom')?.setAttribute('data-spinner', '');
       if ($('#frontZoom')) {
         $('#frontZoom').value = cfg.zoom;
         $('#frontZoom').addEventListener('input', e => applyZoom(e.target.value));
@@ -248,6 +247,7 @@
 
         initNumberSpinners();
       $('#btnStart')?.addEventListener('click', () => Screen.snapTo(1));
+      $('#btnRefresh')?.addEventListener('click', () => window.location.reload());
 
       const VIEW_ICONS = {
         onlyFront: '⛶',
@@ -260,10 +260,13 @@
         both: 'onlyFront'
       };
 
-      let viewMode = 'onlyFront';
-      if ($('#configScreen')) $('#configScreen').className = viewMode;
-      if ($('#btnViewCycle')) $('#btnViewCycle').textContent = VIEW_ICONS[viewMode];
-
+      let viewMode =
+        ($('#configScreen') && NEXT_VIEW_MODE[$('#configScreen').className])
+          ? $('#configScreen').className
+          : 'onlyFront';
+      if ($('#btnViewCycle') && $('#btnViewCycle').textContent !== VIEW_ICONS[viewMode]) {
+        $('#btnViewCycle').textContent = VIEW_ICONS[viewMode];
+      }
 
       $('#btnNumberInputs')?.addEventListener('click', () => {
         $('#cfg')?.classList.toggle('hide-number-inputs');
