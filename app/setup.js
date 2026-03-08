@@ -264,6 +264,11 @@
       if ($('#configScreen')) $('#configScreen').className = viewMode;
       if ($('#btnViewCycle')) $('#btnViewCycle').textContent = VIEW_ICONS[viewMode];
 
+
+      $('#btnNumberInputs')?.addEventListener('click', () => {
+        $('#cfg')?.classList.toggle('hide-number-inputs');
+      });
+
       $('#btnViewCycle')?.addEventListener('click', () => {
         viewMode = NEXT_VIEW_MODE[viewMode] || 'onlyFront';
         if ($('#btnViewCycle')) $('#btnViewCycle').textContent = VIEW_ICONS[viewMode];
