@@ -201,7 +201,11 @@ input {
 
 #cfg #btnRefresh { display: none; }
 
-#cfg.hide-number-inputs .num-spinner { display: none; }
+#cfg.hide-number-inputs .num-spinner,
+#cfg.hide-number-inputs label:has(input[type="number"]),
+#cfg.hide-number-inputs label[for="frontZoom"] {
+  display: none;
+}
 #configScreen.onlyTop #cfg:has(#topMode option[value="1"]:checked) #btnRefresh { display: initial; }
 
 /* ---- Scoreboard ---- */
