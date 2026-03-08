@@ -15,10 +15,10 @@
 </head>
 
 <body>
-  <pre id="state" style="position:absolute;top:0;left:0;margin:0;padding:4px;background:rgba(0,0,0,.5);color:#fff;font-family:monospace;font-size:12px;">Connecting…</pre>
+  <pre id="state">Connecting…</pre>
   <div id="container">
     <div id="launcher">
-      <button type="button" data-config tabindex="0">⚙️</button>
+      <button data-config tabindex="0">⚙️</button>
     </div>
     <div id="gameScreen">
       <div id="scoreboard">
@@ -27,24 +27,24 @@
       </div>
       <div id="game"></div>
     </div>
-    <div id="configScreen">
+    <div id="configScreen" class="onlyFront">
       <div class="cam" id="topCam">
         <canvas id="topTex"></canvas>
         <canvas id="topOv" class="overlay"></canvas>
       </div>
       <div class="cam" id="frontCam">
-        <video id="vid" autoplay playsinline style="display: none;"></video>
+        <video id="vid" autoplay playsinline></video>
         <canvas id="frontTex"></canvas>
         <canvas id="frontOv" class="overlay"></canvas>
       </div>
       <div id="cfg" class="hide-number-inputs">
         <span>
           <button id="btnViewCycle">⛶</button>
-          <button id="btnNumberInputs" type="button">🎚️</button>
-          <button id="btnRefresh" onclick="location.reload()">⟳</button>
+          <button id="btnNumberInputs">🎚️</button>
+          <button id="btnRefresh">⟳</button>
           <button id="btnStart">►</button>
         </span>
-        <label for="frontZoom">🔍 <input id="frontZoom" type="number" step="0.01" min="1" style="width:3ch"></label>
+        <label for="frontZoom">🔍 <input id="frontZoom" type="number" step="0.01" min="1" data-spinner></label>
         <label for="topHInp">↕️ <input id="topHInp" type="number" min="10" step="1"></label>
         <label for="frontHInp">↕️ <input id="frontHInp" type="number" min="10" step="1"></label>
         <label for="topMode">📡 <select id="topMode">
@@ -64,11 +64,11 @@
           <option value="blue">🔵</option>
           <option value="yellow">🟡</option>
         </select></label>
-        <label for="radiusPx">⌀ <input id="radiusPx" type="number" style="width:6ch" step="5"    value="50"></label>
-        <label for="domA">𝚫 <input id="domA" type="number"     style="width:6ch" step="0.05" value="0" min="0" max="1"></label>
-        <label for="satMinA">🎨 <input id="satMinA" type="number"  style="width:6ch" step="0.05" value="0" min="0" max="1"></label>
-        <label for="yMinA">🔅 <input id="yMinA" type="number"    style="width:6ch" step="0.05" value="0" min="0" max="1"></label>
-        <label for="yMaxA">🔆 <input id="yMaxA" type="number"    style="width:6ch" step="0.05" value="1" min="0" max="1"></label>
+        <label for="radiusPx">⌀ <input id="radiusPx" type="number" class="input-w-6ch" step="5" value="50"></label>
+        <label for="domA">𝚫 <input id="domA" type="number" class="input-w-6ch" step="0.05" value="0" min="0" max="1"></label>
+        <label for="satMinA">🎨 <input id="satMinA" type="number" class="input-w-6ch" step="0.05" value="0" min="0" max="1"></label>
+        <label for="yMinA">🔅 <input id="yMinA" type="number" class="input-w-6ch" step="0.05" value="0" min="0" max="1"></label>
+        <label for="yMaxA">🔆 <input id="yMaxA" type="number" class="input-w-6ch" step="0.05" value="1" min="0" max="1"></label>
         <!-- <label for="topMinInp"> <input id="topMinInp" type="number"  style="width:6ch" min="0" max="1" step="0.005"></label>
         <label for="frontMinInp"><input id="frontMinInp" type="number" style="width:6ch" min="0" step="100"></label> -->
         <!-- <label for="domB">domB <input id="domB" type="number" step="0.01" style="width:5ch"></label>
@@ -78,6 +78,26 @@
       </div>
     </div>
   </div>
+  <template id="winnerTemplate">
+    <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <text class="confetti c1" x="100" y="100" text-anchor="middle">🎉</text>
+      <text class="confetti c2" x="300" y="80" text-anchor="middle">🎉</text>
+      <text class="confetti c3" x="500" y="110" text-anchor="middle">🎉</text>
+      <text class="confetti c4" x="700" y="80" text-anchor="middle">🎉</text>
+      <text class="confetti c5" x="900" y="100" text-anchor="middle">🎉</text>
+      <text class="medal" x="200" y="300" text-anchor="middle">🏆</text>
+      <text class="champagne" x="800" y="300" text-anchor="middle">🍾</text>
+      <text class="wave w1" x="100" y="450" text-anchor="middle">☺️</text>
+      <text class="wave w2" x="200" y="450" text-anchor="middle">🤩</text>
+      <text class="wave w3" x="300" y="450" text-anchor="middle">🥳</text>
+      <text class="wave w4" x="400" y="450" text-anchor="middle">🤗</text>
+      <text class="wave w5" x="500" y="450" text-anchor="middle">😲</text>
+      <text class="wave w6" x="600" y="450" text-anchor="middle">😍</text>
+      <text class="wave w7" x="700" y="450" text-anchor="middle">😘</text>
+      <text class="wave w8" x="800" y="450" text-anchor="middle">😄</text>
+      <text class="wave w9" x="900" y="450" text-anchor="middle">😁</text>
+    </svg>
+  </template>
     <script src="app/utils.js"></script>
     <script src="app/screen.js"></script>
     <script src="app/webrtc.js"></script>

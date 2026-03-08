@@ -556,25 +556,9 @@ Game.run = (target, opts = {}) => {
 
 //Object.freeze(Game);
 
-const WINNER_FRAGMENT = document.createRange().createContextualFragment(`
-<svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-  <text class="confetti c1" x="100" y="100" text-anchor="middle">🎉</text>
-  <text class="confetti c2" x="300" y="80" text-anchor="middle">🎉</text>
-  <text class="confetti c3" x="500" y="110" text-anchor="middle">🎉</text>
-  <text class="confetti c4" x="700" y="80" text-anchor="middle">🎉</text>
-  <text class="confetti c5" x="900" y="100" text-anchor="middle">🎉</text>
-  <text class="medal"     x="200" y="300" text-anchor="middle">🏆</text>
-  <text class="champagne" x="800" y="300" text-anchor="middle">🍾</text>
-  <text class="wave w1" x="100" y="450" text-anchor="middle">☺️</text>
-  <text class="wave w2" x="200" y="450" text-anchor="middle">🤩</text>
-  <text class="wave w3" x="300" y="450" text-anchor="middle">🥳</text>
-  <text class="wave w4" x="400" y="450" text-anchor="middle">🤗</text>
-  <text class="wave w5" x="500" y="450" text-anchor="middle">😲</text>
-  <text class="wave w6" x="600" y="450" text-anchor="middle">😍</text>
-  <text class="wave w7" x="700" y="450" text-anchor="middle">😘</text>
-  <text class="wave w8" x="800" y="450" text-anchor="middle">😄</text>
-  <text class="wave w9" x="900" y="450" text-anchor="middle">😁</text>
-</svg>`);
+const winnerTemplate = $('#winnerTemplate');
+if (!winnerTemplate) throw new Error('Game.run: missing #winnerTemplate');
+const WINNER_FRAGMENT = winnerTemplate.content;
 
 /* ══════════ 6. export globals ══════════ */
 win.Game   = Game;

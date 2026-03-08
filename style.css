@@ -33,6 +33,26 @@ body {
   --hue-purple: 280deg;
 }
 
+
+#state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 4px;
+  background: rgba(0, 0, 0, .5);
+  color: #fff;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+#vid {
+  display: none;
+}
+
+#frontZoom { width: 3ch; }
+.input-w-6ch { width: 6ch; }
+
 /* ========= Layout ========= */
 #container {
   width: 100dvw;
