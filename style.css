@@ -158,6 +158,7 @@ input {
 
 #configScreen.onlyFront { grid-template-areas: "cfg" "front"; }
 #configScreen.onlyTop   { grid-template-areas: "cfg"   "top"; }
+#configScreen.both      { grid-template-areas: "cfg cfg" "top front"; }
 
 #configScreen.onlyFront #topCam,
 #configScreen.onlyTop   #frontCam { display: none; }
@@ -170,6 +171,9 @@ input {
 
 #configScreen.onlyTop label:has(#topMode option[value="0"]:checked) + label[for=topUrl] { display: none; }
 #configScreen.onlyTop label:has(#topMode option[value="1"]:checked) + label[for=topUrl] { display: initial; }
+
+#cfg #btnRefresh { display: none; }
+#configScreen.onlyTop #cfg:has(#topMode option[value="1"]:checked) #btnRefresh { display: initial; }
 
 /* ---- Scoreboard ---- */
 #scoreboard {
