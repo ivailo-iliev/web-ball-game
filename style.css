@@ -153,7 +153,13 @@ body {
   object-fit: contain;         /* bottom layer (video/texture) keeps AR  */
 }
 
-.cam canvas:last-child { z-index: 1; }
+#frontTex { z-index: 0; }
+#frontGuides {
+  z-index: 1;
+  pointer-events: none;
+}
+#frontOv { z-index: 2; }
+#topOv { z-index: 1; }
 
 /* ────────── Number–spinner ────────── */
 button {

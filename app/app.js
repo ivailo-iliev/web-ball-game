@@ -8,11 +8,12 @@
   'use strict';
 
   const PreviewGfx = (() => {
-  let ctxTop2d, ctxFront2d, ctxTopGPU, ctxFrontGPU;
+  let ctxTop2d, ctxFront2d, ctxFrontGuides2d, ctxTopGPU, ctxFrontGPU;
 
   function ensure2d() {
     if (!ctxTop2d) ctxTop2d = $('#topOv')?.getContext('2d');
     if (!ctxFront2d) ctxFront2d = $('#frontOv')?.getContext('2d');
+    if (!ctxFrontGuides2d) ctxFrontGuides2d = $('#frontGuides')?.getContext('2d');
   }
 
   function ensureGPU(device) {
@@ -41,6 +42,40 @@
     ensure2d();
     if (ctxTop2d) ctxTop2d.clearRect(0, 0, ctxTop2d.canvas.width, ctxTop2d.canvas.height);
     if (ctxFront2d) ctxFront2d.clearRect(0, 0, ctxFront2d.canvas.width, ctxFront2d.canvas.height);
+  }
+
+  function strokeGuideLine(ctx, x0, y0, x1, y1, color) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = color;
+    ctx.stroke();
+  }
+
+  function drawFrontGuides() {
+    ensure2d();
+    if (!ctxFrontGuides2d) return;
+
+    const { width, height } = ctxFrontGuides2d.canvas;
+    ctxFrontGuides2d.clearRect(0, 0, width, height);
+    if (!width || !height) return;
+
+    const centerX = Math.round(width * 0.5) + 0.5;
+    const centerY = Math.round(height * 0.5) + 0.5;
+    const quarterXs = [0.25, 0.75].map(ratio => Math.round(width * ratio) + 0.5);
+    const quarterYs = [0.25, 0.75].map(ratio => Math.round(height * ratio) + 0.5);
+
+    ctxFrontGuides2d.lineWidth = 1;
+
+    for (const x of quarterXs) {
+      strokeGuideLine(ctxFrontGuides2d, x, 0, x, height, 'rgba(220, 245, 255, 0.25)');
+    }
+    for (const y of quarterYs) {
+      strokeGuideLine(ctxFrontGuides2d, 0, y, width, y, 'rgba(220, 245, 255, 0.25)');
+    }
+
+    strokeGuideLine(ctxFrontGuides2d, centerX, 0, centerX, height, 'rgba(220, 245, 255, 0.45)');
+    strokeGuideLine(ctxFrontGuides2d, 0, centerY, width, centerY, 'rgba(220, 245, 255, 0.45)');
   }
 
   function drawRect(rect, color, which) {
@@ -78,7 +113,7 @@
   //   return ctx ? ctx.getCurrentTexture().createView() : null;
   // }
 
-  return { /*view,*/ drawRect, drawHit, clear };
+  return { /*view,*/ drawRect, drawHit, drawFrontGuides, clear };
 })();
 
 
@@ -267,7 +302,13 @@
   Controller.handleBit = handleBit;
   return Controller;
 })();
-window.PreviewGfx = { drawRect: PreviewGfx.drawRect, clear: PreviewGfx.clear };
+window.PreviewGfx = {
+  drawRect: PreviewGfx.drawRect,
+  drawHit: PreviewGfx.drawHit,
+  drawFrontGuides: PreviewGfx.drawFrontGuides,
+  clear: PreviewGfx.clear
+};
+PreviewGfx.drawFrontGuides();
 window.Controller = Controller;
 Controller.start();
 })();

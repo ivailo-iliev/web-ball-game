@@ -58,11 +58,13 @@
       frontResW = cfg.frontResW;
       frontResH = cfg.frontResH;
       if ($('#frontTex')) { $('#frontTex').width = cfg.frontResW; $('#frontTex').height = cfg.frontResH; }
+      if ($('#frontGuides')) { $('#frontGuides').width = cfg.frontResW; $('#frontGuides').height = cfg.frontResH; }
       if ($('#frontOv')) { $('#frontOv').width = cfg.frontResW; $('#frontOv').height = cfg.frontResH; }
       if ($('#topTex')) { $('#topTex').width = cfg.topResW; $('#topTex').height = cfg.topResH; }
       if ($('#topOv')) { $('#topOv').width = cfg.topResW; $('#topOv').height = cfg.topResH; }
       if ($('#topHInp')) $('#topHInp').max = cfg.topResH;
       if ($('#frontHInp')) $('#frontHInp').max = cfg.frontResH;
+      window.PreviewGfx?.drawFrontGuides?.();
     }
 
     // Single zoom setter: store the value only.
