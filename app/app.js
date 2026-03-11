@@ -62,15 +62,16 @@
 
     const centerX = Math.round(width * 0.5) + 0.5;
     const centerY = Math.round(height * 0.5) + 0.5;
-    const quarterXs = [0.25, 0.75].map(ratio => Math.round(width * ratio) + 0.5);
-    const quarterYs = [0.25, 0.75].map(ratio => Math.round(height * ratio) + 0.5);
+    const guideRatios = [0.05, 0.10, 0.15, 0.20, 0.25, 0.75, 0.80, 0.85, 0.90, 0.95];
+    const guideXs = guideRatios.map(ratio => Math.round(width * ratio) + 0.5);
+    const guideYs = guideRatios.map(ratio => Math.round(height * ratio) + 0.5);
 
     ctxFrontGuides2d.lineWidth = 1;
 
-    for (const x of quarterXs) {
+    for (const x of guideXs) {
       strokeGuideLine(ctxFrontGuides2d, x, 0, x, height, 'rgba(220, 245, 255, 0.25)');
     }
-    for (const y of quarterYs) {
+    for (const y of guideYs) {
       strokeGuideLine(ctxFrontGuides2d, 0, y, width, y, 'rgba(220, 245, 255, 0.25)');
     }
 
