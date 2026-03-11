@@ -136,6 +136,18 @@
       if (!frame) return { detected: false, hits: [] };
       const colorA = cfg.colorA;
       const colorB = cfg.colorB;
+      const frontRect = cfg.frontRect
+        ? {
+            min: new Float32Array([
+              cfg.frontRect.x,
+              cfg.frontResH - (cfg.frontRect.y + cfg.frontRect.h)
+            ]),
+            max: new Float32Array([
+              cfg.frontRect.x + cfg.frontRect.w,
+              cfg.frontResH - cfg.frontRect.y
+            ])
+          }
+        : cfg.frontRectMM;
       const { a, b, w, h, resized } = await GPU.detect({
         key: 'front',
         source: frame,
@@ -151,7 +163,7 @@
         yMinB: cfg.yMinB,
         yMaxB: cfg.yMaxB,
         radiusPx: cfg.radiusPx,
-        rect: cfg.frontRectMM,  // may be null -> full-frame inside detect.js
+        rect: frontRect,  // front ROI is mirrored into GPU Y-space
         previewCanvas: preview ? $('#frontTex') : null,
         preview,
         activeA: aActive,
