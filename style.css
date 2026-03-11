@@ -88,12 +88,12 @@ body {
   font-size: 1rem;
   line-height: 1;
   display: grid;
+  position: relative;
   background: var(--clr-green);
   place-content: center;
-  gap: 1rem;                         /* consistent spacing */
+  gap: 0;
   grid:
-    "cfg  cfg"   auto               /* second row: full-width bar    */
-    "top  front" 1fr                /* first row: two equal tracks   */
+    "top  front" 1fr
     / 1fr 1fr;         
 }
 
@@ -108,13 +108,17 @@ body {
 
 /* Config-bar */
 #cfg {
-  grid-area: cfg;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   justify-content: left;
   align-items: flex-start;
   gap: .5rem;
-  padding: 1rem 1rem 0;
+  padding: 1rem;
 }
 
 #cfg > span,
@@ -202,9 +206,9 @@ input {
   grid-template-columns: 1fr;
 }
 
-#configScreen.onlyFront { grid-template-areas: "cfg" "front"; }
-#configScreen.onlyTop   { grid-template-areas: "cfg"   "top"; }
-#configScreen.both      { grid-template-areas: "cfg cfg" "top front"; }
+#configScreen.onlyFront { grid-template-areas: "front"; }
+#configScreen.onlyTop   { grid-template-areas: "top"; }
+#configScreen.both      { grid-template-areas: "top front"; }
 
 #configScreen.onlyFront #topCam,
 #configScreen.onlyTop   #frontCam { display: none; }
