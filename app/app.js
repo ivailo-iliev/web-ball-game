@@ -171,7 +171,7 @@
       }
       if (bActive && keyB !== 0) {
         const { teamB, frontResW, frontResH } = cfg;
-        hits.push({ team: teamB, x: xB / frontResW, y: yB / frontResH });
+        hits.push({ team: teamB, x: xB / frontResW, y: 1 - (yB / frontResH) });
       }
       if (preview && hits.length && window.Controller?.isPreview) {
         for (const h of hits) PreviewGfx.drawHit(h);
