@@ -88,6 +88,7 @@ body {
   font-size: 1rem;
   line-height: 1;
   display: grid;
+  background: var(--clr-green);
   place-content: center;
   gap: 1rem;                         /* consistent spacing */
   grid:
@@ -98,6 +99,12 @@ body {
 
 #topCam   { grid-area: top; }
 #frontCam { grid-area: front; }
+
+#configScreen:has(#teamA option[value="red"]:checked) { background: var(--clr-red); }
+#configScreen:has(#teamA option[value="green"]:checked) { background: var(--clr-green); }
+#configScreen:has(#teamA option[value="blue"]:checked) { background: var(--clr-blue); }
+#configScreen:has(#teamA option[value="yellow"]:checked) { background: var(--clr-yellow); }
+
 
 /* Config-bar */
 #cfg {
@@ -116,6 +123,18 @@ body {
   align-items: center;
   gap: .2rem;
 }
+
+#calibStatus {
+  min-width: 12ch;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  font-size: .9rem;
+  color: #555;
+}
+
+#calibStatus[data-state="error"] { color: var(--clr-red); }
+#calibStatus[data-state="ok"] { color: var(--clr-green); }
 
 /* ────────── Cameras ────────── */
 .cam {

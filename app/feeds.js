@@ -5,6 +5,7 @@
     let Config;
     let videoTop, track, videoWorker;
     let lastFrame;
+    const frameWaiters = new Set();
 
     const workerSrc = `self.postMessage({ op: 'supports', value: !!self.MediaStreamTrackProcessor });
 self.onmessage = async ({ data }) => {
@@ -25,6 +26,26 @@ self.onmessage = async ({ data }) => {
   }
 };`;
     const workerURL = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+
+    function cloneFrame(frame) {
+      if (!frame) return null;
+      if (typeof frame.clone === 'function') return frame.clone();
+      return new VideoFrame(frame);
+    }
+
+    function resolveFrameWaiters(frame) {
+      if (!frameWaiters.size) return;
+      const waiters = Array.from(frameWaiters);
+      frameWaiters.clear();
+      for (const waiter of waiters) {
+        clearTimeout(waiter.timeoutId);
+        try {
+          waiter.resolve(cloneFrame(frame));
+        } catch (err) {
+          waiter.reject(err);
+        }
+      }
+    }
 
     function startVideoWorker(track, onFrame) {
       const worker = new Worker(workerURL);
@@ -116,6 +137,7 @@ self.onmessage = async ({ data }) => {
             cropped = zoomFrame(frame);
             if (lastFrame) lastFrame.close();
             lastFrame = cropped;
+            resolveFrameWaiters(cropped);
           } finally {
             frame.close();
           }
@@ -170,6 +192,26 @@ self.onmessage = async ({ data }) => {
         const frame = lastFrame;
         lastFrame = null;
         return frame;
+      },
+      captureFrontCalibrationFrame: ({ timeoutMs = 1500 } = {}) => {
+        let immediate = null;
+        try {
+          immediate = cloneFrame(lastFrame);
+        } catch (_) {
+          immediate = null;
+        }
+        if (immediate) return Promise.resolve(immediate);
+        return new Promise((resolve, reject) => {
+          const waiter = {
+            timeoutId: setTimeout(() => {
+              frameWaiters.delete(waiter);
+              reject(new Error('Front frame not ready for calibration'));
+            }, timeoutMs),
+            resolve,
+            reject
+          };
+          frameWaiters.add(waiter);
+        });
       }
     };
   })();

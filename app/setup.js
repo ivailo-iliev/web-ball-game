@@ -334,8 +334,18 @@
       commitTop();
 
         // Front ROI: fixed aspect, height-driven; gesture = drag only
+        const CALIBRATION_TIMEOUT_MS = 1500;
+        const CALIBRATION_CORNER_WEIGHT = 64;
+        const QUADRANT_SPECS = Object.freeze({
+          TL: { x0: 0, x1: () => Math.floor(frontResW / 2), y0: 0, y1: () => Math.floor(frontResH / 2), targetX: bounds => bounds.x0, targetY: bounds => bounds.y0 },
+          TR: { x0: () => Math.floor(frontResW / 2), x1: () => frontResW, y0: 0, y1: () => Math.floor(frontResH / 2), targetX: bounds => bounds.x1 - 1, targetY: bounds => bounds.y0 },
+          BL: { x0: 0, x1: () => Math.floor(frontResW / 2), y0: () => Math.floor(frontResH / 2), y1: () => frontResH, targetX: bounds => bounds.x0, targetY: bounds => bounds.y1 - 1 },
+          BR: { x0: () => Math.floor(frontResW / 2), x1: () => frontResW, y0: () => Math.floor(frontResH / 2), y1: () => frontResH, targetX: bounds => bounds.x1 - 1, targetY: bounds => bounds.y1 - 1 }
+        });
         const frontAspect = () => frontResW / frontResH;
         let roi = { x: 0, y: 0, w: cfg.frontH * frontAspect(), h: cfg.frontH };
+        let calibrationCanvas, calibrationCtx;
+        let calibrating = false;
         if (cfg.frontRect) {
           const x0 = cfg.frontRect.x, y0 = cfg.frontRect.y;
           const x1 = x0 + cfg.frontRect.w, y1 = y0 + cfg.frontRect.h;
@@ -343,6 +353,29 @@
           // re-lock width to height*aspect in case stored rect drifted
           roi.h = u.clamp(roi.h, 10, frontResH);
           roi.w = roi.h * frontAspect();
+        }
+
+        function setCalibrationStatus(message = '', state = '') {
+          const el = $('#calibStatus');
+          if (!el) return;
+          el.textContent = message;
+          if (state) el.dataset.state = state;
+          else delete el.dataset.state;
+        }
+
+        function syncFrontRect(nextRect) {
+          const x = u.clamp(Math.round(nextRect.x), 0, Math.max(0, frontResW - 1));
+          const y = u.clamp(Math.round(nextRect.y), 0, Math.max(0, frontResH - 1));
+          const w = u.clamp(Math.round(nextRect.w), 1, frontResW - x);
+          const h = u.clamp(Math.round(nextRect.h), 1, frontResH - y);
+          roi = { x, y, w, h };
+          cfg.frontRect = { x, y, w, h };
+          Config.save('frontRect', cfg.frontRect);
+          cfg.frontH = h;
+          Config.save('frontH', cfg.frontH);
+          if ($('#frontHInp')) $('#frontHInp').value = cfg.frontH;
+          recomputeSizes();
+          drawRectFront();
         }
 
         function commit() {
@@ -354,10 +387,125 @@
           // write rectangle (x,y,w,h) for downstream code
           const x0 = Math.round(roi.x), y0 = Math.round(roi.y);
           const x1 = Math.round(roi.x + roi.w), y1 = Math.round(roi.y + roi.h);
-          cfg.frontRect = { x: x0, y: y0, w: (x1 - x0), h: (y1 - y0) };
-          Config.save('frontRect', cfg.frontRect);
-          recomputeSizes();
-          drawRectFront();
+          syncFrontRect({ x: x0, y: y0, w: (x1 - x0), h: (y1 - y0) });
+        }
+
+        function ensureCalibrationContext() {
+          if (!calibrationCanvas) {
+            calibrationCanvas = document.createElement('canvas');
+            calibrationCtx = calibrationCanvas.getContext('2d', { willReadFrequently: true });
+          }
+          if (!calibrationCtx) throw new Error('2D calibration canvas unavailable');
+          if (calibrationCanvas.width !== frontResW) calibrationCanvas.width = frontResW;
+          if (calibrationCanvas.height !== frontResH) calibrationCanvas.height = frontResH;
+          return calibrationCtx;
+        }
+
+        function quadrantBounds(name) {
+          const spec = QUADRANT_SPECS[name];
+          return {
+            x0: typeof spec.x0 === 'function' ? spec.x0() : spec.x0,
+            x1: typeof spec.x1 === 'function' ? spec.x1() : spec.x1,
+            y0: typeof spec.y0 === 'function' ? spec.y0() : spec.y0,
+            y1: typeof spec.y1 === 'function' ? spec.y1() : spec.y1,
+            targetX: 0,
+            targetY: 0
+          };
+        }
+
+        function pickQuadrantCorner(imageData, name) {
+          const bounds = quadrantBounds(name);
+          bounds.targetX = QUADRANT_SPECS[name].targetX(bounds);
+          bounds.targetY = QUADRANT_SPECS[name].targetY(bounds);
+          const quadW = Math.max(1, bounds.x1 - bounds.x0);
+          const quadH = Math.max(1, bounds.y1 - bounds.y0);
+          let best = null;
+          const { data, width } = imageData;
+
+          for (let y = bounds.y0; y < bounds.y1; y++) {
+            for (let x = bounds.x0; x < bounds.x1; x++) {
+              const idx = (y * width + x) * 4;
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              const magentaScore = r + b - 2 * g;
+              const dx = Math.abs(x - bounds.targetX) / Math.max(1, quadW - 1);
+              const dy = Math.abs(y - bounds.targetY) / Math.max(1, quadH - 1);
+              const cornerPenalty = (dx + dy) / 2;
+              const effectiveScore = magentaScore - CALIBRATION_CORNER_WEIGHT * cornerPenalty;
+              if (
+                !best ||
+                effectiveScore > best.effectiveScore ||
+                (effectiveScore === best.effectiveScore && magentaScore > best.magentaScore) ||
+                (effectiveScore === best.effectiveScore && magentaScore === best.magentaScore && cornerPenalty < best.cornerPenalty)
+              ) {
+                best = { x, y, magentaScore, cornerPenalty, effectiveScore };
+              }
+            }
+          }
+
+          if (!best) throw new Error('Calibration scan failed in ' + name + ' quadrant');
+          return best;
+        }
+
+        function fitCalibratedRect(points) {
+          const xs = points.map(point => point.x);
+          const ys = points.map(point => point.y);
+          const left = Math.min(...xs);
+          const right = Math.max(...xs) + 1;
+          const top = Math.min(...ys);
+          const bottom = Math.max(...ys) + 1;
+          const rawW = Math.max(1, right - left);
+          const rawH = Math.max(1, bottom - top);
+          let w = rawW;
+          let h = rawH;
+          const aspect = frontAspect();
+          if (w / h < aspect) w = h * aspect;
+          else h = w / aspect;
+          w = Math.min(w, frontResW);
+          h = Math.min(h, frontResH);
+          let x = ((left + right) / 2) - (w / 2);
+          let y = ((top + bottom) / 2) - (h / 2);
+          x = u.clamp(x, 0, frontResW - w);
+          y = u.clamp(y, 0, frontResH - h);
+          const x0 = u.clamp(Math.round(x), 0, Math.max(0, frontResW - 1));
+          const y0 = u.clamp(Math.round(y), 0, Math.max(0, frontResH - 1));
+          const x1 = u.clamp(Math.round(x + w), x0 + 1, frontResW);
+          const y1 = u.clamp(Math.round(y + h), y0 + 1, frontResH);
+          return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+        }
+
+        async function calibrateFrontROI() {
+          if (calibrating) return;
+          if (!window.Feeds?.captureFrontCalibrationFrame) {
+            setCalibrationStatus('Calibration feed unavailable', 'error');
+            return;
+          }
+
+          calibrating = true;
+          if ($('#btnCalibrate')) $('#btnCalibrate').disabled = true;
+          setCalibrationStatus('Calibrating...');
+
+          let frame;
+          try {
+            frame = await window.Feeds.captureFrontCalibrationFrame({ timeoutMs: CALIBRATION_TIMEOUT_MS });
+            if (!frame) throw new Error('Front frame not ready for calibration');
+            const ctx = ensureCalibrationContext();
+            ctx.clearRect(0, 0, frontResW, frontResH);
+            ctx.drawImage(frame, 0, 0, frontResW, frontResH);
+            const imageData = ctx.getImageData(0, 0, frontResW, frontResH);
+            const points = ['TL', 'TR', 'BL', 'BR'].map(name => pickQuadrantCorner(imageData, name));
+            const rect = fitCalibratedRect(points);
+            syncFrontRect(rect);
+            setCalibrationStatus('Calibrated.', 'ok');
+          } catch (err) {
+            setCalibrationStatus((err && err.message) ? err.message : 'Calibration failed', 'error');
+            console.error(err);
+          } finally {
+            if (frame) frame.close();
+            if ($('#btnCalibrate')) $('#btnCalibrate').disabled = false;
+            calibrating = false;
+          }
         }
 
         function toCanvas(e) {
@@ -462,6 +610,10 @@
           cfg.frontMinArea = +e.target.value;
           Config.save('frontMinArea', cfg.frontMinArea);
         };
+
+        $('#btnCalibrate')?.addEventListener('click', () => {
+          void calibrateFrontROI();
+        });
 
         commit();
 
