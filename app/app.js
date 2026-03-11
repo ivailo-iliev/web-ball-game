@@ -167,7 +167,7 @@
       const hits = [];
       if (aActive && keyA !== 0) {
         const { teamA, frontResW, frontResH } = cfg;
-        hits.push({ team: teamA, x: xA / frontResW, y: yA / frontResH });
+        hits.push({ team: teamA, x: xA / frontResW, y: 1 - (yA / frontResH) });
       }
       if (bActive && keyB !== 0) {
         const { teamB, frontResW, frontResH } = cfg;
