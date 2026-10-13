@@ -288,6 +288,19 @@
   async function start() {
     const cfg = window.cfg;
     if (!cfg) return;
+    if (window.CalibrationPreview) {
+      Controller.isPreview = true;
+      // Reuse the same front detector, overlays and WGSL, but no game hit routing.
+      const preview = async () => {
+        try {
+          PreviewGfx.drawRect(cfg.frontRect, 'aqua', 'front');
+          await Detect.runFrontDetection(true, true, true);
+        } catch (err) { window.CalibrationPreview.report(err.message); }
+        window.CalibrationPreview.timer = setTimeout(preview, 500);
+      };
+      void preview();
+      return;
+    }
     if (cfg.topMode === 0) {
       RTC.startB();
     }

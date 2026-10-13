@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs'
 import type { Context } from '@netlify/functions'
+import { roomBase } from '../lib/room'
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== 'GET') return new Response('Method Not Allowed', { status: 405 })
@@ -7,8 +8,9 @@ export default async (req: Request, _context: Context) => {
   const role = url.searchParams.get('role')
   if (!(role === 'a' || role === 'b')) return new Response('Bad role', { status: 400 })
 
+  const base = roomBase(url.searchParams.get('room') ?? undefined)
+  if (!base) return new Response('Bad room', { status: 400 })
   const store = getStore({ name: 'webrtc', consistency: 'strong' })
-  const base = 'room/default'
   const peer = role === 'a' ? 'b' : 'a'
 
   const offer  = await store.get(`${base}/offer.json`,  { type: 'json' })
