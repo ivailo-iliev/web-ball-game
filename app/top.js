@@ -28,6 +28,7 @@
       };
 
       while (running) {
+        if (window.CalibrationPreview) await new Promise(r => setTimeout(r, 500));
         const frame = await Feeds.frontFrame();
         if (!frame) { await new Promise(r => setTimeout(r, 0)); continue; }
         const cfg = window.cfg;
@@ -89,7 +90,7 @@
           const onB = scoreB >= cfg.topMinArea;
           if (onA || onB) {
             const bit = onA && onB ? '2' : onA ? '0' : '1';
-            RTC.send(bit);
+            if (!window.CalibrationPreview) RTC.send(bit);
           }
         } catch (err) {
           if (infoEl) infoEl.textContent = (err && err.message) ? err.message : String(err);
@@ -101,6 +102,7 @@
     }
 
     function start() {
+      if (window.CalibrationPreview) return;
       RTC.startA();
     }
 

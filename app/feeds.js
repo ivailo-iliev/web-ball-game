@@ -85,6 +85,8 @@ self.onmessage = async ({ data }) => {
     }
 
     async function init({ facingMode = 'environment' } = {}) {
+      // Calibration panes consume only their assigned remote stream, never a camera.
+      if (window.CalibrationPreview) return true;
       if (!window.Config) return false;
       Config = window.Config;
       const cfg = window.cfg;
@@ -189,11 +191,20 @@ self.onmessage = async ({ data }) => {
       init,
       top: () => videoTop,
       frontFrame: () => {
+        if (window.CalibrationPreview) {
+          const video = window.CalibrationPreview.video;
+          return video?.readyState >= 2 ? new VideoFrame(video) : null;
+        }
         const frame = lastFrame;
         lastFrame = null;
         return frame;
       },
       captureFrontCalibrationFrame: ({ timeoutMs = 1500 } = {}) => {
+        if (window.CalibrationPreview) {
+          const video = window.CalibrationPreview.video;
+          return video?.readyState >= 2 ? Promise.resolve(new VideoFrame(video))
+            : Promise.reject(new Error('Remote frame not ready'));
+        }
         let immediate = null;
         try {
           immediate = cloneFrame(lastFrame);

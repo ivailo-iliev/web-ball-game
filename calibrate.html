@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Remote calibration</title>
+  <style>
+    body { margin: 1rem; background: #151820; color: #fff; font: 16px system-ui; }
+    #panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    iframe { width: 100%; height: 75vh; border: 1px solid #555; }
+    input { width: 100%; box-sizing: border-box; }
+    @media (max-width: 800px) { #panes { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Remote calibration</h1>
+  <p>Open each join URL on its phone. On the top phone press Start to acquire its camera.
+     Feeds are copied at up to 2 FPS; gameplay stays on its separate connection.
+     Controls unlock after that phone sends its settings. Keep session URLs private.</p>
+  <form id="session"><label>Session <input name="calibration" pattern="[A-Za-z0-9_-]{1,64}" maxlength="64" required></label><button>Open session</button></form>
+  <p id="status" role="status"></p>
+  <div id="panes"></div>
+  <script src="app/calibrate.js"></script>
+</body>
+</html>

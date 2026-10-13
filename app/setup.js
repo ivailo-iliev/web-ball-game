@@ -31,9 +31,12 @@
     ]
   };
 
+  window.CONFIG_DEFAULTS = DEFAULTS;
+
   const Setup = (() => {
     let cfg;
     let bound = false;
+    let refresh = () => {};
 
     // Clean decimal strings for UI + storage
     const toFixedStr = (n, d = 3) => {
@@ -125,11 +128,11 @@
       bound = true;
       if (!Config) {
         const { createConfig } = window;
-        Config = createConfig(DEFAULTS);
+        Config = createConfig(DEFAULTS, { memory: !!window.CalibrationPreview });
         Config.load();
         cfg = window.cfg;
         for (const k of Object.keys(DEFAULTS)) {
-          if (localStorage.getItem(k) === null) {
+          if (!window.CalibrationPreview && localStorage.getItem(k) === null) {
             Config.save(k, DEFAULTS[k]);
           }
         }
@@ -655,14 +658,38 @@
           if ($('#yMinB')) $('#yMinB').value = toFixedStr(yMinB);
           if ($('#yMaxB')) $('#yMaxB').value = toFixedStr(yMaxB);
         });
+        // Update controls AND the state captured by ROI/team handlers without re-binding.
+        refresh = () => {
+          recomputeSizes();
+          teamA = cfg.teamA; teamB = cfg.teamB;
+          topROI.y = cfg.topRect.y; topROI.h = cfg.topRect.h;
+          roi = { ...cfg.frontRect };
+          const controls = {
+            zoom: cfg.zoom, frontZoom: cfg.zoom, camW: cfg.camW, camH: cfg.camH,
+            teamA, teamB, radiusPx: cfg.radiusPx, topMode: cfg.topMode, topUrl: cfg.url,
+            topHInp: cfg.topH, frontHInp: cfg.frontH,
+            topMinInp: cfg.topMinArea, frontMinInp: cfg.frontMinArea
+          };
+          for (const suffix of ['A', 'B']) {
+            const i = TEAM_INDICES[cfg['team' + suffix]];
+            for (const [id, key] of [['dom', 'domThr'], ['satMin', 'satMin'], ['yMin', 'yMin'], ['yMax', 'yMax']]) {
+              controls[id + suffix] = toFixedStr(cfg[key][i]);
+            }
+          }
+          for (const [id, value] of Object.entries(controls)) if ($('#' + id)) $('#' + id).value = value;
+          window.Game?.setTeams(cfg.teamA, cfg.teamB);
+          drawRectTop(); drawRectFront();
+        };
     }
 
     return {
+      refresh: () => refresh(),
       bind,
       applyZoom,
       get cfg() { return cfg; }
     };
   })();
 
+  window.Setup = Setup;
   Setup.bind();
 })();

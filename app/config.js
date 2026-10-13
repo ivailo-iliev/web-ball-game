@@ -4,7 +4,8 @@
   const TEAM_INDICES = Object.freeze({ red: 0, green: 1, blue: 2, yellow: 3 });
   window.TEAM_INDICES = TEAM_INDICES;
 
-  window.createConfig = function createConfig(defaults) {
+  window.createConfig = function createConfig(defaults, { memory = false } = {}) {
+    const listeners = new Set();
     let cfg;
     // --- Internal cached "runtime view" ---
     let _cached = null;
@@ -68,7 +69,7 @@
     function load(opts = {}) {
       cfg = {};
       for (const [name, def] of Object.entries(defaults)) {
-        const raw = localStorage.getItem(name);
+        const raw = memory ? null : localStorage.getItem(name);
         try {
           cfg[name] = raw !== null ? JSON.parse(raw) : def;
         } catch (e) {
@@ -89,7 +90,7 @@
     }
 
     function save(name, value) {
-      localStorage.setItem(name, JSON.stringify(value));
+      if (!memory) localStorage.setItem(name, JSON.stringify(value));
       if (cfg) {
         cfg[name] = value;
         // Any persisted change may affect detection; keep cache hot & ready.
@@ -97,6 +98,7 @@
       } else {
         _cached = null;
       }
+      for (const fn of listeners) fn(name, value);
     }
 
     function get() {
@@ -110,7 +112,11 @@
       return _cached;
     }
 
-    const api = { load, save, get };
+    const api = {
+      load, save, get,
+      snapshot: () => Object.fromEntries(Object.keys(defaults).map(k => [k, cfg[k]])),
+      subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn); }
+    };
 
     Object.defineProperty(api, 'cfg', {
       enumerable: true,

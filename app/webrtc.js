@@ -38,9 +38,12 @@
   }
 
   // signaling wrappers
-  const resetRoom = (base) => fetchJson(base, 'signal-reset', { method:'POST', body:{} });
-  const write     = (base, kind, role, data) => fetchJson(base, 'signal-write', { method:'POST', body:{ kind, role, data } });
-  const readRole  = (base, role) => fetchJson(base, 'signal-read', { params:{ role } });
+  const resetRoom = (base, room) => fetchJson(base, 'signal-reset', { method:'POST', body:{ room } });
+  const write = (base, kind, role, data, room) => fetchJson(base, 'signal-write', { method:'POST', body:{ kind, role, data, room } });
+  const readRole = (base, role, room) => fetchJson(base, 'signal-read', { params: room === undefined ? { role } : { role, room } });
+  function validateRoom(room) {
+    if (room !== undefined && (typeof room !== 'string' || !/^[A-Za-z0-9_-]{1,96}$/.test(room))) throw new Error('Invalid room');
+  }
 
   // ICE helpers
   const waitIceComplete = (pc) => new Promise(res => {
@@ -57,6 +60,7 @@
 
     add(pc, 'iceconnectionstatechange', () => log('ice:', pc.iceConnectionState));
     add(pc, 'connectionstatechange', () => { log('pc.connectionState:', pc.connectionState); onState(pc.connectionState); });
+    if (opts.onTrack) add(pc, 'track', opts.onTrack);
     add(pc, 'icecandidateerror', (e) => log('ICE error:', e.errorText || e.errorCode || 'unknown'));
 
     const hookChannel = (ch) => {
@@ -89,10 +93,11 @@
   // ---------- Public APIs ----------
 
   // Peer A: reset room, batch ICE offer, poll for answer with backoff+timeout
-  async function startA() {
+  async function startA(options = {}) {
+    validateRoom(options.room);
     const opts = { ...DEFAULTS };
     const logEl = document.getElementById('state');
-    const log = (msg) => { if (logEl) logEl.textContent = String(msg); console.log(msg); };
+    let log = (msg) => { if (logEl) logEl.textContent = String(msg); console.log(msg); };
     opts.log = log;
     opts.onState = () => {};
     opts.onMessage = (data) => console.log('msg:', data);
@@ -104,12 +109,14 @@
         btn.onclick = () => RTC.send('0');
       }
     };
-    const { base, timeoutMs, backoff } = opts;
+    Object.assign(opts, options);
+    log = opts.log;
+    const { base, room, timeoutMs, backoff } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
 
     // cleanup on start
     try {
-      const r = await resetRoom(base);
+      const r = await resetRoom(base, room);
       if (r == null) {
         console.log('missing Netlify functions');
         return;
@@ -124,6 +131,7 @@
 
     // PC + DC
     const pc = new RTCPeerConnection({ iceServers });
+    opts.preparePc?.(pc);
     const offFns = [];
     const cancelFlag = { cancelled:false };
     const channel = pc.createDataChannel('chat');
@@ -133,13 +141,14 @@
     try {
       await pc.setLocalDescription(await pc.createOffer());
       await waitIceComplete(pc);
-      const w = await write(base, 'offer', 'a', pc.localDescription);
+      const w = await write(base, 'offer', 'a', pc.localDescription, room);
       if (w == null) throw new Error('signal-write missing');
       log('sent: offer (batched ICE)');
     } catch (e) {
       const msg = `offer/SDP failed: ${e.message}`;
       log(msg);
       console.log(msg);
+      pc.close();
       return;
     }
 
@@ -150,7 +159,7 @@
       if (Date.now() - t0 > timeoutMs) { log('timeout: no answer — stopping'); break; }
       let answer = null;
       try {
-        const r = await readRole(base, 'a');
+        const r = await readRole(base, 'a', room);
         answer = r && r.answer;
       } catch (e) {
         const msg = `read answer error: ${e.message}`;
@@ -173,15 +182,16 @@
     }
 
     const ctrl = makeController({ pc, channel, log, offFns, cancelFlag });
-    RTC.send = ctrl.send;
+    if (room === undefined) RTC.send = ctrl.send;
     return ctrl;
   };
 
   // Peer B: check once for offer; if absent → quit. If present → batch ICE answer.
-  async function startB() {
+  async function startB(options = {}) {
+    validateRoom(options.room);
     const opts = { ...DEFAULTS };
     const logEl = document.getElementById('state');
-    const log = (msg) => { if (logEl) logEl.textContent = String(msg); console.log(msg); };
+    let log = (msg) => { if (logEl) logEl.textContent = String(msg); console.log(msg); };
     opts.log = log;
     opts.onState = () => {};
     opts.onOpen = () => log('connected');
@@ -191,13 +201,15 @@
         try { window.Controller && window.Controller.handleBit(bit); } catch {}
       }
     };
-    const { base } = opts;
+    Object.assign(opts, options);
+    log = opts.log;
+    const { base, room } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
 
     // single read for offer
     let initial;
     try {
-      initial = await readRole(base, 'b');
+      initial = await readRole(base, 'b', room);
       if (initial == null) {
         console.log('missing Netlify functions');
         return;
@@ -220,6 +232,7 @@
 
     // proceed
     const pc = new RTCPeerConnection({ iceServers });
+    opts.preparePc?.(pc);
     const offFns = [];
     const cancelFlag = { cancelled:false };
     wirePc(pc, opts, offFns, null);
@@ -229,18 +242,19 @@
       log('got: offer');
       await pc.setLocalDescription(await pc.createAnswer());
       await waitIceComplete(pc);
-      const w = await write(base, 'answer', 'b', pc.localDescription);
+      const w = await write(base, 'answer', 'b', pc.localDescription, room);
       if (w == null) throw new Error('signal-write missing');
       log('sent: answer (batched ICE)');
     } catch (e) {
       const msg = `answer/SDP failed: ${e.message}`;
       log(msg);
       console.log(msg);
+      pc.close();
       return;
     }
 
     const ctrl = makeController({ pc, channel:null, log, offFns, cancelFlag });
-    RTC.send = ctrl.send;
+    if (room === undefined) RTC.send = ctrl.send;
     return ctrl;
   };
 
