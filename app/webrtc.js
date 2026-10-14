@@ -93,6 +93,27 @@
         }
       } catch (e) { if (id === epoch && !stopped) { session.error = e.message; setStatus(/write|read|reset|signal/i.test(e.message) ? 'signaling-error' : 'negotiation-error', e.message); dispose(session); current = null; } finishReady(); }
     }
+    // Keep observing signaling after SDP exchange: a remote explicit restart is
+    // a new generation, not a transport failure to retry or a reason to reset.
+    async function watchGeneration(id, session, generation) {
+      while (id === epoch && !stopped && current === session && !session.cancelled) {
+        await sleep(1500);
+        if (id !== epoch || stopped || current !== session || session.cancelled) return;
+        try {
+          const result = await readRole(options.base, role, room);
+          if (id !== epoch || stopped || current !== session || session.cancelled) return;
+          if (result?.generation && result.generation !== generation) {
+            const next = ++epoch;
+            dispose(session); current = null;
+            // Adopt the observed generation once; never reset in response to it.
+            enqueue(() => begin(next, false, result.generation));
+            return;
+          }
+        } catch (e) {
+          if (id === epoch && current === session) log(`signaling diagnostic: generation read: ${e.message}`);
+        }
+      }
+    }
     async function pollAnswer(id, session, generation) {
       const started = Date.now(); let n = 0;
       while (id === epoch && !stopped && Date.now() - started < options.timeoutMs) {
@@ -101,7 +122,10 @@
           if (id !== epoch) return;
           if (result && result.generation !== generation && result.generation) { dispose(session); current = null; return begin(id, false, result.generation); }
           if (result && result.answer && result.generation === generation && !session.pc.currentRemoteDescription) {
-            await session.pc.setRemoteDescription(result.answer); setStatus('negotiating', 'answer accepted; checking ICE/data channel'); finishReady(); return;
+            await session.pc.setRemoteDescription(result.answer);
+            if (id !== epoch || current !== session) return;
+            setStatus('negotiating', 'answer accepted; checking ICE/data channel');
+            void watchGeneration(id, session, generation); finishReady(); return;
           }
         } catch (e) { if (id === epoch) log(`signaling retry: answer read: ${e.message}`); }
         await sleep(options.backoff[Math.min(n++, options.backoff.length - 1)] || 1000);
@@ -129,7 +153,9 @@
             const answer = await session.pc.createAnswer(); await session.pc.setLocalDescription(answer);
             await waitIceComplete(session.pc, options.timeoutMs, session.cancel);
             const sent = await write(options.base, 'answer', 'b', session.pc.localDescription, room, generation); if (!sent) throw new Error('answer write missing');
-            setStatus('negotiating', 'answer sent; checking ICE/data channel'); finishReady(); return;
+            if (id !== epoch || current !== session) return;
+            setStatus('negotiating', 'answer sent; checking ICE/data channel');
+            void watchGeneration(id, session, generation); finishReady(); return;
           }
         } catch (e) {
           if (id === epoch && (/SDP|description|offer incompatible/i.test(e.message) || ['InvalidAccessError', 'OperationError', 'TypeError'].includes(e.name))) {
