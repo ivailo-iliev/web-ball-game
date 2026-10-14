@@ -1,175 +1,204 @@
-// Optional real-browser smoke driver, not a test framework. Uses synthetic cameras
-// and the actual signal handlers with an in-memory Blobs fixture (not Netlify).
+// Real three-process Chromium E2E. No signaling fixture, camera footage or detection assertions.
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { resources, delay } from './calibration-e2e-resources.mjs';
 import { chromium } from 'playwright';
-import { signalFixture } from './calibration-check.mjs';
 
-const { handlers } = signalFixture();
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  try {
-    const name = url.pathname.match(/^\/\.netlify\/functions\/signal-(read|write|reset)$/)?.[1];
-    if (name) {
-      let body = ''; for await (const chunk of req) body += chunk;
-      const response = await handlers[name](new Request(url, {
-        method: req.method, ...(req.method === 'GET' ? {} : { body })
-      }), {});
-      res.writeHead(response.status, Object.fromEntries(response.headers));
-      res.end(await response.text()); return;
+process.chdir(fileURLToPath(new URL('..', import.meta.url)));
+const pages = {};
+const token = `e2e-${process.pid}-${Date.now()}`;
+const logs = [], errors = [];
+const log = text => { logs.push(text); if (logs.length > 200) logs.shift(); };
+const owned = resources(log);
+const { browsers } = owned;
+let origin, stage = 'Netlify/startup';
+function inject(name) { if (process.env.E2E_FAIL_AT === name) throw new Error(`Injected ${name} failure`); }
+async function wait(check, label, timeout = 90000) {
+  stage = label;
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) { if (await check()) return; await delay(250); }
+  throw new Error(`${label}: timed out after ${timeout}ms`);
+}
+async function signal(room, role) {
+  const response = await fetch(`${origin}/.netlify/functions/signal-read?role=${role}${room ? `&room=${room}` : ''}`, { signal: AbortSignal.timeout(3000) });
+  assert.equal(response.status, 200, `${stage}: signal-read HTTP status`);
+  return response.json();
+}
+// Observe production calls/channels without altering options, SDP, transport or handlers.
+function observe() {
+  window.e2e = { calls: [], received: [] };
+  let rtc;
+  Object.defineProperty(window, 'RTC', { configurable: true, get: () => rtc, set(value) {
+    rtc = value;
+    for (const name of ['startA', 'startB']) {
+      const original = value[name];
+      value[name] = async function(options = {}) {
+        const call = { name, room: options.room ?? 'gameplay', controller: null };
+        window.e2e.calls.push(call);
+        const controller = await original.call(this, options);
+        call.controller = controller;
+        return controller;
+      };
     }
-    const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-    if (file.includes('..')) throw new Error('Invalid path');
-    let data = await readFile(file);
-    if (file === 'app/webrtc.js') data = Buffer.concat([data, Buffer.from(`
-      for (const name of ['startA', 'startB']) {
-        const start = RTC[name]; RTC[name] = opts => start({ ...opts, directOnly: true });
-      }
-    `)]); // Local fixture: do not wait for unreachable public STUN servers.
-    res.writeHead(200, { 'content-type': file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : file.endsWith('.html') ? 'text/html' : 'text/plain' });
-    res.end(data);
-  } catch { res.writeHead(404); res.end('Not found'); }
-});
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true, args: [
-  '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
-  '--enable-unsafe-webgpu', '--use-angle=vulkan', '--use-vulkan=swiftshader', '--enable-features=Vulkan', '--disable-vulkan-surface'
-] });
-const errors = [];
+  } });
+  const watchChannel = channel => channel.addEventListener('message', event => window.e2e.received.push(String(event.data)));
+  const Native = window.RTCPeerConnection;
+  window.RTCPeerConnection = class extends Native {
+    constructor(...args) {
+      super(...args);
+      this.addEventListener('datachannel', e => watchChannel(e.channel));
+    }
+    createDataChannel(...args) {
+      const channel = super.createDataChannel(...args); watchChannel(channel); return channel;
+    }
+  };
+  // No physical/synthetic camera is needed: production calibration.phone already
+  // creates its minimal 2x2 blank canvas video track for negotiation.
+  if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia = async () => { throw new Error('E2E: camera intentionally unavailable'); };
+}
+const room = source => `calibration-${token}-${source}`;
+const pane = source => pages.laptop.frames().find(frame => frame.url().includes(`source=${source}`));
+async function ready(source) {
+  await wait(async () => {
+    const frame = pane(source);
+    return !!frame && await frame.evaluate(() => !!window.Config && !!document.querySelector('#teamA') && !document.querySelector('#teamA').disabled).catch(() => false);
+  }, `Laptop↔${source}/data-channel state snapshot and enabled UI`);
+}
+async function connected() {
+  stage = 'All three links/independent peer identity and state';
+  for (const source of ['top', 'front']) {
+    assert.equal(await pages[source].evaluate(room => {
+      const gameplay = e2e.calls.filter(call => call.room === 'gameplay');
+      const calibration = e2e.calls.findLast(call => call.room === room);
+      return gameplay.length === 1 && gameplay[0].controller?.pc?.connectionState === 'connected'
+        && calibration?.controller?.pc?.connectionState === 'connected'
+        && gameplay[0].controller.pc !== calibration.controller.pc;
+    }, room(source)), true, `${source}: distinct live gameplay/calibration peers (no gameplay restart)`);
+    assert.equal(await pane(source).evaluate(() => e2e.calls.findLast(call => call.name === 'startA')?.controller?.channel?.readyState), 'open', `Laptop↔${source}: data channel open`);
+  }
+}
+async function gameplay(label) {
+  stage = `Top↔Front/${label}`;
+  for (const bit of ['0', '1']) {
+    const before = await pages.front.evaluate(() => window.e2e.received.length);
+    assert.equal(await pages.top.evaluate(bit => window.RTC.send(bit), bit), true, `${stage}: RTC.send(${bit})`);
+    await wait(() => pages.front.evaluate(({ before, bit }) => window.e2e.received.slice(before).includes(bit), { before, bit }), `${stage}/receive ${bit}`, 10000);
+  }
+  console.log(`PASS Top↔Front: 0/1 received (${label})`);
+}
+async function settings(source, color) {
+  stage = `Laptop↔${source}/configuration ${color}`;
+  const other = source === 'top' ? 'front' : 'top';
+  const before = await pages[other].evaluate(() => ({ config: Config.snapshot(), storage: { ...localStorage } }));
+  const receivedBefore = await pane(source).evaluate(() => e2e.received.length);
+  await pane(source).selectOption('#teamA', color);
+  await wait(() => pages[source].evaluate(color => cfg.teamA === color && localStorage.getItem('teamA') === JSON.stringify(color), color), `${stage}/phone localStorage`, 10000);
+  await wait(() => pane(source).evaluate(({ color, before }) => cfg.teamA === color && e2e.received.slice(before).some(text => {
+    const message = JSON.parse(text); return message.type === 'calibration-state' && message.values.teamA === color;
+  }), { color, before: receivedBefore }), `${stage}/acknowledged state`, 10000);
+  // Allow any accidentally misrouted asynchronous patch time to arrive.
+  await delay(500);
+  assert.deepEqual(await pages[other].evaluate(() => ({ config: Config.snapshot(), storage: { ...localStorage } })), before, `${stage}: wrong phone changed`);
+  console.log(`PASS Laptop↔${source}: UI patch persisted/acknowledged; ${other} unchanged`);
+}
+async function disconnectReconnect(source) {
+  stage = `Laptop↔${source}/disconnect`;
+  const frame = pane(source), url = frame.url();
+  const previousOffer = (await signal(room(source), 'b')).offer.sdp;
+  // Remove only this laptop participant. Phone and its gameplay peer stay alive.
+  await frame.goto('about:blank');
+  await pages[source].evaluate(room => {
+    const call = window.e2e.calls.findLast(call => call.room === room);
+    if (!call?.controller?.pc) throw new Error('Missing calibration controller');
+    window.e2e.reconnectStream = new MediaStream(call.controller.pc.getSenders().map(sender => sender.track).filter(Boolean));
+    call.controller.stop();
+    if (call.controller.pc.connectionState !== 'closed') throw new Error('Calibration peer did not close');
+  }, room(source));
+  const other = source === 'top' ? 'front' : 'top';
+  await gameplay(`${source} calibration disconnected`);
+  await settings(other, source === 'top' ? 'yellow' : 'green');
+  await frame.goto(url);
+  await wait(async () => {
+    const offer = (await signal(room(source), 'b')).offer;
+    return !!offer && offer.sdp !== previousOffer;
+  }, `Laptop↔${source}/fresh reconnect offer`);
+  await pages[source].evaluate(({ token, source }) => {
+    window.e2e.reconnected = Calibration.link({ token, source, stream: window.e2e.reconnectStream });
+  }, { token, source });
+  await ready(source);
+  await connected();
+  await settings(source, source === 'top' ? 'blue' : 'red');
+  await gameplay(`${source} calibration reconnected`);
+}
+async function diagnostics() {
+  console.error(`FAIL ${stage}`);
+  for (const [name, page] of Object.entries(pages)) for (const frame of page.frames()) {
+    console.error(name, frame.url(), await frame.evaluate(() => ({
+      text: document.body?.innerText.slice(0, 1500),
+      calls: window.e2e?.calls.map(({ name, room, controller }) => ({ name, room, state: controller?.pc?.connectionState, ice: controller?.pc?.iceConnectionState, signaling: controller?.pc?.signalingState, channel: controller?.channel?.readyState })),
+      received: window.e2e?.received, storage: { ...localStorage }
+    })).catch(error => ({ unavailable: error.message })));
+  }
+  for (const r of [undefined, room('top'), room('front')]) console.error('SIGNAL', r ?? 'gameplay', await signal(r, 'b').catch(error => error.message));
+  console.error('Recent Netlify/browser output:\n' + logs.slice(-60).join('\n'));
+}
 try {
-  const seen = new Set();
-  const watch = page => page.on('console', message => {
-    const key = message.text();
-    if (!seen.has(key)) { seen.add(key); console.error('BROWSER', page.url(), key); }
-  });
-  const laptop = await browser.newContext();
-  laptop.on('page', watch);
-  await laptop.addInitScript(() => {
-    window.cameraRequests = 0;
-    navigator.mediaDevices.getUserMedia = () => { window.cameraRequests++; throw new Error('Workstation must not acquire a camera'); };
-  });
-  const workstation = await laptop.newPage();
-  workstation.on('pageerror', e => errors.push('workstation: ' + e.message));
-  await workstation.goto(origin + '/calibrate.html?calibration=smoke');
-  await workstation.waitForFunction(() => document.querySelectorAll('iframe').length === 2);
-  const pane = source => workstation.frames().find(f => f.url().includes(`source=${source}`));
-  await workstation.waitForTimeout(1500);
-  for (const source of ['top', 'front']) {
-    const f = pane(source);
-    await f.waitForFunction(() => window.Config && window.Calibration);
-    // Track actual existing detector execution, including GPU success/failure.
-    await f.evaluate(() => {
-      window.detectorRuns = { calls: 0, successful: 0, errors: [] };
-      const detect = window.GPU.detect;
-      window.GPU.detect = async args => {
-        window.detectorRuns.calls++;
-        try { const result = await detect(args); window.detectorRuns.successful++; return result; }
-        catch (e) { if (window.detectorRuns.errors.length < 3) window.detectorRuns.errors.push(e.message); throw e; }
-      };
+  origin = await owned.start();
+  inject('startup');
+  await wait(async () => {
+    if (owned.exitCode() !== null) throw new Error(`Netlify exited ${owned.exitCode()}: ${logs.join('')}`);
+    return fetch(`${origin}/top.html`, { signal: AbortSignal.timeout(1000) }).then(response => response.ok).catch(() => false);
+  }, 'Netlify/static readiness');
+  // Prove the real local Functions/Blobs read/write/reset path before any peers.
+  stage = 'Netlify/Blobs round trip';
+  const probe = `probe-${token}`;
+  const cleanGameplay = await fetch(`${origin}/.netlify/functions/signal-reset`, { method: 'POST', signal: AbortSignal.timeout(10000), body: '{}' });
+  assert.equal(cleanGameplay.status, 200, 'Reset existing local gameplay room');
+  for (const [endpoint, body] of [['signal-reset', { room: probe }], ['signal-write', { room: probe, kind: 'offer', role: 'a', data: { type: 'offer', sdp: 'e2e-storage-probe' } }]]) {
+    const response = await fetch(`${origin}/.netlify/functions/${endpoint}`, { method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal(response.status, 200, `${stage}: ${endpoint}`);
+  }
+  assert.equal((await signal(probe, 'b')).offer.sdp, 'e2e-storage-probe');
+  assert.ok(!(await signal(undefined, 'b')).offer, 'Probe room leaked into gameplay');
+  await fetch(`${origin}/.netlify/functions/signal-reset`, { method: 'POST', signal: AbortSignal.timeout(10000), body: JSON.stringify({ room: probe }) });
+  assert.ok(!(await signal(probe, 'b')).offer);
+  console.log('PASS Netlify: actual Functions and local Blobs round trip');
+  for (const name of ['laptop', 'top', 'front']) {
+    const browser = await owned.acquire(() => chromium.launch({ headless: true }));
+    const context = await browser.newContext(); await context.addInitScript(observe);
+    pages[name] = await context.newPage();
+    pages[name].on('console', message => log(`${name}: ${message.text()}`));
+    pages[name].on('request', request => {
+      if (request.url().includes('/signal-write')) log(`${name} WRITE ${request.postData()}`);
     });
+    pages[name].on('pageerror', error => { errors.push(`${name}: ${error.message}`); log(`${name} PAGEERROR: ${error.message}`); });
   }
-  const phones = {};
-  for (const source of ['top', 'front']) {
-    const context = await browser.newContext();
-    context.on('page', watch);
-    await context.addInitScript(() => {
-      window.captureTimes = [];
-      window.cameraRequests = [];
-      const acquire = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      navigator.mediaDevices.getUserMedia = constraints => { window.cameraRequests.push(constraints); return acquire(constraints); };
-      const requestFrame = CanvasCaptureMediaStreamTrack.prototype.requestFrame;
-      CanvasCaptureMediaStreamTrack.prototype.requestFrame = function () {
-        window.captureTimes.push(performance.now());
-        return requestFrame.call(this);
-      };
-      for (const [key, value] of Object.entries({ camW: 320, camH: 240, topH: 240, frontH: 120,
-        topRect: { x: 0, y: 0, w: 320, h: 240 }, frontRect: { x: 0, y: 0, w: 160, h: 120 } })) localStorage.setItem(key, JSON.stringify(value));
-    });
-    const phone = await context.newPage();
-    phone.on('pageerror', e => errors.push(source + ': ' + e.message));
-    await phone.goto(origin + (source === 'top' ? '/top.html' : '/index.html') + '?calibration=smoke');
-    if (source === 'top') await phone.click('#start');
-    phones[source] = phone;
-  }
-  for (const source of ['top', 'front']) {
-    const f = pane(source);
-    await f.waitForFunction(() => document.querySelector('#remoteFeed').videoWidth > 2 && !document.querySelector('#teamA').disabled, { timeout: 30000 });
-    assert.equal(await f.evaluate(() => window.cfg.camW), 320);
-    console.log('PASS browser: ' + source + ' real WebRTC remote stream and seeded matching controls');
-  }
-  await pane('top').selectOption('#teamA', 'red');
-  await phones.top.waitForFunction(() => window.cfg.teamA === 'red' && localStorage.getItem('teamA') === '"red"');
-  assert.equal(await phones.front.evaluate(() => window.cfg.teamA), 'green');
-  await pane('front').locator('#frontZoom').fill('1.25');
-  await phones.front.waitForFunction(() => window.cfg.zoom === 1.25 && document.querySelector('#frontZoom').value === '1.25');
-  assert.equal(await phones.top.evaluate(() => window.cfg.zoom), 1);
-  // Phone-origin edits must return through the state envelope and refresh the pane.
-  await phones.front.selectOption('#teamA', 'yellow');
-  await pane('front').waitForFunction(() => document.querySelector('#teamA').value === 'yellow');
-  console.log('PASS browser: independent control patches persist/apply on phones; phone edits refresh pane');
-  for (const source of ['top', 'front']) {
-    await pane(source).waitForFunction(() => window.detectorRuns.successful > 0, { timeout: 15000 });
-    const stats = await pane(source).evaluate(() => window.detectorRuns);
-    assert.ok(stats.calls > 0);
-    assert.ok(stats.successful > 0, JSON.stringify(stats));
-    console.log(`PASS browser: ${source} existing WebGPU detector successful (${stats.successful} runs)`);
-  }
-  await workstation.waitForTimeout(2100);
-  for (const source of ['top', 'front']) {
-    const times = await phones[source].evaluate(() => window.captureTimes);
-    assert.ok(times.length >= 3);
-    const cameras = await phones[source].evaluate(() => window.cameraRequests);
-    assert.equal(cameras.length, 1);
-    assert.equal(cameras[0].video.frameRate.ideal, 60);
-    assert.equal(await pane(source).evaluate(() => window.cameraRequests), 0);
-    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 495);
-  }
-  console.log('PASS browser: independent canvas copies have <=2 FPS capture cadence; only one unchanged 60 FPS camera request per phone, none on workstation');
-  // Closing top must not stop the front connection.
-  await phones.top.close();
-  await pane('front').locator('#frontZoom').fill('1.5');
-  await phones.front.waitForFunction(() => window.cfg.zoom === 1.5);
-  console.log('PASS browser: top disconnect does not stop front configuration transport');
-  // A no-query pair keeps the original default room, UI, camera and gameplay DC.
-  const normalContext = await browser.newContext();
-  normalContext.on('page', watch);
-  await normalContext.addInitScript(() => {
-    for (const [key, value] of Object.entries({ camW: 320, camH: 240 })) localStorage.setItem(key, JSON.stringify(value));
-  });
-  const top = await normalContext.newPage();
-  top.on('pageerror', e => errors.push('normal top: ' + e.message));
-  await top.goto(origin + '/top.html');
-  await top.waitForFunction(() => document.querySelector('#state').textContent.includes('sent: offer'));
-  const front = await normalContext.newPage();
-  front.on('pageerror', e => errors.push('normal front: ' + e.message));
-  await front.goto(origin + '/index.html');
-  await top.waitForFunction(() => !document.querySelector('#b0').disabled);
-  await top.click('#start');
-  await top.waitForFunction(() => document.querySelector('#info').textContent.includes('Running'));
-  assert.equal(await top.locator('#calibrationStatus').count(), 0);
-  assert.equal(await front.locator('#calibrationStatus').count(), 0);
-  assert.equal(await front.locator('#launcher button').count(), 9);
-  await front.evaluate(() => {
-    const handle = Controller.handleBit;
-    Controller.handleBit = bit => { window.lastGameplayBit = bit; return handle(bit); };
-  });
-  await top.click('#b0');
-  await front.waitForFunction(() => window.lastGameplayBit === 0);
-  console.log('PASS browser: no-query pages retain default gameplay DC, local top detector and original launcher; no calibration initialization');
+  inject('browsers');
+  assert.equal(new Set(browsers).size, 3);
+  console.log('PASS Chromium: three independent browser instances');
+  await pages.laptop.goto(`${origin}/calibrate.html?calibration=${token}`);
+  await wait(async () => (await signal(room('top'), 'b')).offer && (await signal(room('front'), 'b')).offer, 'Laptop↔Top/Front/offers stored');
+  await pages.top.goto(`${origin}/top.html?calibration=${token}`);
+  // Gameplay B checks only once: respect the production offer-first bootstrap.
+  await wait(async () => !!(await signal(undefined, 'b')).offer, 'Top↔Front/gameplay offer stored');
+  await pages.front.goto(`${origin}/index.html?calibration=${token}`);
+  await ready('top'); await ready('front');
+  await wait(() => pages.top.evaluate(() => window.e2e.calls.some(call => call.room === 'gameplay' && call.controller?.channel?.readyState === 'open')), 'Top↔Front/gameplay channel open');
+  await connected();
+  await gameplay('all three links simultaneous');
+  inject('assertion');
+  await settings('top', 'red'); await settings('front', 'blue');
+  await gameplay('both calibration patches');
+  await disconnectReconnect('top'); await disconnectReconnect('front');
+  await connected();
+  await gameplay('final three simultaneous links');
+  stage = 'All peers/uncaught page errors';
   assert.deepEqual(errors, []);
-  console.log('PASS browser: no uncaught page errors, workstation camera acquisition forbidden');
-} catch (err) {
-  console.error('Browser smoke failure:', err.message, 'page errors:', errors);
-  for (const context of browser.contexts()) for (const page of context.pages()) {
-    for (const frame of page.frames()) console.error(frame.url(), await frame.evaluate(() => ({
-      text: document.body.innerText.slice(0, 1800), video: Array.from(document.querySelectorAll('video')).map(v => ({ width: v.videoWidth, ready: v.readyState })),
-      detector: window.detectorRuns, calibration: typeof window.Calibration, preview: !!window.CalibrationPreview, search: location.search, scripts: Array.from(document.scripts).map(s => s.src)
-    })).catch(() => null));
-  }
-  throw err;
+  console.log('PASS three-peer Netlify/WebRTC E2E');
+} catch (error) {
+  await diagnostics().catch(diagnostic => console.error('Diagnostics failed:', diagnostic.message));
+  console.error(error); process.exitCode = 1;
 } finally {
-  await browser.close();
-  await new Promise(resolve => server.close(resolve));
+  try { await owned.cleanup(); }
+  finally { owned.removeSignalHandlers(); }
 }

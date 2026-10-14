@@ -55,26 +55,34 @@ node tests/calibration-check.mjs
 git diff --check
 ```
 
-The optional browser smoke driver uses Playwright only as a browser automation
-library (not a test framework or application dependency):
+The optional three-peer E2E driver uses Playwright only as a browser automation
+library. Run from a disposable checkout/worktree on Linux/macOS/WSL with Node
+supported by Netlify CLI and Chromium's system dependencies installed:
 
 ```sh
-npm install --no-save --no-package-lock playwright
+npm install --no-save --no-package-lock playwright@1.64.1 netlify-cli@27.12.1
 PLAYWRIGHT_BROWSERS_PATH="$PWD/node_modules/.cache/playwright" npx playwright install chromium
 PLAYWRIGHT_BROWSERS_PATH="$PWD/node_modules/.cache/playwright" node tests/calibration-browser-smoke.mjs
 ```
 
-It executes real WebRTC, VideoFrames, canvas capture and the existing WebGPU
-shader paths in headless Chromium with synthetic cameras and software Vulkan.
-The test server runs the actual signal handlers against an explicit in-memory
-Blobs fixture, and forces host-only ICE for the local test (no public STUN).
-It checks both simultaneous streams, source-isolated persistence and two-way UI
-updates, 2 FPS capture cadence, camera-request isolation, disconnect independence,
-and the original no-query gameplay channel/local detector/launcher.
+The driver starts/stops `netlify dev --offline` itself, with the actual Functions
+and local Blobs sandbox, and launches three independent Chromium instances.
+It verifies simultaneous gameplay (0/1 receipt), both calibration UI patches and
+per-phone localStorage persistence, wrong-phone isolation, independent calibration
+disconnect/reconnect, and gameplay continuity without restarting its peer.
+There is no custom signaling server, synthetic camera footage or detection test;
+the existing production calibration canvas supplies only a minimal blank track.
+Application RTC options (including STUN) are unchanged.
 
-Physical phone cameras, mobile WebGPU compatibility, thermal/gameplay performance,
-background tab behavior, real network/STUN connectivity and deployed Netlify Blobs
-still need device/live validation. A passing synthetic smoke test does not prove
-those. Netlify deploys from GitHub main: finish development and independent review
-on the PR branch first; the reviewer owns merging and verifying the live deployment.
-No preview deployment or production deployment is assumed by these local checks.
+Do not run concurrently with another local game/Netlify session: the test resets
+the local default gameplay room. Existing `.netlify` state is preserved; state
+created by the driver is removed. Failure diagnostics identify peer/stage and
+include local signaling/browser state. See [verification evidence and cleanup
+checks](docs/calibration-verification.md) for limitations and failure injection.
+A failing product assertion must not be skipped or fixed in application code just
+to make this driver green.
+
+Physical cameras, detector accuracy, mobile WebGPU, thermal/gameplay performance,
+background throttling and deployed/network connectivity still need device/live
+validation. Netlify deploys from GitHub main; independent review owns the merge
+and deployment gate. These checks do not deploy or assume a preview deployment.
