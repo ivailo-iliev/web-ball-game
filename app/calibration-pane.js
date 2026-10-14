@@ -2,12 +2,11 @@
 (async function () {
   'use strict';
   const params = new URLSearchParams(location.search);
-  const token = params.get('calibration');
   const source = params.get('source');
   const status = document.getElementById('connection');
   const report = text => { status.textContent = `${source}: ${text}`; };
-  if (!token || !/^[A-Za-z0-9_-]{1,64}$/.test(token) || !['top', 'front'].includes(source)) {
-    report('Invalid calibration session/source'); return;
+  if (!['top', 'front'].includes(source)) {
+    report('Invalid calibration source'); return;
   }
   const video = document.createElement('video');
   video.autoplay = video.muted = video.playsInline = true;
@@ -51,7 +50,7 @@
     for (const file of ['utils', 'webrtc', 'config', 'detect', 'feeds', 'setup', 'calibration', source === 'top' ? 'top' : 'app']) await load(`app/${file}.js`);
     enableControls(false); // Include spinner buttons created by Setup.
     window.Calibration.link({
-      token, source, offerer: true, report,
+      source, offerer: true, report,
       onStream(stream) {
         video.srcObject = stream;
         void video.play().catch(err => report(err.message));

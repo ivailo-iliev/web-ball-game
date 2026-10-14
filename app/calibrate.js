@@ -1,20 +1,11 @@
 (function () {
   'use strict';
-  const params = new URLSearchParams(location.search);
-  const token = params.get('calibration');
-  const form = document.getElementById('session');
-  form.elements.calibration.value = token || crypto.randomUUID();
-  if (token === null) return;
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(token)) {
-    document.getElementById('status').textContent = 'Invalid session: use 1–64 letters, numbers, underscores or hyphens.';
-    return;
-  }
   for (const source of ['top', 'front']) {
     const section = document.createElement('section');
     const title = document.createElement('h2');
     title.textContent = source === 'top' ? 'Top phone' : 'Front / index phone';
     const url = new URL(source === 'top' ? 'top.html' : 'index.html', location.href);
-    url.search = new URLSearchParams({ calibration: token });
+    url.search = '';
     const input = document.createElement('input');
     input.readOnly = true;
     input.value = url.href;
@@ -28,7 +19,7 @@
     };
     const pane = document.createElement('iframe');
     pane.title = title.textContent + ' configuration and detector preview';
-    pane.src = 'calibration-pane.html?' + new URLSearchParams({ calibration: token, source });
+    pane.src = 'calibration-pane.html?' + new URLSearchParams({ source });
     section.append(title, input, copy, pane);
     document.getElementById('panes').append(section);
   }

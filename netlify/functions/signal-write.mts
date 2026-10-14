@@ -14,11 +14,17 @@ export default async (req: Request, _context: Context) => {
   }
   const store = getStore({ name: 'webrtc', consistency: 'strong' })
   try {
+    const generation = await store.get(`${base}/generation.json`, { type: 'json' })
+    // Legacy writes work only before the first reset. Never accept an old client's
+    // unversioned answer into a restarted room. Generation-specific keys also
+    // isolate writes that were already in flight when reset advanced the pointer.
+    if ((body.generation ?? null) !== generation) return new Response('Stale generation', { status: 409 })
+    const signalBase = generation ? `${base}/generations/${generation}` : base
     if (kind === 'offer' || kind === 'answer') {
-      await store.setJSON(`${base}/${kind}.json`, data)
+      await store.setJSON(`${signalBase}/${kind}.json`, data)
     } else if (kind === 'candidate') {
       const id = crypto.randomUUID()
-      await store.setJSON(`${base}/candidates-${role}/${id}.json`, data)
+      await store.setJSON(`${signalBase}/candidates-${role}/${id}.json`, data)
     } else {
       return new Response('Unknown kind', { status: 400 })
     }

@@ -2,7 +2,6 @@
 (function () {
   'use strict';
 
-  const tokenPattern = /^[A-Za-z0-9_-]{1,64}$/;
   const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
   const number = v => typeof v === 'number' ? v
     : typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : NaN;
@@ -52,9 +51,9 @@
     } catch { return null; }
   }
 
-  function room(token, source) {
-    if (!tokenPattern.test(token) || !['top', 'front'].includes(source)) throw new Error('Invalid calibration session/source');
-    return `calibration-${token}-${source}`;
+  function room(source) {
+    if (!['top', 'front'].includes(source)) throw new Error('Invalid calibration source');
+    return window.RTC.rooms[source];
   }
 
   function apply(patch) {
@@ -62,7 +61,7 @@
     window.Setup.refresh();
   }
 
-  function link({ token, source, offerer = false, stream, onStream = () => {}, report = console.log, onState = () => {} }) {
+  function link({ source, offerer = false, stream, onStream = () => {}, report = console.log, onState = () => {} }) {
     let channel, peer, controller, stopped = false, applying = false, seeded = false;
     let sendTimer;
     const send = (type, raw) => {
@@ -87,7 +86,7 @@
       }
     });
     const options = {
-      room: room(token, source), log: report,
+      room: room(source), log: report,
       preparePc(pc) {
         peer = pc;
         if (stopped) { pc.close(); throw new Error('Calibration stopped'); }
@@ -134,7 +133,7 @@
     return { stop };
   }
 
-  function phone(token, source) {
+  function phone(source) {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 2;
     const ctx = canvas.getContext('2d');
@@ -149,7 +148,7 @@
     status.setAttribute('aria-live', 'polite');
     document.body.append(status);
     const report = text => { status.textContent = `Calibration ${source}: ${text}`; };
-    const connection = link({ token, source, stream, report });
+    const connection = link({ source, stream, report });
     async function copy() {
       let frame;
       try {
@@ -175,10 +174,8 @@
   }
 
   window.Calibration = { values, decode, room, link };
-  const token = new URLSearchParams(location.search).get('calibration');
-  if (token !== null && !window.CalibrationPreview) {
-    if (!tokenPattern.test(token)) { console.error('Invalid calibration session'); return; }
-    try { phone(token, location.pathname.endsWith('/top.html') ? 'top' : 'front'); }
+  if (!window.CalibrationPreview) {
+    try { phone(location.pathname.endsWith('/top.html') ? 'top' : 'front'); }
     catch (err) { console.error('Calibration unavailable:', err); }
   }
 })();

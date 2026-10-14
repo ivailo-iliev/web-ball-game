@@ -1,5 +1,5 @@
 /*!
-  Minimal WebRTC A/B helper (single room, reset-on-start).
+  Minimal WebRTC A/B helper (independent fixed rooms, reset-on-start).
   Endpoints expected:
     /.netlify/functions/signal-reset
     /.netlify/functions/signal-write
@@ -11,7 +11,9 @@
     RTC.startB();
 */
 (() => {
+  const rooms = Object.freeze({ gameplay: 'default', top: 'calibration-top', front: 'calibration-front' });
   const DEFAULTS = {
+    room: rooms.gameplay,
     base: '/.netlify/functions',
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     directOnly: false,                 // if true → iceServers: []
@@ -39,7 +41,7 @@
 
   // signaling wrappers
   const resetRoom = (base, room) => fetchJson(base, 'signal-reset', { method:'POST', body:{ room } });
-  const write = (base, kind, role, data, room) => fetchJson(base, 'signal-write', { method:'POST', body:{ kind, role, data, room } });
+  const write = (base, kind, role, data, room, generation) => fetchJson(base, 'signal-write', { method:'POST', body:{ kind, role, data, room, generation } });
   const readRole = (base, role, room) => fetchJson(base, 'signal-read', { params: room === undefined ? { role } : { role, room } });
   function validateRoom(room) {
     if (room !== undefined && (typeof room !== 'string' || !/^[A-Za-z0-9_-]{1,96}$/.test(room))) throw new Error('Invalid room');
@@ -114,13 +116,15 @@
     const { base, room, timeoutMs, backoff } = opts;
     const iceServers = opts.directOnly ? [] : (opts.iceServers || []);
 
-    // cleanup on start
+    // A new room-local generation fences delayed writes from previous connections.
+    let generation;
     try {
       const r = await resetRoom(base, room);
       if (r == null) {
         console.log('missing Netlify functions');
         return;
       }
+      generation = r.generation;
       log('room: reset done');
     } catch (e) {
       const msg = `reset failed: ${e.message}`;
@@ -141,7 +145,7 @@
     try {
       await pc.setLocalDescription(await pc.createOffer());
       await waitIceComplete(pc);
-      const w = await write(base, 'offer', 'a', pc.localDescription, room);
+      const w = await write(base, 'offer', 'a', pc.localDescription, room, generation);
       if (w == null) throw new Error('signal-write missing');
       log('sent: offer (batched ICE)');
     } catch (e) {
@@ -160,7 +164,7 @@
       let answer = null;
       try {
         const r = await readRole(base, 'a', room);
-        answer = r && r.answer;
+        answer = r && r.generation === generation && r.answer;
       } catch (e) {
         const msg = `read answer error: ${e.message}`;
         log(msg);
@@ -182,7 +186,7 @@
     }
 
     const ctrl = makeController({ pc, channel, log, offFns, cancelFlag });
-    if (room === undefined) RTC.send = ctrl.send;
+    if (room === rooms.gameplay) RTC.send = ctrl.send;
     return ctrl;
   };
 
@@ -220,6 +224,7 @@
       console.log(msg);
       return;
     }
+    const generation = initial && initial.generation;
     const offer = initial && initial.offer;
     if (!offer) {
       log('no offer found — open A (top.html) first');
@@ -242,7 +247,7 @@
       log('got: offer');
       await pc.setLocalDescription(await pc.createAnswer());
       await waitIceComplete(pc);
-      const w = await write(base, 'answer', 'b', pc.localDescription, room);
+      const w = await write(base, 'answer', 'b', pc.localDescription, room, generation);
       if (w == null) throw new Error('signal-write missing');
       log('sent: answer (batched ICE)');
     } catch (e) {
@@ -254,9 +259,9 @@
     }
 
     const ctrl = makeController({ pc, channel:null, log, offFns, cancelFlag });
-    if (room === undefined) RTC.send = ctrl.send;
+    if (room === rooms.gameplay) RTC.send = ctrl.send;
     return ctrl;
   };
 
-  window.RTC = { startA, startB, send: () => false };
+  window.RTC = { rooms, startA, startB, send: () => false };
 })();

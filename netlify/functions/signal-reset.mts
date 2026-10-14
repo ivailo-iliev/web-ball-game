@@ -9,7 +9,14 @@ export default async (req: Request, _context: Context) => {
   const base = roomBase(body?.room)
   if (!base) return new Response('Bad room', { status: 400 })
   const store = getStore({ name: 'webrtc', consistency: 'strong' })
-  const list = await store.list({ prefix: `${base}/` })
-  for (const { key } of list.blobs) await store.delete(key)
-  return new Response('OK', { headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } })
+  const generation = crypto.randomUUID()
+  // Snapshot old keys before publishing the new generation. Do not delete writes
+  // for the new generation (or the pointer) that arrive while cleanup runs.
+  const keys: string[] = []
+  for await (const page of store.list({ prefix: `${base}/`, paginate: true })) {
+    for (const { key } of page.blobs) if (key !== `${base}/generation.json`) keys.push(key)
+  }
+  await store.setJSON(`${base}/generation.json`, generation)
+  for (const key of keys) await store.delete(key)
+  return new Response(JSON.stringify({ generation }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
 }

@@ -7,7 +7,10 @@ import ts from 'typescript';
 export function signalFixture() {
   const blobs = new Map();
   const store = {
-    list: async ({ prefix }) => ({ blobs: [...blobs.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })) }),
+    list: ({ prefix, paginate }) => {
+      const result = { blobs: [...blobs.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })) };
+      return paginate ? (async function* () { yield result; })() : Promise.resolve(result);
+    },
     delete: async key => blobs.delete(key),
     get: async key => blobs.get(key) || null,
     setJSON: async (key, value) => blobs.set(key, value)
@@ -37,7 +40,7 @@ async function check() {
   }
   assert.equal(blobs.size, 3);
   await request('reset', { room: 'calibration-demo-top' });
-  assert.equal(blobs.size, 2);
+  assert.equal(blobs.size, 3); // Other offers plus reset room's generation.
   assert.ok(blobs.has('room/default/offer.json'));
   assert.ok(blobs.has('room/calibration-demo-front/offer.json'));
   assert.equal((await request('read', null, '?role=a&room=../default')).status, 400);
@@ -50,7 +53,7 @@ async function check() {
   console.log('PASS signaling: default compatibility, room isolation/reset, invalid inputs');
 
   const storage = new Map();
-  const window = {};
+  const window = { CalibrationPreview: {} };
   const sandbox = { window, localStorage: { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) },
     console, location: { search: '', pathname: '/index.html' }, URLSearchParams, URL, setTimeout, clearTimeout };
   vm.createContext(sandbox);
@@ -71,11 +74,12 @@ async function check() {
   assert.equal(storage.get('teamA'), '"red"');
   assert.equal(memory.get().colorA, 2);
   assert.equal(config.get().colorA, 0);
+  run('app/webrtc.js');
   run('app/calibration.js');
   const C = window.Calibration;
-  assert.equal(C.room('demo', 'top'), 'calibration-demo-top');
-  assert.notEqual(C.room('demo', 'top'), C.room('demo', 'front'));
-  assert.throws(() => C.room('../default', 'top'));
+  assert.equal(C.room('top'), 'calibration-top');
+  assert.notEqual(C.room('top'), C.room('front'));
+  assert.throws(() => C.room('../default'));
   assert.ok(C.values(config.snapshot()));
   const decode = v => C.decode(JSON.stringify(v), 'calibration-config');
   for (const values of [{ unknown: 1 }, { zoom: 0 }, { teamA: 'constructor' }, { camW: Infinity },
