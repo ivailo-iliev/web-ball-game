@@ -9,7 +9,10 @@ export function signalFixture() {
   const store = {
     list: ({ prefix, paginate }) => {
       const result = { blobs: [...blobs.keys()].filter(key => key.startsWith(prefix)).map(key => ({ key })) };
-      return paginate ? (async function* () { yield result; })() : Promise.resolve(result);
+      return paginate ? (async function* () {
+        // Small pages exercise reset cleanup across multiple list responses.
+        for (let i = 0; i < result.blobs.length; i += 2) yield { blobs: result.blobs.slice(i, i + 2) };
+      })() : Promise.resolve(result);
     },
     delete: async key => blobs.delete(key),
     get: async key => blobs.get(key) || null,
