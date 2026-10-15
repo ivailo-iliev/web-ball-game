@@ -22,10 +22,6 @@
       active.pane.contentWindow.postMessage({
         type: 'calibration-perf-rate', source: data.source, fps: Number(active.select.value)
       }, location.origin);
-    } else if (data.type === 'calibration-pane-height') {
-      if (Number.isFinite(data.height) && data.height > 0 && data.height < 10000) {
-        active.pane.style.height = Math.ceil(data.height) + 'px';
-      }
     } else if (data.type === 'calibration-pane-status') {
       active.paneStatus = data.text;
       renderPanel(active);
