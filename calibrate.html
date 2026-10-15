@@ -8,18 +8,23 @@
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
     body { padding: 1rem; background: #151820; color: #fff; font: 15px system-ui; }
-    #panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 1rem; }
-    section { min-width: 0; display: grid; align-content: start; gap: .55rem; }
-    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-width: 0; }
+    #panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; height: 100%; }
+    section { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: .55rem; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-width: 0; flex: 0 0 auto; }
     h2 { margin: 0; font-size: 1rem; white-space: nowrap; }
     .toolbar { display: flex; align-items: center; gap: .5rem; }
     button, select { min-height: 2.25rem; padding: .4rem .7rem; border: 1px solid #4a5263; border-radius: .45rem; background: #222835; color: #fff; font: inherit; }
     button { cursor: pointer; }
     button:disabled, select:disabled { opacity: .55; cursor: wait; }
     .rate-select { min-width: 7rem; }
-    .perf-metrics { margin: 0; padding: .65rem .75rem; background: #222835; border-radius: 5px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, monospace; }
-    iframe { display: block; width: 100%; height: 440px; min-height: 0; border: 1px solid #555; border-radius: 5px; background: #111; }
-    @media (max-width: 800px) { #panes { grid-template-columns: 1fr; } }
+    .perf-metrics { flex: 0 0 auto; margin: 0; padding: .65rem .75rem; background: #222835; border-radius: 5px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, monospace; }
+    iframe { display: block; flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; height: auto; border: 1px solid #555; border-radius: 5px; background: #111; }
+    @media (max-width: 800px) {
+      html, body { height: auto; min-height: 100%; overflow-y: auto; }
+      #panes { height: auto; grid-template-columns: 1fr; }
+      section { height: auto; min-height: 0; }
+      iframe { flex: none; height: min(65vh, 620px); min-height: 360px; }
+    }
   </style>
 </head>
 <body>
