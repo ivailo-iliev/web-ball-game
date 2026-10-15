@@ -13,10 +13,12 @@ export default async (req: Request, _context: Context) => {
   const store = getStore({ name: 'webrtc', consistency: 'strong' })
   const peer = role === 'a' ? 'b' : 'a'
 
-  const offer  = await store.get(`${base}/offer.json`,  { type: 'json' })
-  const answer = await store.get(`${base}/answer.json`, { type: 'json' })
+  const generation = await store.get(`${base}/generation.json`, { type: 'json' })
+  const signalBase = generation ? `${base}/generations/${generation}` : base
+  const offer  = await store.get(`${signalBase}/offer.json`,  { type: 'json' })
+  const answer = await store.get(`${signalBase}/answer.json`, { type: 'json' })
 
-  const list = await store.list({ prefix: `${base}/candidates-${peer}/` })
+  const list = await store.list({ prefix: `${signalBase}/candidates-${peer}/` })
   const candidates: any[] = []
   for (const { key } of list.blobs) {
     const c = await store.get(key, { type: 'json' })
@@ -24,7 +26,7 @@ export default async (req: Request, _context: Context) => {
     await store.delete(key) // pop after read
   }
 
-  return new Response(JSON.stringify({ offer, answer, candidates }), {
+  return new Response(JSON.stringify({ generation, offer, answer, candidates }), {
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
   })
 }

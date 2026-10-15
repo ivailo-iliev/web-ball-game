@@ -1,19 +1,18 @@
-# One-room WebRTC signaling on Netlify (A/B)
+# Fixed-room WebRTC signaling on Netlify (A/B)
 
 Workflow:
-1) Open `top.html` first (Peer A). It resets the single room and posts the offer.
+1) Open `top.html` first (Peer A). It resets only the gameplay room and posts the offer.
 2) Then open `index.html` (Peer B). It reads the offer, posts the answer, and both peers exchange ICE candidates via polling.
 
 Uses Netlify Functions + Netlify Blobs (strong consistency) as a tiny signaling mailbox.
 
 ## Remote calibration
 
-1. On the workstation open `calibrate.html?calibration=<token>` on the same site.
-   Tokens contain 1–64 letters, numbers, underscores or hyphens. The session form
-   generates a token if none is supplied. Use a fresh, unpredictable token and
-   keep its join URLs private: signaling is not an authenticated settings API.
-2. Copy the displayed `top.html?calibration=<token>` and
-   `index.html?calibration=<token>` URLs to their respective phones. Press Start
+1. On the workstation open `calibrate.html` on the same site. No session ID or
+   join token is needed. Signaling is not authenticated: the three rooms are
+   shared by all visitors, so use one workstation and one phone per role at a time.
+2. Copy the displayed normal `top.html` and `index.html` URLs to their respective
+   phones (existing normal/PWA launches also join calibration). Press Start
    on the top phone to acquire its existing camera; the front phone acquires its
    camera as usual. The workstation acquires no camera.
 3. Each pane displays the remote video and reuses its original configuration
@@ -23,15 +22,27 @@ Uses Netlify Functions + Netlify Blobs (strong consistency) as a tiny signaling 
    controls retain their existing behavior: acquisition constraints apply at
    camera startup, not mid-stream. Zoom/thresholds/ROI apply live.
 
-Two additional peers use `calibration-<token>-top` and
-`calibration-<token>-front`. Neither overwrites `RTC.send` or resets the gameplay
-room. Omitting `room` in the signaling APIs still uses exactly `room/default`.
+The fixed pairings are `top.html` ↔ `index.html` in `default` (gameplay),
+`calibrate.html` ↔ `top.html` in `calibration-top`, and `calibrate.html` ↔
+`index.html` in `calibration-front`. The workstation panes select only `source=top`
+or `source=front`; this is a role selector, not a session ID. Neither calibration
+peer overwrites `RTC.send` or resets the gameplay room. Omitting `room` in the
+signaling APIs still uses exactly `room/default`.
+
+The same signal-read/write/reset endpoints are retained. Reset returns JSON
+`{ generation }`, and reads include that room-local generation. Writes echo it;
+stale or unversioned writes after reset return HTTP 409. Signals live beneath
+`room/<room>/generations/<generation>/`, so even an old in-flight write cannot
+be consumed by a new connection. Reset cleans up only its own room, including
+paginated old data. Generation IDs are internal signaling metadata, never join
+tokens or URL parameters. Legacy unversioned rooms remain readable/writable until
+their first reset.
 Phone streaming draws independent clones of the existing cropped local frames
 into a manually captured canvas, at most once every 500 ms (2 FPS), without
 changing camera constraints or consuming gameplay's frame. Background browser
 throttling and unavailable cameras can reduce the rate. Phones waiting for the
-workstation poll for its offer. After a disconnected/reloaded phone or expired
-session, reopen the workstation session and rejoin the phones to negotiate fresh
+workstation poll for its offer. After a disconnected/reloaded phone, reopen
+the workstation and rejoin the phones to negotiate fresh
 peers; reloading the workstation alone does not reconnect an already-connected
 phone automatically.
 
@@ -52,10 +63,21 @@ No test framework is required for the deterministic/static checks:
 npm install --no-package-lock
 npx tsc --noEmit
 node tests/calibration-check.mjs
+node tests/fixed-rooms-check.mjs
 git diff --check
 ```
 
-The optional three-peer E2E driver uses Playwright only as a browser automation
+The focused fixed-room checks execute the actual signaling handlers with an
+in-memory Blobs fixture and exercise RTC routing with a unit-test peer. They
+verify all three reset/read/write namespaces, stale-generation rejection, phone
+URL generation and normal/PWA-root bootstrap selection. They are not real WebRTC
+or deployed Netlify evidence. Peer lifecycle/restart reliability remains separate
+work; a responder still checks the gameplay offer once.
+
+The existing three-peer E2E driver is still token-oriented and is intentionally
+not updated in this stage; the ordered downstream integration-test card owns its
+replacement. The historical instructions below do not verify this fixed-room
+revision. The driver uses Playwright only as a browser automation
 library. Run from a disposable checkout/worktree on Linux/macOS/WSL with Node
 supported by Netlify CLI and Chromium's system dependencies installed:
 
