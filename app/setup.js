@@ -3,10 +3,15 @@
 
   let Config;
 
+  // This experimental 720p camera preset belongs only to the top phone.
+  // The index page keeps its existing resolution defaults.
+  const isTopCameraPage = !!document.getElementById('gfx') && !window.CalibrationPreview;
+  const topCameraPresetKey = 'topCameraPreset720p60V1';
+
   const DEFAULTS = {
     // Single source of truth
-    camW: 1920,
-    camH: 886,
+    camW: isTopCameraPage ? 1280 : 1920,
+    camH: isTopCameraPage ? 720 : 886,
     zoom: 1,
     topMinArea: 0.025,
     frontMinArea: 8000,
@@ -130,6 +135,13 @@
         const { createConfig } = window;
         Config = createConfig(DEFAULTS, { memory: !!window.CalibrationPreview });
         Config.load();
+        // Previous iPhone visits persist camW/camH in localStorage. Migrate
+        // once for this top-only test, then respect manual resolution edits.
+        if (isTopCameraPage && localStorage.getItem(topCameraPresetKey) !== 'applied') {
+          Config.save('camW', 1280);
+          Config.save('camH', 720);
+          localStorage.setItem(topCameraPresetKey, 'applied');
+        }
         cfg = window.cfg;
         for (const k of Object.keys(DEFAULTS)) {
           if (!window.CalibrationPreview && localStorage.getItem(k) === null) {

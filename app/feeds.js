@@ -84,7 +84,7 @@ self.onmessage = async ({ data }) => {
       return new VideoFrame(frame, { visibleRect: { x, y, width: cropW, height: cropH } });
     }
 
-    async function init({ facingMode = 'environment' } = {}) {
+    async function init({ facingMode = 'environment', require60fps = false } = {}) {
       // Calibration panes consume only their assigned remote stream, never a camera.
       if (window.CalibrationPreview) return true;
       if (!window.Config) return false;
@@ -115,25 +115,42 @@ self.onmessage = async ({ data }) => {
         return false;
       }
       let frontStream;
+      let fallbackReason = null;
+      const video = {
+        width: { ideal: reqW },
+        height: { ideal: reqH },
+        facingMode,
+        frameRate: require60fps ? { min: 60, ideal: 60 } : { ideal: 60 }
+      };
       try {
-        frontStream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            width: { ideal: reqW },
-            height: { ideal: reqH },
-            facingMode,
-            frameRate: { ideal: 60 }
-          }
-        });
+        frontStream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
       } catch (err) {
-        console.log('Front camera init failed', err);
-        return false;
+        if (!require60fps) {
+          console.log('Front camera init failed', err);
+          return false;
+        }
+        // Keep gameplay working if Safari cannot satisfy the requested minimum.
+        fallbackReason = err?.message || err?.name || String(err);
+        console.warn('60 FPS minimum rejected; retrying with ideal 60 FPS:', err);
+        try {
+          frontStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { ...video, frameRate: { ideal: 60 } }
+          });
+        } catch (fallbackError) {
+          console.log('Front camera init failed', fallbackError);
+          return false;
+        }
       }
 
         track = frontStream.getVideoTracks()[0];
         // Diagnostics are opt-in on top.html; index.html does not load this module.
         const diagnostics = window.TopDiagnostics;
-        diagnostics?.onCameraStarted(track, { width: reqW, height: reqH, frameRate: 60, facingMode });
+        diagnostics?.onCameraStarted(track, {
+          width: reqW, height: reqH, frameRate: 60, facingMode,
+          minFrameRate: require60fps && !fallbackReason ? 60 : null,
+          fallbackReason
+        });
         // Do NOT overwrite config with measured track settings; config drives the camera.
         const workerTrack = track.clone();
         videoWorker = startVideoWorker(workerTrack, (frame) => {

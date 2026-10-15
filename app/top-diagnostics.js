@@ -62,7 +62,8 @@
     const maximumGpu = processed ? number(gpuMaxMs) : '—';
 
     output.textContent = [
-      `Requested: ${dimension(requested.width)}×${dimension(requested.height)} @ ${requested.frameRate} fps (ideal)`,
+      `Requested: ${dimension(requested.width)}×${dimension(requested.height)} @ ${requested.frameRate} fps (${requested.minFrameRate ? 'minimum' : 'ideal'})`,
+      ...(requested.fallbackReason ? [`60 FPS minimum rejected: ${requested.fallbackReason}`] : []),
       `Camera: ${dimension(settings.width)}×${dimension(settings.height)} @ ${number(settings.frameRate)} fps${capability}`,
       `Delivered from worker: ${number(incoming * 1000 / elapsed)} fps | Processed: ${number(processed * 1000 / elapsed)} fps`,
       `Pending frames overwritten: ${overwritten} / ${incoming} | GPU.detect + readback: ${averageGpu} ms avg, ${maximumGpu} ms max`
