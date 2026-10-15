@@ -41,6 +41,7 @@
           const ms = total / frames;
           const fps = frames * 1000 / total;
           perfInfo = `${ms.toFixed(1)}ms (${fps.toFixed(1)} fps)`;
+          window.TopCaptureMetrics = { fps, avgMs: ms, at: loopStart };
           updateInfo();
           total = 0;
           frames = 0;

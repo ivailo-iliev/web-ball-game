@@ -89,12 +89,25 @@
     window.Setup.refresh();
   }
 
-  function link({ source, offerer = false, stream, onStream = () => {}, report = console.log, onState = () => {} }) {
+  const STREAM_RATES = Object.freeze([2, 5, 10, 15, 30]);
+  const validStreamRate = fps => STREAM_RATES.includes(fps);
+  const validTelemetry = v => object(v)
+    && Object.keys(v).sort().join(',') === 'captureFps,copyMs,gameplayFps,requestedFps,sentFps'
+    && validStreamRate(v.requestedFps)
+    && ['captureFps', 'copyMs'].every(key => typeof v[key] === 'number' && Number.isFinite(v[key]) && v[key] >= 0 && v[key] <= 60000)
+    && ['gameplayFps', 'sentFps'].every(key => v[key] === null || (typeof v[key] === 'number' && Number.isFinite(v[key]) && v[key] >= 0 && v[key] <= 1000));
+
+  function link({ source, offerer = false, stream, onStream = () => {}, report = console.log, onState = () => {}, onRate = () => {}, onTelemetry = () => {}, onOpen = () => {} }) {
     let channel, peer, controller, stopped = false, applying = false, seeded = false;
     let sendTimer;
     const send = (type, raw) => {
       const checked = values(raw);
       if (checked && channel?.readyState === 'open') channel.send(JSON.stringify({ type, values: checked }));
+    };
+    const sendAux = (type, data) => {
+      if (channel?.readyState !== 'open') return false;
+      channel.send(JSON.stringify({ type, values: data }));
+      return true;
     };
     const snapshot = () => send('calibration-state', window.Config.snapshot());
     const pending = {};
@@ -127,8 +140,22 @@
         channel = ch;
         report('connected');
         if (!offerer) snapshot();
+        onOpen();
       },
       onMessage(text) {
+        let message;
+        try { message = JSON.parse(text); } catch (_) { /* Existing decoder handles bad JSON. */ }
+        if (!offerer && message?.type === 'calibration-rate') {
+          if (object(message.values) && Object.keys(message.values).join(',') === 'fps'
+            && validStreamRate(message.values.fps)) onRate(message.values.fps);
+          else report('Rejected invalid calibration FPS');
+          return;
+        }
+        if (offerer && message?.type === 'calibration-telemetry') {
+          if (validTelemetry(message.values)) onTelemetry(message.values);
+          else report('Rejected invalid calibration telemetry');
+          return;
+        }
         const patch = decode(text, offerer ? 'calibration-state' : 'calibration-config');
         if (!patch) { report('Rejected invalid calibration payload'); return; }
         applying = true;
@@ -165,22 +192,74 @@
       peer?.close();
     };
     window.addEventListener('pagehide', stop, { once: true });
-    return { stop };
+    return {
+      stop,
+      setRate(fps) { return offerer && validStreamRate(fps) && sendAux('calibration-rate', { fps }); },
+      sendTelemetry(data) { return !offerer && validTelemetry(data) && sendAux('calibration-telemetry', data); }
+    };
   }
 
   function phone(source) {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 2;
     const ctx = canvas.getContext('2d');
-    // Manual capture: at most one independent cloned frame every 500 ms (2 FPS).
+    // Manual capture: the calibration connection chooses its own cadence.
     const stream = canvas.captureStream(0);
     const track = stream.getVideoTracks()[0];
     if (!track.requestFrame) { track.stop(); throw new Error('Manual canvas capture is not supported'); }
-    let stopped = false, timer;
+    let stopped = false, timer = null, rate = 2;
+    let copied = 0, totalCopyMs = 0, lastMetrics = performance.now();
+    let lastOutbound = null, reporting = false;
     const report = text => { if (window.CalibrationPreview) window.CalibrationPreview.report(`Calibration ${source}: ${text}`); };
-    const connection = link({ source, stream, report });
+    const connection = link({
+      source, stream, report,
+      onRate(nextRate) {
+        rate = nextRate;
+        // Apply rate changes immediately if waiting for the next frame.
+        if (timer !== null) {
+          clearTimeout(timer);
+          timer = setTimeout(copy, 0);
+        }
+      }
+    });
+
+    async function sendMetrics(now) {
+      if (reporting) return;
+      reporting = true;
+      const elapsed = Math.max(1, now - lastMetrics);
+      const captureFps = copied * 1000 / elapsed;
+      const copyMs = copied ? totalCopyMs / copied : 0;
+      copied = 0;
+      totalCopyMs = 0;
+      lastMetrics = now;
+      let sentFps = null;
+      try {
+        const pc = window.RTC.getController(window.RTC.rooms[source])?.pc;
+        if (pc) {
+          const reports = await pc.getStats();
+          const outbound = Array.from(reports.values()).find(r =>
+            r.type === 'outbound-rtp' && (r.kind === 'video' || r.mediaType === 'video'));
+          if (outbound && Number.isFinite(outbound.framesSent)) {
+            if (lastOutbound && lastOutbound.id === outbound.id && outbound.framesSent >= lastOutbound.frames) {
+              const seconds = (outbound.timestamp - lastOutbound.timestamp) / 1000;
+              if (seconds > 0) sentFps = (outbound.framesSent - lastOutbound.frames) / seconds;
+            }
+            lastOutbound = { id: outbound.id, frames: outbound.framesSent, timestamp: outbound.timestamp };
+          } else lastOutbound = null;
+        } else lastOutbound = null;
+      } catch (_) { lastOutbound = null; }
+      if (!stopped) connection.sendTelemetry({
+        requestedFps: rate, captureFps, copyMs, sentFps,
+        gameplayFps: Number.isFinite(window.TopCaptureMetrics?.fps) ? window.TopCaptureMetrics.fps : null
+      });
+      reporting = false;
+    }
+
     async function copy() {
+      timer = null;
+      if (stopped) return;
       let frame;
+      const started = performance.now();
       try {
         frame = await window.Feeds.captureFrontCalibrationFrame({ timeoutMs: 500 });
         if (stopped) return;
@@ -188,10 +267,16 @@
         if (canvas.height !== frame.displayHeight) canvas.height = frame.displayHeight;
         ctx.drawImage(frame, 0, 0);
         track.requestFrame();
+        copied++;
+        totalCopyMs += performance.now() - started;
       } catch (_) { /* Camera may not have been started yet; gameplay owns acquisition. */ }
       finally {
         frame?.close();
-        if (!stopped) timer = setTimeout(copy, 500);
+        if (!stopped) {
+          const now = performance.now();
+          if (now - lastMetrics >= 2000) void sendMetrics(now);
+          timer = setTimeout(copy, Math.max(0, 1000 / rate - (now - started)));
+        }
       }
     }
     void copy();

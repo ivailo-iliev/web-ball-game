@@ -9,13 +9,17 @@
     #panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
     iframe { width: 100%; height: 75vh; border: 1px solid #555; }
     input { width: 100%; box-sizing: border-box; }
+    .rate-control { display: flex; gap: .5rem; align-items: center; margin: .5rem 0; }
+    .rate-control select { padding: .3rem .5rem; }
+    .perf-metrics { padding: .7rem; background: #222835; border-radius: 5px;
+      white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, monospace; min-height: 3.5rem; }
     @media (max-width: 800px) { #panes { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <h1>Remote calibration</h1>
   <p>Open each join URL on its phone. On the top phone press Start to acquire its camera.
-     Feeds are copied at up to 2 FPS; gameplay stays on its separate connection.
+     Each feed starts at 2 FPS; use the per-camera control to test higher rates without changing gameplay.
      Controls unlock after that phone sends its settings. These fixed rooms are shared by all visitors;
      use only one top phone, one front phone and one calibration screen at a time.</p>
   <p id="status" role="status"></p>
