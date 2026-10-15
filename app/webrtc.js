@@ -175,7 +175,8 @@
           await pc.setLocalDescription(await pc.createOffer());
           if (id !== epoch || session.cancelled) return;
           await write(options.base, 'offer', role, pc.localDescription, room, session.generation);
-          setStatus('negotiating', 'offer sent after ' + elapsed() + '; waiting for answer');
+          if (session.channel?.readyState !== 'open')
+            setStatus('negotiating', 'offer sent after ' + elapsed() + '; waiting for answer');
         }
         await pollSignal(id, session);
       } catch (error) {
@@ -220,7 +221,8 @@
               !pc.remoteDescription) {
             await pc.setRemoteDescription(result.answer);
             answered = true;
-            setStatus('negotiating', 'answer accepted; checking ICE');
+            if (session.channel?.readyState !== 'open')
+              setStatus('negotiating', 'answer accepted; checking ICE');
           }
           if (role === 'b' && result?.offer && result.generation === session.generation &&
               !pc.remoteDescription) {
@@ -232,7 +234,8 @@
             if (id !== epoch || current !== session || session.cancelled) return;
             await write(options.base, 'answer', role, pc.localDescription, room, session.generation);
             answered = true;
-            setStatus('negotiating', 'answer sent; checking ICE');
+            if (session.channel?.readyState !== 'open')
+              setStatus('negotiating', 'answer sent; checking ICE');
           }
           await applyCandidates();
         } catch (error) {
