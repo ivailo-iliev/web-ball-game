@@ -88,6 +88,20 @@ async function gameplay(label) {
   }
   console.log(`PASS Top↔Front: 0/1 received (${label})`);
 }
+async function reverseSettings(source, color) {
+  stage = `${source} phone→Laptop/configuration ${color}`;
+  const before = await pane(source).evaluate(() => ({ config: Config.snapshot(), storage: { ...localStorage } }));
+  const receivedBefore = await pages[source].evaluate(() => e2e.received.length);
+  await pages[source].selectOption('#teamA', color);
+  await wait(() => pages[source].evaluate(color => cfg.teamA === color && localStorage.getItem('teamA') === JSON.stringify(color), color), `${stage}/phone UI state persisted`, 10000);
+  await wait(() => pane(source).evaluate(({ color, before }) => cfg.teamA === color
+    && localStorage.getItem('teamA') === JSON.stringify(color)
+    && e2e.received.slice(before).some(text => {
+      const message = JSON.parse(text); return message.type === 'calibration-state' && message.values.teamA === color;
+    }), { color, before: receivedBefore }), `${stage}/laptop receives and persists phone config`, 10000);
+  assert.notEqual((await pane(source).evaluate(() => Config.snapshot())).teamA, before.config.teamA, `${stage}: laptop config changed`);
+  console.log(`PASS ${source} phone→Laptop: UI patch delivered and persisted on laptop`);
+}
 async function settings(source, color) {
   stage = `Laptop↔${source}/configuration ${color}`;
   const other = source === 'top' ? 'front' : 'top';
@@ -137,6 +151,10 @@ async function restartConnection(source, participant) {
   }, target), true, `${stage}: no automatic reconnect loop`);
   assert.equal((await signal(target, 'b')).generation, currentGeneration, `${stage}: signaling generation stable after restart`);
   await connected();
+  if (source !== 'gameplay') {
+    const colors = { top: { peer: 'yellow', local: 'blue' }, front: { local: 'green', peer: 'red' } };
+    await reverseSettings(source, colors[source][participant]);
+  }
   await gameplay(`${target} restarted independently`);
   console.log(`PASS ${target}: independent restart initiated by ${participant}; state preserved`);
 }
