@@ -131,9 +131,13 @@ self.onmessage = async ({ data }) => {
       }
 
         track = frontStream.getVideoTracks()[0];
+        // Diagnostics are opt-in on top.html; index.html does not load this module.
+        const diagnostics = window.TopDiagnostics;
+        diagnostics?.onCameraStarted(track, { width: reqW, height: reqH, frameRate: 60, facingMode });
         // Do NOT overwrite config with measured track settings; config drives the camera.
         const workerTrack = track.clone();
         videoWorker = startVideoWorker(workerTrack, (frame) => {
+          diagnostics?.onIncomingFrame(!!lastFrame);
           let cropped;
           try {
             cropped = zoomFrame(frame);

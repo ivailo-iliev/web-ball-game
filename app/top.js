@@ -56,6 +56,7 @@
           }
           const colorA = cfg.colorA;
           const colorB = cfg.colorB;
+          const gpuStart = performance.now();
           const { a, b, w, h, resized } = await GPU.detect({
             key: 'top',
             source: frame,
@@ -78,6 +79,7 @@
             radiusPx: cfg.radiusPx,
             rect: null
           });
+          window.TopDiagnostics?.onProcessedFrame(performance.now() - gpuStart);
           if (resized) {
             canvas.width = cropW;
             canvas.height = cropH;
