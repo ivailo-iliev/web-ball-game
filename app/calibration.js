@@ -56,6 +56,34 @@
     return window.RTC.rooms[source];
   }
 
+  const connectionStates = { game: 'new', calibration: 'new' };
+  function renderStatus() {
+    if (typeof document.getElementById !== 'function') return;
+    const el = document.getElementById('state');
+    if (el) el.textContent = `Game: ${connectionStates.game} | Calibration: ${connectionStates.calibration}`;
+  }
+  function setStatus(kind, state, detail = '') {
+    connectionStates[kind] = detail ? `${state} (${detail})` : state;
+    renderStatus();
+  }
+  function controls() {
+    if (window.CalibrationPreview || typeof document.getElementById !== 'function') return;
+    const state = document.getElementById('state');
+    if (!state) return;
+    state.setAttribute('aria-live', 'polite');
+    const bar = document.createElement('span');
+    bar.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px';
+    const calibrationRoom = room(location.pathname.endsWith('/top.html') ? 'top' : 'front');
+    for (const [label, target, aria] of [['↻ Game', window.RTC.rooms.gameplay, 'Restart gameplay connection'], ['↻ Cal', calibrationRoom, `Restart ${calibrationRoom === window.RTC.rooms.top ? 'top' : 'front'} calibration connection`]]) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', aria);
+      button.addEventListener('click', () => { void window.RTC.restart(target); });
+      bar.append(button);
+    }
+    state.after(bar);
+    renderStatus();
+  }
+
   function apply(patch) {
     for (const [key, value] of Object.entries(patch)) window.Config.save(key, value);
     window.Setup.refresh();
@@ -94,7 +122,7 @@
         else for (const track of stream.getVideoTracks()) pc.addTrack(track, stream);
       },
       onTrack: e => onStream(e.streams[0] || new MediaStream([e.track])),
-      onState(state) { report(state); onState(seeded && state === 'connected' ? 'ready' : state); },
+      onState(state, detail) { report(detail ? `${state}: ${detail}` : state); if (!offerer) setStatus('calibration', state, detail); onState(seeded && state === 'connected' ? 'ready' : state); },
       onOpen(ch) {
         channel = ch;
         report('connected');
@@ -142,12 +170,7 @@
     const track = stream.getVideoTracks()[0];
     if (!track.requestFrame) { track.stop(); throw new Error('Manual canvas capture is not supported'); }
     let stopped = false, timer;
-    const status = document.createElement('p');
-    status.id = 'calibrationStatus';
-    status.style.cssText = 'position:fixed;bottom:0;left:0;z-index:100;color:white;background:#222;padding:4px';
-    status.setAttribute('aria-live', 'polite');
-    document.body.append(status);
-    const report = text => { status.textContent = `Calibration ${source}: ${text}`; };
+    const report = text => { if (window.CalibrationPreview) window.CalibrationPreview.report(`Calibration ${source}: ${text}`); };
     const connection = link({ source, stream, report });
     async function copy() {
       let frame;
@@ -173,8 +196,9 @@
     }, { once: true });
   }
 
-  window.Calibration = { values, decode, room, link };
+  window.Calibration = { values, decode, room, link, setStatus };
   if (!window.CalibrationPreview) {
+    controls();
     try { phone(location.pathname.endsWith('/top.html') ? 'top' : 'front'); }
     catch (err) { console.error('Calibration unavailable:', err); }
   }

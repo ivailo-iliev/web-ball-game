@@ -302,7 +302,7 @@
       return;
     }
     if (cfg.topMode === 0) {
-      RTC.startB();
+      RTC.startB({ room: RTC.rooms.gameplay, onState: (state, detail) => window.Calibration?.setStatus('game', state, detail) });
     }
     if (!await Feeds.init()) return;
     if (!await Detect.init()) return;

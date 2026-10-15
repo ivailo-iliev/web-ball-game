@@ -103,7 +103,7 @@
 
     function start() {
       if (window.CalibrationPreview) return;
-      RTC.startA();
+      RTC.startA({ room: RTC.rooms.gameplay, onState: (state, detail) => window.Calibration?.setStatus('game', state, detail) });
     }
 
     return { start, startDetection };

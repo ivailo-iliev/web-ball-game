@@ -23,6 +23,12 @@
     if (source === 'top') root.append(page.getElementById('gfx'), page.getElementById('config'));
     else root.append(page.getElementById('configScreen'));
     document.body.append(video, root);
+    const restart = document.createElement('button');
+    restart.type = 'button';
+    restart.textContent = `↻ Restart ${source} connection`;
+    restart.setAttribute('aria-label', `Restart ${source} calibration connection`);
+    restart.addEventListener('click', () => { void window.RTC.restart(window.RTC.rooms[source]); });
+    status.after(restart);
     // No game navigation or gameplay controls in the calibration-only runtime.
     for (const id of ['b0', 'start', 'btnStart', 'btnRefresh', 'btnViewCycle']) root.querySelector('#' + id)?.remove();
     const enableControls = ready => root.querySelectorAll('input, select, button').forEach(control => { control.disabled = !ready; });
