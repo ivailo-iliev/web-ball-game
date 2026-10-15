@@ -6,18 +6,20 @@
   <title>Remote calibration</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 1rem; background: #151820; color: #fff; font: 15px system-ui; }
-    #panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { padding: 1rem; background: #151820; color: #fff; font: 15px system-ui; }
+    #panes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 1rem; }
     section { min-width: 0; display: grid; align-content: start; gap: .55rem; }
-    h2 { margin: 0; font-size: 1rem; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-width: 0; }
+    h2 { margin: 0; font-size: 1rem; white-space: nowrap; }
     .toolbar { display: flex; align-items: center; gap: .5rem; }
     button, select { min-height: 2.25rem; padding: .4rem .7rem; border: 1px solid #4a5263; border-radius: .45rem; background: #222835; color: #fff; font: inherit; }
     button { cursor: pointer; }
     button:disabled, select:disabled { opacity: .55; cursor: wait; }
     .rate-select { min-width: 7rem; }
-    .perf-metrics { margin: 0; padding: .65rem .75rem; background: #222835; border-radius: 5px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, monospace; min-height: 4rem; max-height: 12rem; overflow: auto; }
-    iframe { width: 100%; height: calc(100vh - 13rem); min-height: 20rem; border: 1px solid #555; border-radius: 5px; background: #111; }
-    @media (max-width: 800px) { #panes { grid-template-columns: 1fr; } iframe { height: 58vh; } }
+    .perf-metrics { margin: 0; padding: .65rem .75rem; background: #222835; border-radius: 5px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, monospace; }
+    iframe { display: block; width: 100%; height: 440px; min-height: 0; border: 1px solid #555; border-radius: 5px; background: #111; }
+    @media (max-width: 800px) { #panes { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
