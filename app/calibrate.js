@@ -22,6 +22,10 @@
       active.pane.contentWindow.postMessage({
         type: 'calibration-perf-rate', source: data.source, fps: Number(active.select.value)
       }, location.origin);
+    } else if (data.type === 'calibration-pane-height') {
+      if (Number.isFinite(data.height) && data.height > 0 && data.height < 10000) {
+        active.pane.style.height = Math.ceil(data.height) + 'px';
+      }
     } else if (data.type === 'calibration-pane-status') {
       active.paneStatus = data.text;
       renderPanel(active);
@@ -41,6 +45,8 @@
     const title = document.createElement('h2');
     title.textContent = source === 'top' ? 'Top phone' : 'Front / index phone';
 
+    const heading = document.createElement('header');
+    heading.className = 'panel-head';
     const toolbar = document.createElement('div');
     toolbar.className = 'toolbar';
     const pane = document.createElement('iframe');
@@ -65,6 +71,7 @@
       select.append(option);
     }
     toolbar.append(reset, select);
+    heading.append(title, toolbar);
 
     const panel = document.createElement('pre');
     panel.className = 'perf-metrics';
@@ -82,7 +89,7 @@
         type: 'calibration-perf-rate', source, fps: Number(select.value)
       }, location.origin);
     });
-    section.append(title, toolbar, panel, pane);
+    section.append(heading, panel, pane);
     document.getElementById('panes').append(section);
   }
 })();
