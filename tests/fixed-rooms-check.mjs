@@ -49,20 +49,37 @@ console.log('PASS fixed storage: three rooms, offer/answer/ICE reads and pops, e
 // Execute the actual RTC helper against the handlers with a minimal unit-test PC.
 // This verifies routing/generation wiring, not real network negotiation.
 class Peer {
-  iceGatheringState = 'complete';
   connectionState = 'new';
+  iceConnectionState = 'new';
   addEventListener() {}
   removeEventListener() {}
-  createDataChannel() { return { readyState: 'open', send() {}, close() {} }; }
+  createDataChannel() {
+    this.channel = { readyState: 'connecting', send() {}, close() {} };
+    return this.channel;
+  }
   async createOffer() { return { type: 'offer', sdp: 'unit-offer' }; }
   async createAnswer() { return { type: 'answer', sdp: 'unit-answer' }; }
-  async setLocalDescription(value) { this.localDescription = value; }
-  async setRemoteDescription(value) { this.currentRemoteDescription = value; }
+  async setLocalDescription(value) {
+    this.localDescription = value;
+    if (value.type === 'answer') {
+      const channel = { readyState: 'open', send() {}, close() {} };
+      this.ondatachannel?.({ channel });
+      queueMicrotask(() => channel.onopen?.());
+    }
+  }
+  async setRemoteDescription(value) {
+    this.remoteDescription = this.currentRemoteDescription = value;
+    if (value.type === 'answer' && this.channel) {
+      this.channel.readyState = 'open';
+      queueMicrotask(() => this.channel.onopen?.());
+    }
+  }
+  async addIceCandidate() {}
   close() { this.connectionState = 'closed'; }
 }
 const window = {};
 const sandbox = { window, document: { getElementById: () => null }, location: { href: 'https://test/top.html' },
-  URL, console, setTimeout, RTCPeerConnection: Peer,
+  URL, console, setTimeout, performance, queueMicrotask, RTCPeerConnection: Peer,
   fetch: async (url, options) => {
     const name = new URL(url).pathname.split('-').pop();
     return handlers[name](new Request(url, options), {});
@@ -73,7 +90,7 @@ sandbox.RTC = window.RTC;
 assert.deepEqual(Object.values(window.RTC.rooms), rooms);
 const controls = [];
 for (const room of rooms) {
-  const a = window.RTC.startA({ ...(room === 'default' ? {} : { room }), timeoutMs: 1000, backoff: [1], log() {} });
+  const a = window.RTC.startA({ ...(room === 'default' ? {} : { room }), timeoutMs: 1000, pollMs: 5, log() {} });
   for (let i = 0; i < 100; i++) {
     const signal = await (await request('read', null, room, 'b')).json();
     if (signal.offer) break;
@@ -81,7 +98,10 @@ for (const room of rooms) {
     assert.ok(i < 99, 'A publishes an offer');
   }
   const originalSend = window.RTC.send;
-  const b = await window.RTC.startB({ ...(room === 'default' ? {} : { room }), log() {} });
+  const originalGeneration = (await (await request('read', null, room, 'b')).json()).generation;
+  const b = await window.RTC.startB({ ...(room === 'default' ? {} : { room }), pollMs: 5, log() {} });
+  assert.equal((await (await request('read', null, room, 'b')).json()).generation,
+    originalGeneration, 'B must never reset a room');
   const ctrl = await a;
   assert.equal(ctrl.pc.currentRemoteDescription.type, 'answer');
   assert.equal(b.pc.currentRemoteDescription.type, 'offer');

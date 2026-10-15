@@ -1,184 +1,285 @@
 /*!
-  Minimal WebRTC helper for the three independent fixed rooms.
-  Pages select a role with startA/startB and can explicitly restart a room.
+  WebRTC for three fixed rooms. Only offerers reset; responders explicitly join.
+  Netlify signaling is used during negotiation and never polled after connection.
 */
 (() => {
   const rooms = Object.freeze({ gameplay: 'default', top: 'calibration-top', front: 'calibration-front' });
-  const DEFAULTS = { room: rooms.gameplay, base: '/.netlify/functions', iceServers: [{ urls: 'stun:stun.l.google.com:19302' }], directOnly: false, timeoutMs: 300000, backoff: [400, 800, 1500, 3000, 5000] };
+  const DEFAULTS = {
+    room: rooms.gameplay, base: '/.netlify/functions',
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    directOnly: false, timeoutMs: 45000, pollMs: 450
+  };
   const controllers = new Map();
-  const qsBust = u => (u.searchParams.set('_', Date.now().toString()), u);
-  async function fetchJson(base, name, { method='GET', params=null, body=null } = {}) {
-    const u = new URL(`${base}/${name}`, location.href);
-    if (params) Object.entries(params).forEach(([k,v]) => u.searchParams.set(k, v));
-    const r = await fetch(qsBust(u), { method, cache:'no-store', headers: body == null ? {} : { 'content-type':'application/json' }, ...(body == null ? {} : { body:JSON.stringify(body) }) });
-    if (r.status === 404) return null;
-    if (!r.ok) throw new Error(`${name} ${r.status}`);
-    return (r.headers.get('content-type') || '').includes('application/json') ? r.json() : r.text();
-  }
-  const resetRoom = (base, room) => fetchJson(base, 'signal-reset', { method:'POST', body:{ room } });
-  const write = (base, kind, role, data, room, generation) => fetchJson(base, 'signal-write', { method:'POST', body:{ kind, role, data, room, generation } });
-  const readRole = (base, role, room) => fetchJson(base, 'signal-read', { params:{ role, room } });
-  const validateRoom = room => { if (room !== undefined && (typeof room !== 'string' || !/^[A-Za-z0-9_-]{1,96}$/.test(room))) throw new Error('Invalid room'); };
-  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-  function waitIceComplete(pc, timeoutMs, cancelled) {
-    if (pc.iceGatheringState === 'complete') return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => finish(new Error('ICE gathering timed out')), timeoutMs);
-      const onChange = () => { if (pc.iceGatheringState === 'complete') finish(); };
-      const finish = error => { clearTimeout(timer); pc.removeEventListener('icegatheringstatechange', onChange); cancelled.add(finish); error ? reject(error) : resolve(); };
-      cancelled.add(() => finish(new Error('Connection attempt cancelled')));
-      pc.addEventListener('icegatheringstatechange', onChange);
+  const bust = url => { url.searchParams.set('_', Date.now().toString()); return url; };
+  async function fetchJson(base, name, { method = 'GET', params = null, body = null } = {}) {
+    const url = new URL(base + '/' + name, location.href);
+    if (params) Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+    const response = await fetch(bust(url), {
+      method, cache: 'no-store', headers: body == null ? {} : { 'content-type': 'application/json' },
+      ...(body == null ? {} : { body: JSON.stringify(body) })
     });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(name + ' HTTP ' + response.status);
+    return (response.headers.get('content-type') || '').includes('application/json')
+      ? response.json() : response.text();
   }
+  const resetRoom = (base, room) => fetchJson(base, 'signal-reset', { method: 'POST', body: { room } });
+  const write = (base, kind, role, data, room, generation) =>
+    fetchJson(base, 'signal-write', { method: 'POST', body: { kind, role, data, room, generation } });
+  const read = (base, role, room) => fetchJson(base, 'signal-read', { params: { role, room } });
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const validateRoom = room => {
+    if (room !== undefined && (typeof room !== 'string' || !/^[A-Za-z0-9_-]{1,96}$/.test(room)))
+      throw new Error('Invalid room');
+  };
+
   function createController(role, initialOptions) {
     const room = initialOptions.room || rooms.gameplay;
-    let options = { ...DEFAULTS, ...initialOptions, room };
-    let log = options.log || (msg => { const el = document.getElementById('state'); if (el) el.textContent = String(msg); console.log(msg); });
-    let epoch = 0, current = null, stopped = false, serial = Promise.resolve(), status = 'new';
+    const options = { ...DEFAULTS, ...initialOptions, room };
+    const log = options.log || (message => {
+      const el = document.getElementById('state');
+      if (el) el.textContent = String(message);
+      console.log(message);
+    });
+    let epoch = 0, current = null, stopped = false, serial = Promise.resolve();
     const listeners = new Set();
-    let resolveReady;
+    let resolveReady, readyDone = false;
     const ready = new Promise(resolve => { resolveReady = resolve; });
-    let readyDone = false;
     const finishReady = () => { if (!readyDone) { readyDone = true; resolveReady(controller); } };
     const controller = {
-      room, role, status, ready,
-      get pc() { return current && current.pc || null; },
-      get channel() { return current && current.channel || null; },
-      get error() { return current && current.error || null; },
+      room, role, status: 'new', ready,
+      get pc() { return current?.pc || null; },
+      get channel() { return current?.channel || null; },
+      get error() { return current?.error || null; },
       onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-      send(msg) { const ch = controller.channel; if (!ch || ch.readyState !== 'open') return false; ch.send(msg); return true; },
-      stop() { stopped = true; epoch++; dispose(current); current = null; setStatus('stopped'); },
-      restart() { stopped = false; const id = ++epoch; dispose(current); current = null; return enqueue(() => begin(id, true)); }
+      send(message) {
+        const channel = controller.channel;
+        if (channel?.readyState !== 'open') return false;
+        channel.send(message);
+        return true;
+      },
+      stop() {
+        stopped = true; epoch++;
+        dispose(current); current = null;
+        setStatus('stopped');
+        finishReady();
+      },
+      restart() {
+        stopped = false;
+        const id = ++epoch;
+        dispose(current); current = null;
+        // A owns resets. B always joins the room without changing its generation.
+        return enqueue(() => begin(id, role === 'a'));
+      }
     };
-    function setStatus(value, detail='') { status = controller.status = value; log(detail ? `${value}: ${detail}` : value); if (options.onState) { try { options.onState(value, detail, controller); } catch {} } listeners.forEach(fn => { try { fn(value, detail, controller); } catch {} }); }
+    function setStatus(state, detail = '') {
+      controller.status = state;
+      log(detail ? state + ': ' + detail : state);
+      try { options.onState?.(state, detail, controller); } catch (_) {}
+      for (const fn of listeners) { try { fn(state, detail, controller); } catch (_) {} }
+    }
     function dispose(session) {
       if (!session) return;
       session.cancelled = true;
-      session.cancel.forEach(fn => { try { fn(); } catch {} });
-      session.off.forEach(fn => { try { fn(); } catch {} });
-      try { if (session.channel) { session.channel.onopen = session.channel.onmessage = null; session.channel.close(); } } catch {}
-      try { session.pc.ondatachannel = null; session.pc.close(); } catch {}
+      try {
+        if (session.channel) {
+          session.channel.onopen = session.channel.onmessage = session.channel.onclose = null;
+          session.channel.close();
+        }
+      } catch (_) {}
+      try { session.pc.close(); } catch (_) {}
     }
     function enqueue(fn) { serial = serial.catch(() => {}).then(fn); return serial; }
-    async function begin(id, reset, inheritedGeneration) {
+
+    async function begin(id, reset) {
       if (stopped || id !== epoch) return;
+      let generation = null;
       if (reset) {
-        setStatus('signaling', 'resetting room');
-        try { const result = await resetRoom(options.base, room); if (!result) throw new Error('signal-reset missing'); inheritedGeneration = result.generation; }
-        catch (e) { if (id === epoch) setStatus('signaling-error', e.message); finishReady(); return; }
-      }
-      if (id !== epoch) return;
-      setStatus('negotiating', 'creating peer');
-      const session = { pc:new RTCPeerConnection({ iceServers:options.directOnly ? [] : options.iceServers || [] }), channel:null, cancel:new Set(), off:[], cancelled:false, error:null, generation:inheritedGeneration };
-      current = session;
-      const pc = session.pc;
-      const add = (target, event, fn) => { target.addEventListener(event, fn); session.off.push(() => target.removeEventListener(event, fn)); };
-      const on = (ch) => { session.channel = ch; ch.onopen = () => { if (current === session) { setStatus('connected', 'data channel open'); if (options.onOpen) options.onOpen(ch, pc); } }; ch.onclose = () => { if (current === session && !stopped) setStatus('data-channel-error', 'channel closed'); }; ch.onerror = () => { if (current === session) setStatus('data-channel-error', 'channel error'); }; ch.onmessage = e => { try { options.onMessage ? options.onMessage(String(e.data), ch, pc) : defaultMessage(String(e.data)); } catch (e) { log(`data-channel error: ${e.message}`); } }; };
-      add(pc, 'connectionstatechange', () => { if (current !== session) return; const s = pc.connectionState; if (s === 'connected' && session.channel && session.channel.readyState === 'open') setStatus('connected'); else if (s === 'failed') setStatus('negotiation-error', 'peer connection failed; use refresh to retry'); else if (s === 'disconnected') setStatus('negotiating', 'peer temporarily disconnected'); else setStatus('negotiating', `peer ${s}`); });
-      add(pc, 'iceconnectionstatechange', () => { if (pc.iceConnectionState === 'failed' && current === session) setStatus('negotiation-error', 'ICE failed; use refresh to retry'); });
-      add(pc, 'icecandidateerror', e => { session.error = e.errorText || e.errorCode || 'ICE candidate error'; if (current === session) log(`signaling/ICE diagnostic: ${session.error}`); });
-      add(pc, 'track', e => { if (current === session) { session.trackSeen = true; if (options.onTrack) { try { options.onTrack(e); } catch (error) { session.error = error.message; setStatus('media-track-error', error.message); } } const track = e.track; if (track) { const ended = () => { if (current === session) setStatus('media-track-error', 'remote track ended'); }; add(track, 'ended', ended); add(track, 'mute', () => { if (current === session) log('media-track diagnostic: remote track muted'); }); add(track, 'unmute', () => { if (current === session) log('media-track diagnostic: remote track resumed'); }); } } });
-      pc.ondatachannel = e => on(e.channel);
-      if (role === 'a') { session.channel = pc.createDataChannel('chat'); on(session.channel); }
-      options.preparePc?.(pc);
-      try {
-        if (role === 'a') {
-          const offer = await pc.createOffer(); if (id !== epoch) return;
-          await pc.setLocalDescription(offer); await waitIceComplete(pc, options.timeoutMs, session.cancel); if (id !== epoch) return;
-          const sent = await write(options.base, 'offer', 'a', pc.localDescription, room, inheritedGeneration); if (!sent) throw new Error('offer write missing');
-          setStatus('negotiating', 'offer sent; waiting for answer');
-          await pollAnswer(id, session, inheritedGeneration);
-        } else {
-          await pollOffer(id, session, inheritedGeneration);
-        }
-      } catch (e) { if (id === epoch && !stopped) { session.error = e.message; setStatus(/write|read|reset|signal/i.test(e.message) ? 'signaling-error' : 'negotiation-error', e.message); dispose(session); current = null; } finishReady(); }
-    }
-    // Keep observing signaling after SDP exchange: a remote explicit restart is
-    // a new generation, not a transport failure to retry or a reason to reset.
-    async function watchGeneration(id, session, generation) {
-      while (id === epoch && !stopped && current === session && !session.cancelled) {
-        await sleep(1500);
-        if (id !== epoch || stopped || current !== session || session.cancelled) return;
+        setStatus('signaling', 'resetting ' + room);
         try {
-          const result = await readRole(options.base, role, room);
-          if (id !== epoch || stopped || current !== session || session.cancelled) return;
-          if (result?.generation && result.generation !== generation) {
-            const next = ++epoch;
-            dispose(session); current = null;
-            // Adopt the observed generation once; never reset in response to it.
-            enqueue(() => begin(next, false, result.generation));
+          const response = await resetRoom(options.base, room);
+          if (!response?.generation) throw new Error('signal-reset did not return a generation');
+          generation = response.generation;
+        } catch (error) {
+          if (id === epoch) setStatus('signaling-error', error.message);
+          finishReady();
+          return;
+        }
+      }
+      if (id !== epoch || stopped) return;
+      const session = {
+        pc: null, channel: null, generation, cancelled: false,
+        pendingCandidates: [], error: null, started: performance.now()
+      };
+      current = session;
+      const elapsed = () => Math.round(performance.now() - session.started) + ' ms';
+      let pc;
+      try {
+        pc = session.pc = new RTCPeerConnection({
+          iceServers: options.directOnly ? [] : options.iceServers || []
+        });
+        setStatus('negotiating', role === 'a' ? 'creating offer' : 'waiting for offer');
+        const onChannel = channel => {
+          session.channel = channel;
+          channel.onopen = () => {
+            if (current !== session || session.cancelled) return;
+            setStatus('connected', 'data channel open in ' + elapsed());
+            finishReady();
+            try { options.onOpen?.(channel, pc); } catch (error) { log(error.message); }
+          };
+          channel.onclose = () => {
+            if (current === session && !stopped) setStatus('data-channel-error', 'channel closed; reconnect manually');
+          };
+          channel.onerror = () => {
+            if (current === session) setStatus('data-channel-error', 'channel error');
+          };
+          channel.onmessage = event => {
+            try {
+              if (options.onMessage) options.onMessage(String(event.data), channel, pc);
+              else defaultMessage(String(event.data));
+            } catch (error) { log('data-channel error: ' + error.message); }
+          };
+        };
+        pc.ondatachannel = event => onChannel(event.channel);
+        if (role === 'a') onChannel(pc.createDataChannel('chat'));
+        pc.onconnectionstatechange = () => {
+          if (current !== session || session.cancelled) return;
+          if (pc.connectionState === 'failed')
+            setStatus('negotiation-error', 'peer failed; reconnect manually');
+          else if (pc.connectionState === 'disconnected')
+            setStatus('negotiating', 'peer disconnected; reconnect manually');
+        };
+        pc.oniceconnectionstatechange = () => {
+          if (current === session && pc.iceConnectionState === 'failed')
+            setStatus('negotiation-error', 'ICE failed; reconnect manually');
+        };
+        pc.onicecandidateerror = event => {
+          session.error = event.errorText || String(event.errorCode || 'ICE candidate error');
+          if (current === session) log('ICE diagnostic: ' + session.error);
+        };
+        pc.ontrack = event => {
+          if (current !== session) return;
+          try { options.onTrack?.(event); }
+          catch (error) { session.error = error.message; setStatus('media-track-error', error.message); }
+        };
+        // Trickle candidates instead of holding the offer/answer until gathering completes.
+        pc.onicecandidate = event => {
+          if (!event.candidate || !session.generation || current !== session ||
+              session.cancelled || session.channel?.readyState === 'open') return;
+          const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
+          void write(options.base, 'candidate', role, candidate, room, session.generation)
+            .catch(error => { if (current === session) log('ICE candidate write: ' + error.message); });
+        };
+        options.preparePc?.(pc);
+        if (role === 'a') {
+          await pc.setLocalDescription(await pc.createOffer());
+          if (id !== epoch || session.cancelled) return;
+          await write(options.base, 'offer', role, pc.localDescription, room, session.generation);
+          setStatus('negotiating', 'offer sent after ' + elapsed() + '; waiting for answer');
+        }
+        await pollSignal(id, session);
+      } catch (error) {
+        if (id === epoch && !stopped) {
+          session.error = error.message;
+          setStatus(/signal|read|write|reset|HTTP/i.test(error.message)
+            ? 'signaling-error' : 'negotiation-error', error.message);
+          dispose(session);
+          current = null;
+        }
+      } finally { finishReady(); }
+    }
+
+    async function pollSignal(id, session) {
+      const pc = session.pc;
+      const started = Date.now();
+      let answered = false;
+      async function applyCandidates() {
+        if (!pc.remoteDescription) return;
+        while (session.pendingCandidates.length) {
+          const candidate = session.pendingCandidates.shift();
+          try { await pc.addIceCandidate(candidate); }
+          catch (error) { if (current === session) log('ICE candidate rejected: ' + error.message); }
+        }
+      }
+      while (id === epoch && !stopped && !session.cancelled &&
+             current === session && Date.now() - started < options.timeoutMs) {
+        if (session.channel?.readyState === 'open') return;
+        if (pc.connectionState === 'failed' || pc.iceConnectionState === 'failed') return;
+        try {
+          const result = await read(options.base, role, room);
+          if (id !== epoch || current !== session || session.cancelled) return;
+          if (result?.generation && session.generation && result.generation !== session.generation) {
+            setStatus('signaling-error', 'room was reset elsewhere; press Connect or Reset manually');
             return;
           }
-        } catch (e) {
-          if (id === epoch && current === session) log(`signaling diagnostic: generation read: ${e.message}`);
+          if (role === 'b' && !session.generation && result?.generation)
+            session.generation = result.generation;
+          if (result?.candidates?.length)
+            session.pendingCandidates.push(...result.candidates);
+          if (role === 'a' && result?.answer && result.generation === session.generation &&
+              !pc.remoteDescription) {
+            await pc.setRemoteDescription(result.answer);
+            answered = true;
+            setStatus('negotiating', 'answer accepted; checking ICE');
+          }
+          if (role === 'b' && result?.offer && result.generation === session.generation &&
+              !pc.remoteDescription) {
+            if (options.directOnly && / typ (srflx|relay)\b/.test(result.offer.sdp || ''))
+              throw new Error('offer incompatible with directOnly');
+            await pc.setRemoteDescription(result.offer);
+            await applyCandidates();
+            await pc.setLocalDescription(await pc.createAnswer());
+            if (id !== epoch || current !== session || session.cancelled) return;
+            await write(options.base, 'answer', role, pc.localDescription, room, session.generation);
+            answered = true;
+            setStatus('negotiating', 'answer sent; checking ICE');
+          }
+          await applyCandidates();
+        } catch (error) {
+          if (id !== epoch || current !== session) return;
+          session.error = error.message;
+          if (/HTTP 409|incompatible|description|SDP|InvalidState/i.test(error.message)) {
+            setStatus('negotiation-error', error.message + '; reconnect manually');
+            return;
+          }
+          log('signaling retry: ' + error.message);
         }
+        if (session.channel?.readyState === 'open') return;
+        await sleep(options.pollMs);
+      }
+      if (id === epoch && !stopped && current === session && !session.cancelled &&
+          session.channel?.readyState !== 'open') {
+        setStatus('timeout', answered ? 'ICE/data channel did not connect; retry manually'
+          : role === 'a' ? 'no answer; retry manually' : 'no offer; press Connect after Reset');
       }
     }
-    async function pollAnswer(id, session, generation) {
-      const started = Date.now(); let n = 0;
-      while (id === epoch && !stopped && Date.now() - started < options.timeoutMs) {
-        try {
-          const result = await readRole(options.base, 'a', room);
-          if (id !== epoch) return;
-          if (result && result.generation !== generation && result.generation) { dispose(session); current = null; return begin(id, false, result.generation); }
-          if (result && result.answer && result.generation === generation && !session.pc.currentRemoteDescription) {
-            await session.pc.setRemoteDescription(result.answer);
-            if (id !== epoch || current !== session) return;
-            setStatus('negotiating', 'answer accepted; checking ICE/data channel');
-            void watchGeneration(id, session, generation); finishReady(); return;
-          }
-        } catch (e) { if (id === epoch) log(`signaling retry: answer read: ${e.message}`); }
-        await sleep(options.backoff[Math.min(n++, options.backoff.length - 1)] || 1000);
-      }
-      if (id === epoch && !stopped) { setStatus('timeout', 'no answer; use refresh to restart'); dispose(session); current = null; }
-      finishReady();
+    function defaultMessage(data) {
+      const bit = Number.parseInt(data, 10);
+      if (!Number.isNaN(bit)) try { window.Controller?.handleBit(bit); } catch (_) {}
     }
-    async function pollOffer(id, session, generation) {
-      const started = Date.now(); let n = 0;
-      while (id === epoch && !stopped && Date.now() - started < options.timeoutMs) {
-        try {
-          const result = await readRole(options.base, 'b', room);
-          if (id !== epoch) return;
-          if (result && result.generation && result.generation !== generation) {
-            if (generation) {
-              dispose(session); current = null;
-              return begin(id, false, result.generation);
-            }
-            generation = session.generation = result.generation;
-          }
-          const offer = result && result.generation === generation && result.offer;
-          if (offer) {
-            if (options.directOnly && !isHostOnlySdp(offer.sdp || '')) throw new Error('offer incompatible with directOnly');
-            await session.pc.setRemoteDescription(offer);
-            const answer = await session.pc.createAnswer(); await session.pc.setLocalDescription(answer);
-            await waitIceComplete(session.pc, options.timeoutMs, session.cancel);
-            const sent = await write(options.base, 'answer', 'b', session.pc.localDescription, room, generation); if (!sent) throw new Error('answer write missing');
-            if (id !== epoch || current !== session) return;
-            setStatus('negotiating', 'answer sent; checking ICE/data channel');
-            void watchGeneration(id, session, generation); finishReady(); return;
-          }
-        } catch (e) {
-          if (id === epoch && (/SDP|description|offer incompatible/i.test(e.message) || ['InvalidAccessError', 'OperationError', 'TypeError'].includes(e.name))) {
-            session.error = e.message; setStatus('negotiation-error', e.message); dispose(session); current = null; finishReady(); return;
-          }
-          if (id === epoch) log(`signaling/negotiation retry: offer: ${e.message}`);
-        }
-        await sleep(options.backoff[Math.min(n++, options.backoff.length - 1)] || 1000);
-      }
-      if (id === epoch && !stopped) { setStatus('timeout', 'no offer; use refresh to restart'); dispose(session); current = null; }
-    }
-    function defaultMessage(data) { const bit = Number.parseInt(data, 10); if (!Number.isNaN(bit)) try { window.Controller && window.Controller.handleBit(bit); } catch {} }
-    function isHostOnlySdp(sdp) { return !/ typ (srflx|relay)\b/.test(sdp); }
-    function start(reset) { stopped = false; const id = ++epoch; dispose(current); current = null; enqueue(() => begin(id, reset)); return controller; }
-    start(true);
+    // Only the offerer may create a new generation during initial startup.
+    const initialId = ++epoch;
+    enqueue(() => begin(initialId, role === 'a'));
     return controller;
   }
-  function startA(options={}) { validateRoom(options.room); return createController('a', options); }
-  function startB(options={}) { validateRoom(options.room); return createController('b', options); }
-  function getController(room=rooms.gameplay) { return controllers.get(room) || null; }
-  function restart(room=rooms.gameplay) { validateRoom(room); const ctrl = controllers.get(room); return ctrl ? ctrl.restart() : null; }
-  window.RTC = { rooms, startA, startB, getController, restart, send: (...args) => (controllers.get(rooms.gameplay)?.send(...args) || false) };
-  const originalA = startA, originalB = startB;
-  window.RTC.startA = options => { const c = originalA(options); controllers.set(c.room, c); return c.ready.then(() => c); };
-  window.RTC.startB = options => { const c = originalB(options); controllers.set(c.room, c); return c.ready.then(() => c); };
+
+  const startA = options => { validateRoom(options.room); return createController('a', options); };
+  const startB = options => { validateRoom(options.room); return createController('b', options); };
+  window.RTC = {
+    rooms,
+    startA(options = {}) {
+      const controller = startA(options); controllers.set(controller.room, controller);
+      return controller.ready.then(() => controller);
+    },
+    startB(options = {}) {
+      const controller = startB(options); controllers.set(controller.room, controller);
+      return controller.ready.then(() => controller);
+    },
+    getController(room = rooms.gameplay) { return controllers.get(room) || null; },
+    restart(room = rooms.gameplay) {
+      validateRoom(room);
+      return controllers.get(room)?.restart() || null;
+    },
+    send(...args) { return controllers.get(rooms.gameplay)?.send(...args) || false; }
+  };
 })();

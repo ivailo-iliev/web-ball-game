@@ -301,9 +301,7 @@
       void preview();
       return;
     }
-    if (cfg.topMode === 0) {
-      RTC.startB({ room: RTC.rooms.gameplay, onState: (state, detail) => window.Calibration?.setStatus('game', state, detail) });
-    }
+    // The front phone connects to gameplay only when Connect Game is pressed.
     if (!await Feeds.init()) return;
     if (!await Detect.init()) return;
     lastTop = 0;

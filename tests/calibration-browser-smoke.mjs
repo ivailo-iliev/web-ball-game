@@ -146,19 +146,28 @@ async function restartConnection(source, participant) {
   const prior = await signal(target, 'b');
   const priorGeneration = prior.generation;
   const priorOffer = prior.offer?.sdp;
-  stage = `${target}/restart from ${participant}`;
-  if (participant === 'peer') {
-    if (source === 'gameplay') await page.getByRole('button', { name: 'Restart gameplay connection' }).click();
-    else await page.getByRole('button', { name: `Restart ${source} calibration connection` }).click();
+  stage = `${target}/manual restart (${participant})`;
+  // Only top.html resets gameplay; only the matching workstation pane resets calibration.
+  if (source === 'gameplay') {
+    await pages.top.getByRole('button', { name: 'Reset gameplay room' }).click();
   } else {
-    if (source === 'gameplay') await page.getByRole('button', { name: 'Restart gameplay connection' }).click();
-    else await pane(source).getByRole('button', { name: `Restart ${source} calibration connection` }).click();
+    await pane(source).getByRole('button', { name: `Reset ${source} calibration room` }).click();
   }
   await wait(async () => {
     const signalState = await signal(target, 'b');
-    const current = await page.evaluate(room => RTC.getController(room)?.pc?.connectionState, target);
-    return signalState.generation !== priorGeneration && signalState.offer?.sdp && signalState.offer.sdp !== priorOffer && current === 'connected';
-  }, `${stage}/new signaling generation and connected peer`);
+    return signalState.generation !== priorGeneration && !!signalState.offer?.sdp &&
+      signalState.offer.sdp !== priorOffer;
+  }, `${stage}/new offer available`);
+  if (source === 'gameplay') {
+    await pages.front.getByRole('button', { name: 'Connect to gameplay room' }).click();
+  } else {
+    await pages[source].getByRole('button', {
+      name: `Connect to ${source} calibration room`
+    }).click();
+  }
+  await wait(async () => page.evaluate(room =>
+    RTC.getController(room)?.pc?.connectionState === 'connected', target),
+    `${stage}/manual join connected`);
   const currentGeneration = (await signal(target, 'b')).generation;
   assert.deepEqual(await page.evaluate(room => ({ state: Config.snapshot(), storage: { ...localStorage }, tracks: RTC.getController(room)?.pc?.getSenders().map(sender => sender.track?.id).filter(Boolean) ?? [] }), target), before,
     `${stage}: game/config/camera state preserved`);
@@ -239,9 +248,12 @@ try {
   await pages.laptop.goto(`${origin}/calibrate.html`);
   await wait(async () => (await signal(room('top'), 'b')).offer && (await signal(room('front'), 'b')).offer, 'Laptop↔Top/Front/offers stored');
   await pages.top.goto(`${origin}/top.html`);
-  // Gameplay B checks only once: respect the production offer-first bootstrap.
+  // Each phone joins explicitly after its offerer has reset the relevant room.
   await wait(async () => !!(await signal(undefined, 'b')).offer, 'Top↔Front/gameplay offer stored');
   await pages.front.goto(`${origin}/index.html`);
+  await pages.top.getByRole('button', { name: 'Connect to top calibration room' }).click();
+  await pages.front.getByRole('button', { name: 'Connect to front calibration room' }).click();
+  await pages.front.getByRole('button', { name: 'Connect to gameplay room' }).click();
   await ready('top'); await ready('front');
   await wait(() => pages.top.evaluate(() => RTC.getController(RTC.rooms.gameplay)?.channel?.readyState === 'open'), 'Top↔Front/gameplay channel open');
   await connected();

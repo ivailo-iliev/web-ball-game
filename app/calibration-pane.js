@@ -106,8 +106,8 @@
     document.body.append(video, root);
     const restart = document.createElement('button');
     restart.type = 'button';
-    restart.textContent = `↻ Restart ${source} connection`;
-    restart.setAttribute('aria-label', `Restart ${source} calibration connection`);
+    restart.textContent = `↻ Reset ${source} room`;
+    restart.setAttribute('aria-label', `Reset ${source} calibration room`);
     restart.addEventListener('click', () => { void window.RTC.restart(window.RTC.rooms[source]); });
     status.after(restart);
     // No game navigation or gameplay controls in the calibration-only runtime.
