@@ -91,7 +91,7 @@ async function gameplay(label) {
 async function reverseSettings(source, color) {
   stage = `${source} phone→Laptop/configuration ${color}`;
   const before = await pane(source).evaluate(() => ({ config: Config.snapshot(), storage: { ...localStorage } }));
-  const receivedBefore = await pages[source].evaluate(() => e2e.received.length);
+  const receivedBefore = await pane(source).evaluate(() => e2e.received.length);
   await pages[source].selectOption('#teamA', color);
   await wait(() => pages[source].evaluate(color => cfg.teamA === color && localStorage.getItem('teamA') === JSON.stringify(color), color), `${stage}/phone UI state persisted`, 10000);
   await wait(() => pane(source).evaluate(({ color, before }) => cfg.teamA === color
