@@ -91,6 +91,28 @@
       bar.append(button);
     }
     state.after(bar);
+    const panel = document.createElement('pre');
+    panel.id = 'rtcDiagnostics';
+    panel.setAttribute('aria-label', 'WebRTC negotiation diagnostics');
+    panel.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:15;' +
+      'max-width:min(94vw,390px);max-height:36vh;overflow:auto;' +
+      'padding:7px 9px;margin:0;border-radius:5px;background:rgba(0,0,0,.84);' +
+      'color:#fff;font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;' +
+      'pointer-events:none;box-sizing:border-box';
+    document.body.append(panel);
+    const data = new Map();
+    const render = () => {
+      const game = data.get(window.RTC.rooms.gameplay);
+      const calRoom = isTop ? window.RTC.rooms.top : window.RTC.rooms.front;
+      const cal = data.get(calRoom);
+      panel.textContent = 'GAME\n' + window.RTC.formatDiagnostics(game) +
+        '\n\nCALIBRATION\n' + window.RTC.formatDiagnostics(cal);
+    };
+    window.RTC.subscribeDiagnostics(snapshot => {
+      data.set(snapshot.room, snapshot);
+      render();
+    });
+    render();
     renderStatus();
   }
 

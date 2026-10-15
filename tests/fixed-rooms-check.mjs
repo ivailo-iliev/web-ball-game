@@ -122,7 +122,8 @@ vm.runInNewContext(readFileSync('app/calibrate.js', 'utf8'), {
 });
 assert.equal(panes.length, 2);
 assert.deepEqual(panes.map(section => section.children[1].value), ['https://test/top.html', 'https://test/index.html']);
-assert.deepEqual(panes.map(section => section.children[5].src), ['calibration-pane.html?source=top', 'calibration-pane.html?source=front']);
+assert.deepEqual(panes.map(section => section.children[6].src), ['calibration-pane.html?source=top', 'calibration-pane.html?source=front']);
+assert.ok(panes.every(section => section.children[4].textContent.includes('Waiting for calibration')));
 assert.deepEqual(panes.map(section => section.children[3].children[0].children.map(option => option.value)),
   [['2', '5', '10', '15', '30'], ['2', '5', '10', '15', '30']]);
 assert.ok(!readFileSync('calibrate.html', 'utf8').includes('name="calibration"'));
@@ -135,7 +136,7 @@ for (const pathname of ['/top.html', '/index.html', '/']) {
   const track = { requestFrame() {}, stop() {} };
   const stream = { getVideoTracks: () => [track] };
   const phoneWindow = {
-    RTC: { rooms: window.RTC.rooms, startB: async options => { started.push(options.room); return { pc: { connectionState: 'new' }, stop() {} }; } },
+    RTC: { rooms: window.RTC.rooms, getController: () => null, startB: async options => { started.push(options.room); return { pc: { connectionState: 'new' }, stop() {} }; } },
     Config: { subscribe: () => () => {} },
     Feeds: { captureFrontCalibrationFrame: () => new Promise(() => {}) },
     addEventListener() {}
@@ -145,6 +146,8 @@ for (const pathname of ['/top.html', '/index.html', '/']) {
     performance: { now: () => 0 },
     document: { createElement: () => ({ getContext: () => ({}), captureStream: () => stream, style: {}, setAttribute() {} }), body: { append() {} } }
   });
+  assert.deepEqual(started, [], 'phone must not join calibration until Connect is pressed');
+  phoneWindow.CalibrationPhone.connect();
   assert.deepEqual(started, [pathname === '/top.html' ? 'calibration-top' : 'calibration-front']);
   assert.equal(phoneWindow.Calibration.room('top'), 'calibration-top');
   assert.equal(phoneWindow.Calibration.room('front'), 'calibration-front');
