@@ -4,7 +4,11 @@
   const params = new URLSearchParams(location.search);
   const source = params.get('source');
   const status = document.getElementById('connection');
-  const report = text => { status.textContent = `${source}: ${text}`; };
+  const report = text => {
+    const message = source + ': ' + text;
+    if (status) status.textContent = message;
+    if (window.parent !== window) window.parent.postMessage({ type: 'calibration-pane-status', source, text: message }, location.origin);
+  };
   let desiredFps = 2, connection = null, latestSender = null;
   let previousInbound = null, statsBusy = false, renderFrames = 0;
   let renderWindow = performance.now(), displayedFps = null;
@@ -13,11 +17,14 @@
   };
   window.addEventListener('message', event => {
     const data = event.data;
-    if (event.origin !== location.origin || event.source !== window.parent
-      || data?.type !== 'calibration-perf-rate' || data.source !== source
-      || ![2, 5, 10, 15, 30].includes(data.fps)) return;
-    desiredFps = data.fps;
-    connection?.setRate(desiredFps);
+    if (event.origin !== location.origin || event.source !== window.parent || data?.source !== source) return;
+    if (data.type === 'calibration-perf-rate' && [2, 5, 10, 15, 30].includes(data.fps)) {
+      desiredFps = data.fps;
+      connection?.setRate(desiredFps);
+    } else if (data.type === 'calibration-reset') {
+      const room = window.RTC?.rooms?.[source];
+      if (room) void window.RTC.restart(room);
+    }
   });
   const videoFrame = () => {
     if (!video.isConnected) return;
@@ -104,12 +111,6 @@
     if (source === 'top') root.append(page.getElementById('gfx'), page.getElementById('config'));
     else root.append(page.getElementById('configScreen'));
     document.body.append(video, root);
-    const restart = document.createElement('button');
-    restart.type = 'button';
-    restart.textContent = `↻ Reset ${source} room`;
-    restart.setAttribute('aria-label', `Reset ${source} calibration room`);
-    restart.addEventListener('click', () => { void window.RTC.restart(window.RTC.rooms[source]); });
-    status.after(restart);
     // No game navigation or gameplay controls in the calibration-only runtime.
     for (const id of ['b0', 'start', 'btnStart', 'btnRefresh', 'btnViewCycle']) root.querySelector('#' + id)?.remove();
     const enableControls = ready => root.querySelectorAll('input, select, button').forEach(control => { control.disabled = !ready; });
@@ -117,8 +118,8 @@
     const style = document.createElement('style');
     style.textContent = `
       html, body { overflow: auto; height: auto; background: #111; color: white; margin: 0; }
-      #connection { position: static; padding: .5rem; margin: 0; }
-      #remoteFeed { display: block; width: 100%; height: 160px; object-fit: contain; }
+      #connection { display: none; }
+      #remoteFeed { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
       #previewRoot { position: relative; min-height: 400px; }
       #gfx, #gfx.rotate { position: static; transform: none; width: 100%; height: 300px; }
       #config, #cfg { position: static; width: auto; padding: .5rem; background: #222; }
