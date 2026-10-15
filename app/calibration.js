@@ -134,7 +134,14 @@
         applying = true;
         try {
           apply(patch);
-          if (offerer) { seeded = true; onState('ready'); }
+          if (offerer) {
+            // Preview Config is memory-only to keep the two panes independent.
+            // Persist the authoritative phone state explicitly, including after
+            // reconnect; never hydrate a pane from another phone's shared keys.
+            for (const [key, value] of Object.entries(patch)) localStorage.setItem(key, JSON.stringify(value));
+            seeded = true;
+            onState('ready');
+          }
         } catch (err) { report(err.message); }
         finally { applying = false; }
         if (!offerer) snapshot();
