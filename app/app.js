@@ -296,7 +296,7 @@
           PreviewGfx.drawRect(cfg.frontRect, 'aqua', 'front');
           await Detect.runFrontDetection(true, true, true);
         } catch (err) { window.CalibrationPreview.report(err.message); }
-        window.CalibrationPreview.timer = setTimeout(preview, 500);
+        requestAnimationFrame(() => { void preview(); });
       };
       void preview();
       return;
