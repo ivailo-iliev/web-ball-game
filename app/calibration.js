@@ -72,7 +72,7 @@
     if (!state) return;
     state.setAttribute('aria-live', 'polite');
     const bar = document.createElement('span');
-    bar.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px';
+    bar.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;pointer-events:auto';
     const calibrationRoom = room(location.pathname.endsWith('/top.html') ? 'top' : 'front');
     for (const [label, target, aria] of [['↻ Game', window.RTC.rooms.gameplay, 'Restart gameplay connection'], ['↻ Cal', calibrationRoom, `Restart ${calibrationRoom === window.RTC.rooms.top ? 'top' : 'front'} calibration connection`]]) {
       const button = document.createElement('button');
