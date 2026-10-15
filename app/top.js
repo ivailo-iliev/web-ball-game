@@ -28,7 +28,6 @@
       };
 
       while (running) {
-        if (window.CalibrationPreview) await new Promise(r => setTimeout(r, 500));
         const frame = await Feeds.frontFrame();
         if (!frame) { await new Promise(r => setTimeout(r, 0)); continue; }
         const cfg = window.cfg;
