@@ -135,6 +135,11 @@
       document.body.append(script);
     });
     for (const file of ['utils', 'webrtc', 'config', 'detect', 'feeds', 'setup', 'calibration', source === 'top' ? 'top' : 'app']) await load(`app/${file}.js`);
+    window.RTC.subscribeDiagnostics(data => {
+      if (data.room === window.RTC.rooms[source]) {
+        toParent('calibration-rtc-diagnostics', { text: window.RTC.formatDiagnostics(data) });
+      }
+    });
     enableControls(false); // Include spinner buttons created by Setup.
     connection = window.Calibration.link({
       source, offerer: true, report,

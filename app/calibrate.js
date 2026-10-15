@@ -18,6 +18,8 @@
       active.pane.contentWindow.postMessage({
         type: 'calibration-perf-rate', source: data.source, fps: Number(active.select.value)
       }, location.origin);
+    } else if (data.type === 'calibration-rtc-diagnostics') {
+      active.diagnostics.textContent = data.text;
     } else if (data.type === 'calibration-perf-stats') {
       active.metrics.textContent = formatStats(data.stats);
     } else if (data.type === 'calibration-perf-error') {
@@ -53,19 +55,23 @@
       select.append(option);
     }
     control.append(select);
+    const diagnostics = document.createElement('pre');
+    diagnostics.className = 'perf-metrics';
+    diagnostics.setAttribute('aria-label', title.textContent + ' WebRTC negotiation timings');
+    diagnostics.textContent = 'Waiting for calibration signaling…';
     const metrics = document.createElement('pre');
     metrics.className = 'perf-metrics';
     metrics.textContent = 'Waiting for WebRTC connection…';
     const pane = document.createElement('iframe');
     pane.title = title.textContent + ' configuration and detector preview';
     pane.src = 'calibration-pane.html?' + new URLSearchParams({ source });
-    panes.set(source, { pane, select, metrics });
+    panes.set(source, { pane, select, metrics, diagnostics });
     select.addEventListener('change', () => {
       pane.contentWindow?.postMessage({
         type: 'calibration-perf-rate', source, fps: Number(select.value)
       }, location.origin);
     });
-    section.append(title, input, copy, control, metrics, pane);
+    section.append(title, input, copy, control, diagnostics, metrics, pane);
     document.getElementById('panes').append(section);
   }
 })();

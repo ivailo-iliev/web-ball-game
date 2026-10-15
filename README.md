@@ -73,6 +73,7 @@ npm install --no-package-lock
 npx tsc --noEmit
 node tests/calibration-check.mjs
 node tests/fixed-rooms-check.mjs
+node tests/rtc-diagnostics-check.mjs
 git diff --check
 ```
 
@@ -114,3 +115,13 @@ Physical cameras, detector accuracy, mobile WebGPU, thermal/gameplay performance
 background throttling and deployed/network connectivity still need device/live
 validation. Netlify deploys from GitHub main; independent review owns the merge
 and deployment gate. These checks do not deploy or assume a preview deployment.
+## On-screen WebRTC negotiation diagnostics
+
+Both phone pages display separate Game and Calibration timing panels, including
+room reset, offer/answer exchange, ICE connected, data-channel open and cumulative
+Netlify signaling request counts/durations. On `calibrate.html`, each source pane
+shows the same timing information next to existing streaming FPS statistics.
+All milestone times are measured locally from the start of that device's
+connection attempt; they are not synchronized between devices. Netlify HTTP
+totals are summed request durations and can overlap. Diagnostics remain visible
+after success/failure; no additional signaling polling is required.

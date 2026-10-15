@@ -10,6 +10,23 @@
     directOnly: false, timeoutMs: 45000, pollMs: 450
   };
   const controllers = new Map();
+  const diagnosticsListeners = new Set();
+  // All timestamps are elapsed milliseconds on this device, not synchronized between peers.
+  const duration = value => Number.isFinite(value) ? Math.round(value) + ' ms' : '—';
+  const formatDiagnostics = d => {
+    if (!d) return 'No connection attempt yet';
+    const offerer = d.role === 'a';
+    const t = d.stages;
+    return [
+      `${offerer ? 'Initiator' : 'Joiner'} · ${d.status}`,
+      offerer
+        ? `Reset: ${duration(t.reset)} | Offer posted: ${duration(t.offerPublished)}`
+        : `Offer received: ${duration(t.offerReceived)} | Answer posted: ${duration(t.answerPublished)}`,
+      offerer ? `Answer received: ${duration(t.answerReceived)}` : null,
+      `ICE connected: ${duration(t.iceConnected)} | Channel open: ${duration(t.channelOpen)}`,
+      `Netlify: ${d.signaling.requests} calls (${d.signaling.reads} reads), total HTTP ${duration(d.signaling.totalMs)}, max ${duration(d.signaling.maxMs)}`
+    ].filter(Boolean).join('\n');
+  };
   const bust = url => { url.searchParams.set('_', Date.now().toString()); return url; };
   async function fetchJson(base, name, { method = 'GET', params = null, body = null } = {}) {
     const url = new URL(base + '/' + name, location.href);
@@ -42,7 +59,42 @@
       console.log(message);
     });
     let epoch = 0, current = null, stopped = false, serial = Promise.resolve();
+    let diagnostics = null;
     const listeners = new Set();
+    function snapshot() {
+      return diagnostics && {
+        room, role, status: controller.status,
+        stages: { ...diagnostics.stages },
+        signaling: { ...diagnostics.signaling }
+      };
+    }
+    function notifyDiagnostics() {
+      const data = snapshot();
+      if (!data) return;
+      for (const callback of diagnosticsListeners) {
+        try { callback(data); } catch (_) {}
+      }
+    }
+    function mark(stage) {
+      if (diagnostics && diagnostics.stages[stage] == null) {
+        diagnostics.stages[stage] = performance.now() - diagnostics.startedAt;
+        notifyDiagnostics();
+      }
+    }
+    async function measuredSignal(kind, fn, attempt) {
+      const start = performance.now();
+      try { return await fn(); }
+      finally {
+        if (diagnostics === attempt) {
+          const elapsed = performance.now() - start;
+          attempt.signaling.requests++;
+          if (kind === 'read') attempt.signaling.reads++;
+          attempt.signaling.totalMs += elapsed;
+          attempt.signaling.maxMs = Math.max(attempt.signaling.maxMs, elapsed);
+          notifyDiagnostics();
+        }
+      }
+    }
     let resolveReady, readyDone = false;
     const ready = new Promise(resolve => { resolveReady = resolve; });
     const finishReady = () => { if (!readyDone) { readyDone = true; resolveReady(controller); } };
@@ -51,6 +103,7 @@
       get pc() { return current?.pc || null; },
       get channel() { return current?.channel || null; },
       get error() { return current?.error || null; },
+      get diagnostics() { return snapshot(); },
       onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); },
       send(message) {
         const channel = controller.channel;
@@ -75,6 +128,7 @@
     function setStatus(state, detail = '') {
       controller.status = state;
       log(detail ? state + ': ' + detail : state);
+      notifyDiagnostics();
       try { options.onState?.(state, detail, controller); } catch (_) {}
       for (const fn of listeners) { try { fn(state, detail, controller); } catch (_) {} }
     }
@@ -93,13 +147,21 @@
 
     async function begin(id, reset) {
       if (stopped || id !== epoch) return;
+      const attempt = diagnostics = {
+        startedAt: performance.now(),
+        stages: { reset: null, offerPublished: null, offerReceived: null, answerPublished: null,
+          answerReceived: null, iceConnected: null, channelOpen: null },
+        signaling: { requests: 0, reads: 0, totalMs: 0, maxMs: 0 }
+      };
+      notifyDiagnostics();
       let generation = null;
       if (reset) {
         setStatus('signaling', 'resetting ' + room);
         try {
-          const response = await resetRoom(options.base, room);
+          const response = await measuredSignal('reset', () => resetRoom(options.base, room), attempt);
           if (!response?.generation) throw new Error('signal-reset did not return a generation');
           generation = response.generation;
+          mark('reset');
         } catch (error) {
           if (id === epoch) setStatus('signaling-error', error.message);
           finishReady();
@@ -109,7 +171,7 @@
       if (id !== epoch || stopped) return;
       const session = {
         pc: null, channel: null, generation, cancelled: false,
-        pendingCandidates: [], error: null, started: performance.now()
+        pendingCandidates: [], error: null, started: attempt.startedAt
       };
       current = session;
       const elapsed = () => Math.round(performance.now() - session.started) + ' ms';
@@ -123,6 +185,7 @@
           session.channel = channel;
           channel.onopen = () => {
             if (current !== session || session.cancelled) return;
+            mark('channelOpen');
             setStatus('connected', 'data channel open in ' + elapsed());
             finishReady();
             try { options.onOpen?.(channel, pc); } catch (error) { log(error.message); }
@@ -150,7 +213,10 @@
             setStatus('negotiating', 'peer disconnected; reconnect manually');
         };
         pc.oniceconnectionstatechange = () => {
-          if (current === session && pc.iceConnectionState === 'failed')
+          if (current !== session) return;
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')
+            mark('iceConnected');
+          else if (pc.iceConnectionState === 'failed')
             setStatus('negotiation-error', 'ICE failed; reconnect manually');
         };
         pc.onicecandidateerror = event => {
@@ -167,18 +233,21 @@
           if (!event.candidate || !session.generation || current !== session ||
               session.cancelled || session.channel?.readyState === 'open') return;
           const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
-          void write(options.base, 'candidate', role, candidate, room, session.generation)
+          void measuredSignal('candidate', () =>
+            write(options.base, 'candidate', role, candidate, room, session.generation), attempt)
             .catch(error => { if (current === session) log('ICE candidate write: ' + error.message); });
         };
         options.preparePc?.(pc);
         if (role === 'a') {
           await pc.setLocalDescription(await pc.createOffer());
           if (id !== epoch || session.cancelled) return;
-          await write(options.base, 'offer', role, pc.localDescription, room, session.generation);
+          await measuredSignal('offer', () =>
+            write(options.base, 'offer', role, pc.localDescription, room, session.generation), attempt);
+          mark('offerPublished');
           if (session.channel?.readyState !== 'open')
             setStatus('negotiating', 'offer sent after ' + elapsed() + '; waiting for answer');
         }
-        await pollSignal(id, session);
+        await pollSignal(id, session, attempt);
       } catch (error) {
         if (id === epoch && !stopped) {
           session.error = error.message;
@@ -190,7 +259,7 @@
       } finally { finishReady(); }
     }
 
-    async function pollSignal(id, session) {
+    async function pollSignal(id, session, attempt) {
       const pc = session.pc;
       const started = Date.now();
       let answered = false;
@@ -207,7 +276,7 @@
         if (session.channel?.readyState === 'open') return;
         if (pc.connectionState === 'failed' || pc.iceConnectionState === 'failed') return;
         try {
-          const result = await read(options.base, role, room);
+          const result = await measuredSignal('read', () => read(options.base, role, room), attempt);
           if (id !== epoch || current !== session || session.cancelled) return;
           if (result?.generation && session.generation && result.generation !== session.generation) {
             setStatus('signaling-error', 'room was reset elsewhere; press Connect or Reset manually');
@@ -219,6 +288,7 @@
             session.pendingCandidates.push(...result.candidates);
           if (role === 'a' && result?.answer && result.generation === session.generation &&
               !pc.remoteDescription) {
+            mark('answerReceived');
             await pc.setRemoteDescription(result.answer);
             answered = true;
             if (session.channel?.readyState !== 'open')
@@ -228,11 +298,14 @@
               !pc.remoteDescription) {
             if (options.directOnly && / typ (srflx|relay)\b/.test(result.offer.sdp || ''))
               throw new Error('offer incompatible with directOnly');
+            mark('offerReceived');
             await pc.setRemoteDescription(result.offer);
             await applyCandidates();
             await pc.setLocalDescription(await pc.createAnswer());
             if (id !== epoch || current !== session || session.cancelled) return;
-            await write(options.base, 'answer', role, pc.localDescription, room, session.generation);
+            await measuredSignal('answer', () =>
+              write(options.base, 'answer', role, pc.localDescription, room, session.generation), attempt);
+            mark('answerPublished');
             answered = true;
             if (session.channel?.readyState !== 'open')
               setStatus('negotiating', 'answer sent; checking ICE');
@@ -279,6 +352,16 @@
       return controller.ready.then(() => controller);
     },
     getController(room = rooms.gameplay) { return controllers.get(room) || null; },
+    formatDiagnostics,
+    subscribeDiagnostics(callback) {
+      diagnosticsListeners.add(callback);
+      for (const controller of controllers.values()) {
+        if (controller.diagnostics) {
+          try { callback(controller.diagnostics); } catch (_) {}
+        }
+      }
+      return () => diagnosticsListeners.delete(callback);
+    },
     restart(room = rooms.gameplay) {
       validateRoom(room);
       return controllers.get(room)?.restart() || null;
