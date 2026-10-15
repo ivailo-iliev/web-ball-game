@@ -75,7 +75,7 @@ PASS browser: front real WebRTC remote stream and seeded matching controls
 PASS browser: independent control patches persist/apply on phones; phone edits refresh pane
 PASS browser: top existing WebGPU detector successful (1 runs)
 PASS browser: front existing WebGPU detector successful (1 runs)
-PASS browser: independent canvas copies have <=2 FPS capture cadence; only one unchanged 60 FPS camera request per phone, none on workstation
+NOT YET REVERIFIED after adjustable calibration FPS change: per-phone 2/5/10/15/30 FPS control and telemetry; camera acquisition stays unchanged and workstation has no camera
 PASS browser: top disconnect does not stop front configuration transport
 PASS browser: no-query pages retain default gameplay DC, local top detector and original launcher; no calibration initialization
 PASS browser: no uncaught page errors, workstation camera acquisition forbidden

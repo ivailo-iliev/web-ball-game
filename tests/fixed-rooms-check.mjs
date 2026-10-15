@@ -94,14 +94,17 @@ console.log('PASS RTC wiring: normal gameplay defaults and both calibration room
 // The workstation opens immediately and emits normal phone URLs even if an old
 // bookmarked query string is present. Internal source is a role selector only.
 const panes = [];
-const node = tag => ({ tag, children: [], setAttribute() {}, append(...children) { this.children.push(...children); } });
+const node = tag => ({ tag, children: [], setAttribute() {}, addEventListener() {}, append(...children) { this.children.push(...children); } });
 vm.runInNewContext(readFileSync('app/calibrate.js', 'utf8'), {
+  window: { addEventListener() {} },
   document: { createElement: node, getElementById: () => ({ append: section => panes.push(section) }) },
   location: { href: 'https://test/calibrate.html?calibration=old-session' }, URL, URLSearchParams
 });
 assert.equal(panes.length, 2);
 assert.deepEqual(panes.map(section => section.children[1].value), ['https://test/top.html', 'https://test/index.html']);
-assert.deepEqual(panes.map(section => section.children[3].src), ['calibration-pane.html?source=top', 'calibration-pane.html?source=front']);
+assert.deepEqual(panes.map(section => section.children[5].src), ['calibration-pane.html?source=top', 'calibration-pane.html?source=front']);
+assert.deepEqual(panes.map(section => section.children[3].children[0].children.map(option => option.value)),
+  [['2', '5', '10', '15', '30'], ['2', '5', '10', '15', '30']]);
 assert.ok(!readFileSync('calibrate.html', 'utf8').includes('name="calibration"'));
 const manifestURL = new URL(JSON.parse(readFileSync('manifest.json')).start_url, 'https://test/manifest.json');
 assert.equal(manifestURL.search, '');
@@ -119,6 +122,7 @@ for (const pathname of ['/top.html', '/index.html', '/']) {
   };
   vm.runInNewContext(readFileSync('app/calibration.js', 'utf8'), {
     window: phoneWindow, location: { pathname, search: '' }, console, setTimeout, clearTimeout,
+    performance: { now: () => 0 },
     document: { createElement: () => ({ getContext: () => ({}), captureStream: () => stream, style: {}, setAttribute() {} }), body: { append() {} } }
   });
   assert.deepEqual(started, [pathname === '/top.html' ? 'calibration-top' : 'calibration-front']);

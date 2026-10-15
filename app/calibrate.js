@@ -7,7 +7,7 @@
     return [
       `Capture ${number(s.captureFps)} fps | Sent ${number(s.sentFps)} fps | Received ${number(s.receivedFps)} fps | Displayed ${number(s.displayedFps)} fps`,
       `Video bitrate ${number(s.bitrateMbps, 2)} Mbps | RTT ${number(s.rttMs)} ms | Packet loss ${number(s.packetLossPercent, 2)}%`,
-      `Phone copy ${number(s.copyMs)} ms/frame | Top game detection ${number(s.gameplayFps)} fps${s.dimensions ? ` | ${s.dimensions}` : ''}`
+      `Phone copy ${number(s.copyMs)} ms/frame | Game detection ${Number.isFinite(s.gameplayFps) ? number(s.gameplayFps) + ' fps' : 'on hit triggers (index)'}${s.dimensions ? ` | ${s.dimensions}` : ''}`
     ].join('\n');
   };
   window.addEventListener('message', event => {

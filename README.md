@@ -38,9 +38,10 @@ paginated old data. Generation IDs are internal signaling metadata, never join
 tokens or URL parameters. Legacy unversioned rooms remain readable/writable until
 their first reset.
 Phone streaming draws independent clones of the existing cropped local frames
-into a manually captured canvas, at most once every 500 ms (2 FPS), without
-changing camera constraints or consuming gameplay's frame. Background browser
-throttling and unavailable cameras can reduce the rate. Phones waiting for the
+into a manually captured canvas. Each feed starts at 2 FPS; the workstation has
+independent 2/5/10/15/30 FPS controls on `calibrate.html` that update each phone
+through its calibration data channel, leaving camera constraints and gameplay
+untouched. Background browser throttling and unavailable cameras can reduce the rate. Phones waiting for the
 workstation poll for its offer. After a disconnected/reloaded phone, reopen
 the workstation and rejoin the phones to negotiate fresh
 peers; reloading the workstation alone does not reconnect an already-connected
@@ -50,8 +51,12 @@ The pane's iframe is an isolated classic-script runtime with an in-memory
 Config, so source settings cannot collide in workstation localStorage. It fetches
 the authoritative top/index screen markup rather than duplicating controls,
 detectors or shaders. No game scripts run inside the calibration panes, and no
-settings are stored on Netlify. Only the required `calibration-state` and
-`calibration-config` JSON envelopes with allowlisted, validated values are used.
+settings are stored on Netlify. Configuration uses validated `calibration-state` and `calibration-config` messages.
+Separate validated `calibration-rate` and `calibration-telemetry` messages control
+streaming and report sender metrics. Panels show capture/sent/received/displayed
+FPS, actual bitrate, RTT, packet loss, phone copy time and (for the top phone)
+game detection FPS where supported by WebRTC statistics. The index detector runs
+only on hit triggers.
 Requires existing WebGPU/VideoFrame/track-processor support plus canvas manual
 capture and WebRTC. Unsupported capture is logged without stopping gameplay.
 

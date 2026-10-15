@@ -58,7 +58,8 @@ async function check() {
   const storage = new Map();
   const window = { CalibrationPreview: {} };
   const sandbox = { window, localStorage: { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) },
-    console, location: { search: '', pathname: '/index.html' }, URLSearchParams, URL, setTimeout, clearTimeout };
+    console, document: { getElementById: () => null },
+    location: { search: '', pathname: '/index.html' }, URLSearchParams, URL, setTimeout, clearTimeout };
   vm.createContext(sandbox);
   const run = file => vm.runInContext(readFileSync(file, 'utf8'), sandbox, { filename: file });
   run('app/config.js');

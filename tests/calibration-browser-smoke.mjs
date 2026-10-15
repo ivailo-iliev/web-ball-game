@@ -88,6 +88,25 @@ async function gameplay(label) {
   }
   console.log(`PASS Top↔Front: 0/1 received (${label})`);
 }
+
+async function calibrationRate(source, fps) {
+  stage = `${source}/calibration FPS ${fps}`;
+  const other = source === 'top' ? 'front' : 'top';
+  const first = source === 'top' ? 0 : 1;
+  const previousOther = await pages[other].evaluate(() => e2e.received.length);
+  await pages.laptop.locator('#panes section').nth(first).locator('select').selectOption(String(fps));
+  await wait(() => pages[source].evaluate(fps => e2e.received.some(text => {
+    try {
+      const message = JSON.parse(text);
+      return message.type === 'calibration-rate' && message.values.fps === fps;
+    } catch { return false; }
+  }), fps), `${stage}/sender received rate`, 10000);
+  await delay(250);
+  assert.equal(await pages[other].evaluate(previous => e2e.received.slice(previous).every(text => {
+    try { return JSON.parse(text).type !== 'calibration-rate'; } catch { return true; }
+  }), previousOther), true, `${stage}/other phone untouched`);
+  console.log(`PASS ${stage}: isolated control message`);
+}
 async function reverseSettings(source, color) {
   stage = `${source} phone→Laptop/configuration ${color}`;
   const before = await pane(source).evaluate(() => ({ config: Config.snapshot(), storage: { ...localStorage } }));
@@ -229,6 +248,7 @@ try {
   await gameplay('all three links simultaneous');
   inject('assertion');
   await settings('top', 'red'); await settings('front', 'blue');
+  await calibrationRate('top', 15); await calibrationRate('front', 10);
   await gameplay('both calibration patches');
   await restartConnection('top', 'peer');
   await restartConnection('front', 'local');
