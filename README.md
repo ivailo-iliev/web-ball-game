@@ -1,19 +1,24 @@
 # Fixed-room WebRTC signaling on Netlify (A/B)
 
 Workflow:
-1) Open `top.html` first (Peer A). It resets only the gameplay room and posts the offer.
-2) Then open `index.html` (Peer B). It reads the offer, posts the answer, and both peers exchange ICE candidates via polling.
+1) Open `top.html` (Peer A). It resets gameplay and publishes an offer.
+2) Open `index.html` (Peer B) and press **Connect Game** to join without resetting.
+3) To reconnect manually: **Reset Game** on top, then **Connect Game** on index.
+Trickle ICE candidates are exchanged during negotiation. After the data channel opens, there are no more signaling requests.
 
 Uses Netlify Functions + Netlify Blobs (strong consistency) as a tiny signaling mailbox.
 
 ## Remote calibration
 
-1. On the workstation open `calibrate.html` on the same site. No session ID or
+1. On the workstation open `calibrate.html` on the same site. This resets and offers
+   both calibration rooms. No session ID or
    join token is needed. Signaling is not authenticated: the three rooms are
    shared by all visitors, so use one workstation and one phone per role at a time.
 2. Copy the displayed normal `top.html` and `index.html` URLs to their respective
-   phones (existing normal/PWA launches also join calibration). Press Start
-   on the top phone to acquire its existing camera; the front phone acquires its
+   phones and press **Connect Cal** on each, after opening the workstation page.
+   To reconnect, press **Reset** on the corresponding workstation pane and then
+   **Connect Cal** on its phone. Press Start on the top phone to acquire its camera;
+   the front phone acquires its
    camera as usual. The workstation acquires no camera.
 3. Each pane displays the remote video and reuses its original configuration
    markup, configuration handlers and WebGPU detector/WGSL preview. Settings
@@ -33,19 +38,18 @@ The same signal-read/write/reset endpoints are retained. Reset returns JSON
 `{ generation }`, and reads include that room-local generation. Writes echo it;
 stale or unversioned writes after reset return HTTP 409. Signals live beneath
 `room/<room>/generations/<generation>/`, so even an old in-flight write cannot
-be consumed by a new connection. Reset cleans up only its own room, including
-paginated old data. Generation IDs are internal signaling metadata, never join
+be consumed by a new connection. Reset immediately switches only its own room; old-generation Blobs are cleaned
+asynchronously when supported by Netlify. Generation IDs are internal signaling metadata, never join
 tokens or URL parameters. Legacy unversioned rooms remain readable/writable until
 their first reset.
 Phone streaming draws independent clones of the existing cropped local frames
 into a manually captured canvas. Each feed starts at 2 FPS; the workstation has
 independent 2/5/10/15/30 FPS controls on `calibrate.html` that update each phone
 through its calibration data channel, leaving camera constraints and gameplay
-untouched. Background browser throttling and unavailable cameras can reduce the rate. Phones waiting for the
-workstation poll for its offer. After a disconnected/reloaded phone, reopen
-the workstation and rejoin the phones to negotiate fresh
-peers; reloading the workstation alone does not reconnect an already-connected
-phone automatically.
+untouched. Background browser throttling and unavailable cameras can reduce the rate.
+Phones look for the workstation offer after Connect Cal is pressed. Reconnection
+requires a manual workstation reset and phone Connect Cal; successful links no
+longer poll Netlify.
 
 The pane's iframe is an isolated classic-script runtime with an in-memory
 Config, so source settings cannot collide in workstation localStorage. It fetches
@@ -76,13 +80,10 @@ The focused fixed-room checks execute the actual signaling handlers with an
 in-memory Blobs fixture and exercise RTC routing with a unit-test peer. They
 verify all three reset/read/write namespaces, stale-generation rejection, phone
 URL generation and normal/PWA-root bootstrap selection. They are not real WebRTC
-or deployed Netlify evidence. Peer lifecycle/restart reliability remains separate
-work; a responder still checks the gameplay offer once.
+or deployed Netlify evidence. The manual reset/connect lifecycle still needs physical-iPhone verification.
 
-The existing three-peer E2E driver is still token-oriented and is intentionally
-not updated in this stage; the ordered downstream integration-test card owns its
-replacement. The historical instructions below do not verify this fixed-room
-revision. The driver uses Playwright only as a browser automation
+The three-peer E2E driver covers manual join/reconnect and shared fixed rooms.
+Its local browser execution does not validate real iPhone network behavior. The driver uses Playwright only as a browser automation
 library. Run from a disposable checkout/worktree on Linux/macOS/WSL with Node
 supported by Netlify CLI and Chromium's system dependencies installed:
 

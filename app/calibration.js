@@ -73,11 +73,21 @@
     state.setAttribute('aria-live', 'polite');
     const bar = document.createElement('span');
     bar.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;pointer-events:auto';
-    const calibrationRoom = room(location.pathname.endsWith('/top.html') ? 'top' : 'front');
-    for (const [label, target, aria] of [['↻ Game', window.RTC.rooms.gameplay, 'Restart gameplay connection'], ['↻ Cal', calibrationRoom, `Restart ${calibrationRoom === window.RTC.rooms.top ? 'top' : 'front'} calibration connection`]]) {
+    const isTop = location.pathname.endsWith('/top.html');
+    const actions = isTop
+      ? [['↻ Reset Game', 'Reset gameplay room', () => window.RTC.restart(window.RTC.rooms.gameplay)],
+         ['Connect Cal', 'Connect to top calibration room', () => window.CalibrationPhone?.connect()]]
+      : [['Connect Game', 'Connect to gameplay room', () => {
+           const target = window.RTC.rooms.gameplay;
+           if (window.RTC.getController(target)) void window.RTC.restart(target);
+           else void window.RTC.startB({ room: target, onState: (state, detail) =>
+             window.Calibration?.setStatus('game', state, detail) });
+         }],
+         ['Connect Cal', 'Connect to front calibration room', () => window.CalibrationPhone?.connect()]];
+    for (const [label, aria, action] of actions) {
       const button = document.createElement('button');
       button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', aria);
-      button.addEventListener('click', () => { void window.RTC.restart(target); });
+      button.addEventListener('click', () => { void action(); });
       bar.append(button);
     }
     state.after(bar);
@@ -135,7 +145,12 @@
         else for (const track of stream.getVideoTracks()) pc.addTrack(track, stream);
       },
       onTrack: e => onStream(e.streams[0] || new MediaStream([e.track])),
-      onState(state, detail) { report(detail ? `${state}: ${detail}` : state); if (!offerer) setStatus('calibration', state, detail); onState(seeded && state === 'connected' ? 'ready' : state); },
+      onState(state, detail) {
+        if (state === 'signaling' || state === 'negotiating') seeded = false;
+        report(detail ? `${state}: ${detail}` : state);
+        if (!offerer) setStatus('calibration', state, detail);
+        onState(seeded && state === 'connected' ? 'ready' : state);
+      },
       onOpen(ch) {
         channel = ch;
         report('connected');
@@ -175,14 +190,14 @@
       }
     };
     async function start() {
-      do {
+      if (stopped) return;
+      try {
         controller = await (offerer ? window.RTC.startA(options) : window.RTC.startB(options));
-        if (offerer || (controller?.pc && controller.pc.connectionState !== 'closed')) break;
-        if (!stopped) await new Promise(resolve => setTimeout(resolve, 1000));
-      } while (!stopped);
-      if (stopped) controller?.stop();
+        if (stopped) controller?.stop();
+      } catch (error) { report(error.message); }
     }
-    void start().catch(err => report(err.message));
+    // Only the calibration workstation offers and resets automatically.
+    if (offerer) void start();
     const stop = () => {
       stopped = true;
       clearTimeout(sendTimer);
@@ -194,6 +209,12 @@
     window.addEventListener('pagehide', stop, { once: true });
     return {
       stop,
+      connect() {
+        if (stopped) return;
+        const existing = window.RTC.getController(room(source));
+        if (existing) void existing.restart(); // responder rejoins without resetting
+        else void start();
+      },
       setRate(fps) { return offerer && validStreamRate(fps) && sendAux('calibration-rate', { fps }); },
       sendTelemetry(data) { return !offerer && validTelemetry(data) && sendAux('calibration-telemetry', data); }
     };
@@ -222,6 +243,7 @@
         }
       }
     });
+    window.CalibrationPhone = { connect: () => connection.connect() };
 
     async function sendMetrics(now) {
       if (reporting) return;

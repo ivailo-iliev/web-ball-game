@@ -15,16 +15,17 @@ export default async (req: Request, _context: Context) => {
 
   const generation = await store.get(`${base}/generation.json`, { type: 'json' })
   const signalBase = generation ? `${base}/generations/${generation}` : base
-  const offer  = await store.get(`${signalBase}/offer.json`,  { type: 'json' })
-  const answer = await store.get(`${signalBase}/answer.json`, { type: 'json' })
-
-  const list = await store.list({ prefix: `${signalBase}/candidates-${peer}/` })
-  const candidates: any[] = []
-  for (const { key } of list.blobs) {
-    const c = await store.get(key, { type: 'json' })
-    if (c) candidates.push(c)
-    await store.delete(key) // pop after read
-  }
+  // Fetch candidate inbox and SDP blobs concurrently to reduce polling latency.
+  const [offer, answer, list] = await Promise.all([
+    store.get(`${signalBase}/offer.json`, { type: 'json' }),
+    store.get(`${signalBase}/answer.json`, { type: 'json' }),
+    store.list({ prefix: `${signalBase}/candidates-${peer}/` })
+  ])
+  const candidates = (await Promise.all(list.blobs.map(async ({ key }) => {
+    const candidate = await store.get(key, { type: 'json' })
+    await store.delete(key)
+    return candidate
+  }))).filter(Boolean)
 
   return new Response(JSON.stringify({ generation, offer, answer, candidates }), {
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
