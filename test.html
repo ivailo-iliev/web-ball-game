@@ -1,110 +1,168 @@
 <!doctype html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8" />
-  <title>Ferris wheel</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-</head>
-
-<body>
-  <div class="wrap">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>iPhone Camera FPS Test</title>
   <style>
-    svg { --period: 8s; shape-rendering: geometricPrecision; text-rendering: optimizeSpeed; contain: content; }
-
-    .wheel {
-      transform-box: fill-box;
-      transform-origin: 50% 50%;
-      animation: wheel-spin var(--period) linear infinite, wheelHue var(--period) linear infinite;
-      will-change: transform, filter;
-      filter: hue-rotate(0deg);
-    }
-    @keyframes wheel-spin { to { transform: rotate(360deg) } }
-
-    .carts > use{
-      offset-path: path("M 216 66 A 180 180 0 1 1 215.999 66"); /* center @ (216,246), radius=180 */
-      offset-rotate: 0deg;
-      animation: orbit var(--period) linear infinite;
-      will-change: offset-distance, transform;
-      transform: translateZ(0);
-    }
-    @keyframes orbit { from { offset-distance:0% } to { offset-distance:100% } }
-
-    /* Symbol path colors via CSS variables */
-    #cart .c1 { fill: var(--c1, #f47daa) }
-    #cart .c2 { fill: var(--c2, #ea4889) }
-
-    /* Per-instance colors + phase (remove all inline styles) */
-    .carts > use:nth-child(1){ --c1:#f47daa; --c2:#ea4889; animation-delay:   0s }
-    .carts > use:nth-child(2){ --c1:#a47ecc; --c2:#7a56bf; animation-delay:  -1s }
-    .carts > use:nth-child(3){ --c1:#2584ff; --c2:#014fab; animation-delay:  -2s }
-    .carts > use:nth-child(4){ --c1:#69a5ad; --c2:#41727a; animation-delay:  -3s }
-    .carts > use:nth-child(5){ --c1:#02ad41; --c2:#2f7c31; animation-delay:  -4s }
-    .carts > use:nth-child(6){ --c1:#ffd61c; --c2:#ffa42d; animation-delay:  -5s }
-    .carts > use:nth-child(7){ --c1:#ff8e05; --c2:#ff4c1c; animation-delay:  -6s }
-    .carts > use:nth-child(8){ --c1:#fc2b26; --c2:#da0a26; animation-delay:  -7s }
-
-    @keyframes wheelHue {
-      from { filter: hue-rotate(0deg); }
-      to   { filter: hue-rotate(360deg); }
-    }
+    body { margin: 0; padding: 16px; background: #111; color: #fff; font: 15px/1.5 system-ui, sans-serif; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    label { display: grid; gap: 4px; }
+    select, button { padding: 10px; font: inherit; }
+    button { cursor: pointer; }
+    video { width: 100%; max-height: 55dvh; object-fit: contain; background: #222; margin-top: 16px; }
+    pre { padding: 12px; background: #222; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .note { color: #bbb; font-size: 13px; }
   </style>
+</head>
+<body>
+  <h1>Camera FPS test</h1>
+  <div class="controls">
+    <label>Camera
+      <select id="camera">
+        <option value="user">Front</option>
+        <option value="environment">Rear</option>
+      </select>
+    </label>
+    <label>Resolution
+      <select id="resolution">
+        <option value="1280x720">1280 × 720</option>
+        <option value="1920x1080">1920 × 1080</option>
+        <option value="640x480">640 × 480</option>
+      </select>
+    </label>
+    <label>Frame-rate constraint
+      <select id="fps">
+        <option value="minimum">60 FPS minimum</option>
+        <option value="ideal">60 FPS ideal</option>
+        <option value="exact">60 FPS exact</option>
+        <option value="30">30 FPS ideal</option>
+      </select>
+    </label>
+    <button id="start">Start camera</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
 
-  <defs>
-    <radialGradient id="wheelGradient" cx="256" cy="256" r="220" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ff0040"/>
-      <stop offset="16%" stop-color="#ffa500"/>
-      <stop offset="32%" stop-color="#ffff00"/>
-      <stop offset="48%" stop-color="#00ff00"/>
-      <stop offset="64%" stop-color="#00bfff"/>
-      <stop offset="80%" stop-color="#7a00ff"/>
-      <stop offset="100%" stop-color="#ff00ff"/>
-    </radialGradient>
-    <symbol id="cart" viewBox="0 0 78 68">
-      <path class="c1" d="M17 0c-6 0-7 5-8 10L3 43h72L70 9c-1-5-2-8-8-9H17Z"/>
-      <path class="c2" d="M0 56c-1 6 5 12 8 12h61c5 0 9-3 8-10l-2-15H3L0 56Z"/>
-    </symbol>
-  </defs>
+  <video id="preview" autoplay muted playsinline></video>
+  <pre id="results" aria-live="polite">Press Start camera.</pre>
+  <div class="note">Standalone getUserMedia test. No WebGPU, workers, track cloning,
+    secondary constraints, or game scripts. The displayed FPS is measured from
+    video-frame callbacks; the camera FPS comes from MediaStreamTrack.getSettings().</div>
 
-  <!-- background shapes (your simplified geometry preserved) -->
-<g>
-  <path fill="#7956c0" d="M-16 193 98-60l25-128-28-21L39-39l-162 248 107-16Z"
-        transform="matrix(.47 0 0 .47 193.13 394.56)"/>
-  <path fill="#7956c0" d="M-128-173c1 15 35 129 35 129L33 207l95 3L-52-51l-55-159-21 37Z"
-        transform="matrix(.47 0 0 .47 320.03 389.39)"/>
-  <path fill="#8f7cf3" d="M-120 190c7-7 163-249 163-249l55-154 24 28L90-52-85 211l-37 2 2-23Z"
-        transform="matrix(.47 0 0 .47 187.02 390.80)"/>
-  <path fill="#8f7cf3" d="m-130-191 41 138L88 212l42-4L-48-62l-58-150-24 21Z"
-        transform="matrix(.47 0 0 .47 327.08 391.74)"/>
-  <path fill="#8f7cf3" d="M-326-28c-7 7-4 54 1 56 3 1 159 2 321 2s328 2 331 0c6-2 5-52 0-56-2-3-166-3-329-4-162-1-320-2-324 2Z"
-        transform="matrix(.47 0 0 .47 258.46 495.14)"/>
-</g>
+  <script>
+    (() => {
+      'use strict';
 
-  <!-- wheel -->
-  <g class="wheel">
-    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2 18" stroke-width="9.2"
-      d="M256 73v185l130-131-130 131h184-184l130 130-130-130v184-184L126 388l130-130H72h184L126 127l130 131Zm0 0a184 184 0 0 0 0 369 184 184 0 0 0 0-369"/>
-    <path fill="none" stroke="url(#wheelGradient)" stroke-linecap="round" stroke-dasharray="2.5 20" stroke-width="11"
-      d="m256 78 48 63 79-11-11 79 64 49-64 48 11 79-79-11-48 63-48-63-79 11 11-79-64-48 64-49-11-79 79 11Zm0 59a120 120 0 0 0 0 241 120 120 0 0 0 0-241"/>
-  </g>
+      const $ = id => document.getElementById(id);
+      const video = $('preview');
+      const results = $('results');
+      const startButton = $('start');
+      const stopButton = $('stop');
+      let stream = null;
+      let track = null;
+      let callbackId = null;
+      let pollId = null;
+      let seenFrames = 0;
+      let lastSample = 0;
+      let observedFPS = 'measuring…';
+      let requestedLabel = '';
 
-  <!-- hub -->
-  <path fill="#f0edec" stroke="#c8c8c8" stroke-width="12"
-    d="m256 206 15 16 22-1-1 22 16 15-16 14 1 22h-22l-15 16-15-16h-22l1-22-16-14 16-15-1-22 22 1Z"/>
+      function stop() {
+        if (pollId !== null) clearInterval(pollId);
+        pollId = null;
+        if (callbackId !== null && video.cancelVideoFrameCallback) {
+          video.cancelVideoFrameCallback(callbackId);
+        }
+        callbackId = null;
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        video.pause();
+        video.srcObject = null;
+        stream = track = null;
+        startButton.disabled = false;
+        stopButton.disabled = true;
+      }
 
-  <!-- 8 carts (colors & delays set via CSS nth-of-type above) -->
-  <g class="carts">
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-    <use href="#cart" width="80" height="70"/>
-  </g>
-</svg>
+      function frameCallback() {
+        if (!track) return;
+        seenFrames++;
+        callbackId = video.requestVideoFrameCallback(frameCallback);
+      }
 
+      function render() {
+        if (!track) return;
+        const settings = track.getSettings();
+        let capabilities = {};
+        try { capabilities = track.getCapabilities(); } catch (_) {}
+
+        const elapsed = performance.now() - lastSample;
+        if (elapsed >= 1800 && video.requestVideoFrameCallback) {
+          observedFPS = (seenFrames * 1000 / elapsed).toFixed(1) + ' FPS';
+          seenFrames = 0;
+          lastSample = performance.now();
+        }
+
+        const range = capabilities.frameRate;
+        results.textContent = [
+          'Requested: ' + requestedLabel,
+          'Negotiated: ' + (settings.width ?? '?') + ' × ' +
+            (settings.height ?? '?') + ' @ ' + (settings.frameRate ?? '?') + ' FPS',
+          'Reported FPS capability: ' +
+            (range ? range.min + '–' + range.max : 'unavailable'),
+          'Observed video frames: ' +
+            (video.requestVideoFrameCallback ? observedFPS : 'API unavailable'),
+          'Track state: ' + track.readyState,
+          'Actual track constraints: ' + JSON.stringify(track.getConstraints())
+        ].join('\n');
+      }
+
+      startButton.addEventListener('click', async () => {
+        stop();
+        startButton.disabled = true;
+        results.textContent = 'Requesting camera…';
+        const [width, height] = $('resolution').value.split('x').map(Number);
+        const facingMode = $('camera').value;
+        const mode = $('fps').value;
+        const frameRate = mode === 'minimum' ? { min: 60, ideal: 60 }
+          : mode === 'exact' ? { exact: 60 }
+          : { ideal: mode === '30' ? 30 : 60 };
+
+        requestedLabel = facingMode + ', ' + width + ' × ' + height +
+          ', ' + JSON.stringify(frameRate);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: { ideal: facingMode },
+              width: { ideal: width },
+              height: { ideal: height },
+              frameRate
+            }
+          });
+          track = stream.getVideoTracks()[0];
+          video.srcObject = stream;
+          await video.play();
+          stopButton.disabled = false;
+          seenFrames = 0;
+          lastSample = performance.now();
+          observedFPS = 'measuring…';
+          if (video.requestVideoFrameCallback) {
+            callbackId = video.requestVideoFrameCallback(frameCallback);
+          }
+          render();
+          pollId = setInterval(render, 500);
+        } catch (error) {
+          results.textContent = 'Request failed: ' + error.name + ': ' + error.message;
+          stop();
+        }
+      });
+
+      stopButton.addEventListener('click', () => {
+        stop();
+        results.textContent = 'Stopped.';
+      });
+      window.addEventListener('pagehide', stop);
+    })();
+  </script>
 </body>
 </html>
