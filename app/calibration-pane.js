@@ -117,24 +117,19 @@
     enableControls(false);
     const style = document.createElement('style');
     style.textContent = `
-      html, body { overflow: auto; height: auto; background: #111; color: white; margin: 0; }
+      html, body { overflow: hidden; width: 100%; height: 100%; background: #111; color: white; margin: 0; }
       #connection { display: none; }
       #remoteFeed { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-      #previewRoot { position: relative; min-height: 0; }
-      #gfx, #gfx.rotate { position: static; transform: none; width: 100%; height: 300px; }
-      #config, #cfg { position: static; width: auto; padding: .5rem; background: #222; }
-      #configScreen { height: auto; display: flex; flex-direction: column; }
-      #frontCam { width: 100%; height: 300px; }
+      #previewRoot { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+      #gfx, #gfx.rotate { position: static; flex: 1 1 auto; min-height: 180px; transform: none; width: 100%; height: auto; }
+      #config, #cfg { position: static; flex: 0 0 auto; width: auto; padding: .5rem; background: #222; }
+      #configScreen { flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; }
+      #frontCam { flex: 1 1 auto; width: 100%; height: auto; min-height: 180px; }
       #cfg.hide-number-inputs .num-spinner, #cfg.hide-number-inputs label:has(input[type="number"]) { display: inline-flex; }
       #cfg label[for="frontZoom"] { display: inline-flex; }
       #state { display: none; }
     `;
     document.head.append(style);
-    const reportHeight = () => toParent('calibration-pane-height', {
-      height: Math.ceil(root.getBoundingClientRect().height)
-    });
-    new ResizeObserver(reportHeight).observe(root);
-    reportHeight();
     const load = src => new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = src; script.onload = resolve; script.onerror = () => reject(new Error(`Cannot load ${src}`));
