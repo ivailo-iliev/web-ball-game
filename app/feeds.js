@@ -84,7 +84,7 @@ self.onmessage = async ({ data }) => {
       return new VideoFrame(frame, { visibleRect: { x, y, width: cropW, height: cropH } });
     }
 
-    async function init({ facingMode = 'environment', require60fps = false } = {}) {
+    async function init({ facingMode = 'environment', require60fps = false, skipAdvancedConstraints = false } = {}) {
       // Calibration panes consume only their assigned remote stream, never a camera.
       if (window.CalibrationPreview) return true;
       if (!window.Config) return false;
@@ -197,7 +197,8 @@ self.onmessage = async ({ data }) => {
           colorTemperature: 5600,
         });
       }
-      if (advConstraints.length) {
+      // Keep the 60 FPS test on top.html free of later constraint replacement.
+      if (advConstraints.length && !skipAdvancedConstraints) {
         try {
           await new Promise(r => setTimeout(r, 1500));
           await track.applyConstraints({ advanced: advConstraints });

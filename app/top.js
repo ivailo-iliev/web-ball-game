@@ -9,7 +9,7 @@
       running = true;
       const infoEl = $('#info');
 
-      if (!await Feeds.init({ facingMode: 'user', require60fps: true })) {
+      if (!await Feeds.init({ facingMode: 'user', require60fps: true, skipAdvancedConstraints: true })) {
         if (infoEl) infoEl.textContent = 'Feed init failed';
         running = false;
         return;
