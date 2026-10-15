@@ -120,7 +120,7 @@
       html, body { overflow: auto; height: auto; background: #111; color: white; margin: 0; }
       #connection { display: none; }
       #remoteFeed { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-      #previewRoot { position: relative; min-height: 400px; }
+      #previewRoot { position: relative; min-height: 0; }
       #gfx, #gfx.rotate { position: static; transform: none; width: 100%; height: 300px; }
       #config, #cfg { position: static; width: auto; padding: .5rem; background: #222; }
       #configScreen { height: auto; display: flex; flex-direction: column; }
@@ -130,6 +130,11 @@
       #state { display: none; }
     `;
     document.head.append(style);
+    const reportHeight = () => toParent('calibration-pane-height', {
+      height: Math.ceil(root.getBoundingClientRect().height)
+    });
+    new ResizeObserver(reportHeight).observe(root);
+    reportHeight();
     const load = src => new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = src; script.onload = resolve; script.onerror = () => reject(new Error(`Cannot load ${src}`));
